@@ -10,6 +10,14 @@ interface EpisodeCardProps {
   episode: Episode;
 }
 
+function EpisodeSkeleton() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-surface animate-pulse">
+      <div className="h-8 w-8 rounded-full bg-surface-hover" />
+    </div>
+  );
+}
+
 function EpisodePlaceholder({ number }: { number: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-surface to-surface-hover">
@@ -24,6 +32,7 @@ function EpisodePlaceholder({ number }: { number: string }) {
 export function EpisodeCard({ episode }: EpisodeCardProps) {
   const candidates = getThumbnailCandidates(episode.number);
   const [index, setIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   const src = candidates[index] ?? null;
 
@@ -33,22 +42,25 @@ export function EpisodeCard({ episode }: EpisodeCardProps) {
       className="group relative block overflow-hidden rounded-lg border border-border bg-surface transition-all hover:border-neon-cyan/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)]"
     >
       <div className="relative aspect-square overflow-hidden bg-surface">
-        {src ? (
+        {isLoading && <EpisodeSkeleton />}
+        {src && (
           <Image
             key={src}
             src={src}
             alt={episode.title}
             fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
+            className={`object-cover transition-all duration-300 group-hover:scale-105 ${
+              isLoading ? "opacity-0" : "opacity-100"
+            }`}
             loading="lazy"
             onError={() => setIndex((i) => i + 1)}
+            onLoad={() => setIsLoading(false)}
           />
-        ) : (
-          <EpisodePlaceholder number={episode.number} />
         )}
+        {!src && <EpisodePlaceholder number={episode.number} />}
       </div>
-      <div className="p-3">
+      <div className="p-2 sm:p-3">
         <p className="text-xs font-mono text-neon-cyan">#{episode.number}</p>
         <p className="mt-1 text-sm text-foreground truncate">{episode.title}</p>
         {episode.category && (

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -8,6 +7,7 @@ import {
   getAllEpisodes,
 } from "@/lib/episodes";
 import { getOriginalUrl } from "@/lib/images";
+import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 
 interface EpisodePageProps {
   params: Promise<{ number: string }>;
@@ -42,14 +42,7 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
     <div className="min-h-screen bg-background">
       <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-0">
         <div className="relative h-[60vh] bg-surface/50 lg:h-screen">
-          <Image
-            src={imageUrl}
-            alt={episode.title}
-            fill
-            sizes="100vw"
-            className="object-contain p-2 sm:p-4 lg:p-8"
-            priority
-          />
+          <EpisodeDetailImage src={imageUrl} alt={episode.title} />
         </div>
 
         <aside className="sticky bottom-0 border-t border-border bg-background/95 backdrop-blur-sm lg:sticky lg:top-0 lg:h-screen lg:border-l lg:border-t-0 lg:bg-background">

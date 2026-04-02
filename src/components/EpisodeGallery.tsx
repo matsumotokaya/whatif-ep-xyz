@@ -46,7 +46,7 @@ export function EpisodeGallery({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 md:grid-cols-4 lg:grid-cols-5 md:gap-3">
         {episodes.map((episode) => (
           <EpisodeCard key={episode.id} episode={episode} />
         ))}

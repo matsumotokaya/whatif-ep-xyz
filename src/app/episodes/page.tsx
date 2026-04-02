@@ -13,7 +13,7 @@ export default function EpisodesPage() {
   const total = getTotalCount();
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-7xl px-2 py-6 sm:px-4 sm:py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight neon-text-cyan">
           Episodes
