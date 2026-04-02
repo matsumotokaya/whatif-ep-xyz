@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import type { Episode } from "@/lib/types";
-import { getThumbnailUrl, getOriginalUrl } from "@/lib/images";
+import { getThumbnailCandidates } from "@/lib/images";
 
 interface EpisodeCardProps {
   episode: Episode;
@@ -21,14 +22,10 @@ function EpisodePlaceholder({ number }: { number: string }) {
 }
 
 export function EpisodeCard({ episode }: EpisodeCardProps) {
-  const r2Base = process.env.NEXT_PUBLIC_R2_BASE_URL;
-  const hasR2 = Boolean(r2Base);
+  const candidates = getThumbnailCandidates(episode.number);
+  const [index, setIndex] = useState(0);
 
-  const imageUrl = hasR2
-    ? episode.hasThumbnailJpg
-      ? getThumbnailUrl(episode.number)
-      : getOriginalUrl(episode.number)
-    : null;
+  const src = candidates[index] ?? null;
 
   return (
     <Link
@@ -36,14 +33,16 @@ export function EpisodeCard({ episode }: EpisodeCardProps) {
       className="group relative block overflow-hidden rounded-lg border border-border bg-surface transition-all hover:border-neon-cyan/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)]"
     >
       <div className="relative aspect-square overflow-hidden bg-surface">
-        {imageUrl ? (
+        {src ? (
           <Image
-            src={imageUrl}
+            key={src}
+            src={src}
             alt={episode.title}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
+            onError={() => setIndex((i) => i + 1)}
           />
         ) : (
           <EpisodePlaceholder number={episode.number} />
