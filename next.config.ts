@@ -5,13 +5,9 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "*.r2.dev",
+        hostname: "pub-9339dc326a024891a297479881e66962.r2.dev",
       },
-      {
-        protocol: "https",
-        hostname: "*.workers.dev",
-      },
-      // Add R2 custom domain when configured
+      // Add custom domain when configured
       // { protocol: "https", hostname: "assets.whatif-ep.com" },
     ],
     formats: ["image/webp", "image/avif"],
