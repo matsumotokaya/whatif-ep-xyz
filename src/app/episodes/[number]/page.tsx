@@ -41,17 +41,15 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
   return (
     <div className="min-h-screen bg-background">
       <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-0">
-        <div className="relative flex min-h-[50vh] items-center justify-center bg-surface/50 lg:min-h-screen">
-          <div className="relative h-full w-full">
-            <Image
-              src={imageUrl}
-              alt={episode.title}
-              fill
-              sizes="100vw"
-              className="object-contain p-2 sm:p-4 lg:p-8"
-              priority
-            />
-          </div>
+        <div className="relative h-[60vh] bg-surface/50 lg:h-screen">
+          <Image
+            src={imageUrl}
+            alt={episode.title}
+            fill
+            sizes="100vw"
+            className="object-contain p-2 sm:p-4 lg:p-8"
+            priority
+          />
         </div>
 
         <aside className="sticky bottom-0 border-t border-border bg-background/95 backdrop-blur-sm lg:sticky lg:top-0 lg:h-screen lg:border-l lg:border-t-0 lg:bg-background">
