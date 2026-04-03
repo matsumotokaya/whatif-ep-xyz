@@ -21,11 +21,22 @@ interface AuthContextType {
   loading: boolean;
   signInWithGoogle: (nextPath?: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    nextPath?: string
+  ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function resolveBaseUrl() {
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const raw =
+    envUrl && envUrl.trim().length > 0 ? envUrl.trim() : window.location.origin;
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -73,11 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async (nextPath = '/') => {
     const safeNextPath =
       nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
+    const baseUrl = resolveBaseUrl();
 
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNextPath)}`,
+        redirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(safeNextPath)}`,
       },
     });
   };
@@ -87,8 +99,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message || null };
   };
 
-  const signUpWithEmail = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  const signUpWithEmail = async (email: string, password: string, nextPath = '/') => {
+    const safeNextPath =
+      nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
+    const baseUrl = resolveBaseUrl();
+    const emailRedirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(
+      safeNextPath
+    )}`;
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo },
+    });
     return {
       error: error?.message || null,
       needsConfirmation: !error && !data?.session,

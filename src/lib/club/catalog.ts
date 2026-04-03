@@ -11,6 +11,7 @@ export interface ClubItem {
   status: ClubItemStatus;
   description: string;
   details: string[];
+  coverImageUrl: string | null;
   fileName: string;
   fileSizeLabel: string;
   updatedAt: string;
@@ -54,6 +55,14 @@ function formatDate(value: string | null | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
+}
+
+function buildCoverUrl(storageKey: string | null) {
+  if (!storageKey) return null;
+  const baseUrl = process.env.NEXT_PUBLIC_R2_BASE_URL;
+  if (!baseUrl) return null;
+  const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return new URL(storageKey, base).toString();
 }
 
 function resolveAccent(kind: ClubItemKind): ClubItem["accent"] {
@@ -105,6 +114,7 @@ function mapRecord(record: ClubItemRecord): ClubItem {
     status,
     description: record.description ?? "",
     details: resolveDetails(record.kind),
+    coverImageUrl: buildCoverUrl(record.cover_image_url),
     fileName: record.file_name,
     fileSizeLabel: formatFileSize(record.file_size_bytes),
     updatedAt,

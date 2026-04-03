@@ -58,6 +58,7 @@ NEXT_PUBLIC_R2_BASE_URL=https://pub-9339dc326a024891a297479881e66962.r2.dev
 NEXT_PUBLIC_GA_ID=G-X5E0WH9Y43
 NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+NEXT_PUBLIC_SITE_URL=https://whatif-ep-xyz.vercel.app
 R2_ACCOUNT_ID=<your-r2-account-id>
 R2_ACCESS_KEY_ID=<your-r2-access-key>
 R2_SECRET_ACCESS_KEY=<your-r2-secret>
@@ -65,7 +66,6 @@ R2_BUCKET=whatif-ep-xyz
 ```
 
 `NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は The Club の private download 用。
-`R2_*` が未設定の場合は、The Club の download route が `NEXT_PUBLIC_R2_BASE_URL` を使って public redirect するフォールバックがあります。
 
 The Club 移行の進捗と引き継ぎメモは [`THE_CLUB_STATUS.md`](./THE_CLUB_STATUS.md) を参照。
 
@@ -104,10 +104,11 @@ npm run build
 - [x] Episodes Gallery（無限スクロール）
 - [x] 全440エピソードの個別ページ（SSG）
 - [x] Google Analytics 統合
+- [x] The Club（premium gating + catalog + download）
 
 ### 移行中・未対応
 - [ ] **ドメイン移管** — 現在は仮URL（`whatif-ep-xyz.vercel.app`）。本番ドメインをCloudflare DNS → Vercelに向ける設定が必要
-- [ ] **The Club** — 新サイト側への移植は進行中。認証・カタログ・private download の土台は実装済みで、最終確認と切替準備が残っている
+- [ ] **旧The Clubの導線切替/停止** — PHP 版から新サイト側への切替手順を確定し、停止タイミングを決める
 - [ ] **R2カスタムドメイン** — 現在はR2のデフォルトURL。カスタムドメインへの切り替え予定
 
 ### 旧サイト（ロリポップ）

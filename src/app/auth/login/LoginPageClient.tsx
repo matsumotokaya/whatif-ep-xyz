@@ -36,7 +36,11 @@ export default function LoginPageClient() {
         router.refresh();
       }
     } else {
-      const { error, needsConfirmation } = await signUpWithEmail(email, password);
+      const { error, needsConfirmation } = await signUpWithEmail(
+        email,
+        password,
+        nextPath
+      );
       if (error) {
         setError(error);
       } else if (needsConfirmation) {

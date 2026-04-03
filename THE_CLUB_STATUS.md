@@ -13,8 +13,8 @@
 
 ## 現在地
 
-体感としては「基盤実装はほぼ完了、切替前の確認と細部調整が残り」という状態。
-前回セッションのメモと現行コードを照合すると、8割前後という認識で概ね合っている。
+コア機能（premium 判定・一覧・詳細・ダウンロード）は本番で動作確認済み。
+残っているのは旧サイトからの導線切替と運用整理。
 
 ## コードベースで確認できたこと
 
@@ -82,32 +82,27 @@
 - reel の `sort_order` null 問題は修正済み
 - 旧資産では `0076` と `0213` に zip が無く、manifest から除外した
 
+## 最新の確認結果（2026-04-03）
+
+- Vercel 本番に `R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY` を登録済み
+- 本番で `/api/the-club/download/wallpaper-0001` のダウンロードが成功
+- `cover_image_url` のサムネイルを一覧/詳細で表示する実装を追加
+
 ## まだ残っていること
 
 ### リリース前に必須
 
-1. premium アカウントで実画面テスト
-   - `/the-club`
-   - `/the-club/library`
-   - `/the-club/[slug]`
-   - `/api/the-club/download/[slug]`
-2. Vercel / ローカルの環境変数確認
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `R2_ACCOUNT_ID`
-   - `R2_ACCESS_KEY_ID`
-   - `R2_SECRET_ACCESS_KEY`
-   - `R2_BUCKET`
-3. 本番で `club_items` と R2 オブジェクトが本当に揃っているか再確認
-4. 旧サイトから新サイトへの導線切替方法を決める
+1. 旧サイトから新サイトへの導線切替方法を決める
    - いつ `/the-club` を新導線にするか
    - 旧 PHP 側をいつ閉じるか
+2. `NEXT_PUBLIC_SITE_URL` を一時的に Vercel ドメインに設定
+   - 最終ドメイン確定時に値と Supabase Redirect URLs を更新する
 
 ### 実装は動くが、判断が必要
 
 1. `/the-club` の stats は匿名 / free ユーザーだと RLS で 0 件表示になる
    - 公開向けに件数を見せたいなら別実装が必要
-2. `cover_image_url` は DB に入るが、一覧 UI ではまだ活用していない
+2. サムネイルが無いエピソードは "No preview" 表示になる
 3. `book` kind は DB 制約には入っているが、実データ投入フローは未整備
 
 ### 早めに片付けたい運用課題
@@ -119,11 +114,8 @@
 
 ## 完成までの推奨順序
 
-1. 環境変数を本番・ローカルで揃える
-2. premium アカウントで通しテストする
-3. 問題があれば UI / 認証 / R2 署名 URL を修正する
-4. `/the-club` 導線を新実装に切り替える
-5. 旧 PHP 側の停止条件を整理する
+1. `/the-club` 導線を新実装に切り替える
+2. 旧 PHP 側の停止条件を整理する
 
 ## 今すぐ再開するときのチェックリスト
 

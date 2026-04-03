@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { ClubAccessState } from "@/lib/club/access";
@@ -138,6 +139,22 @@ export function ClubItemCard({ item }: { item: ClubItem }) {
     <article
       className={`overflow-hidden rounded-3xl border p-5 shadow-[0_0_30px_rgba(0,0,0,0.22)] ${accentClasses[item.accent]}`}
     >
+      {item.coverImageUrl ? (
+        <div className="mb-4 overflow-hidden rounded-2xl border border-border/70 bg-background/40">
+          <Image
+            src={item.coverImageUrl}
+            alt={`${item.title} preview`}
+            width={1200}
+            height={675}
+            className="h-48 w-full object-cover"
+            sizes="(min-width: 1024px) 420px, 100vw"
+          />
+        </div>
+      ) : (
+        <div className="mb-4 flex h-48 items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background/30 text-[11px] uppercase tracking-[0.3em] text-muted">
+          No preview
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -227,6 +244,22 @@ export function ClubDetailPanel({
         </div>
 
         <div className="rounded-3xl border border-border bg-background/55 p-5">
+          {item.coverImageUrl ? (
+            <div className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-background/40">
+              <Image
+                src={item.coverImageUrl}
+                alt={`${item.title} preview`}
+                width={1400}
+                height={788}
+                className="h-52 w-full object-cover"
+                sizes="(min-width: 1024px) 480px, 100vw"
+              />
+            </div>
+          ) : (
+            <div className="mb-5 flex h-52 items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background/30 text-[11px] uppercase tracking-[0.3em] text-muted">
+              No preview
+            </div>
+          )}
           <p className="text-xs uppercase tracking-[0.3em] text-neon-cyan/80">
             Download state
           </p>
@@ -249,8 +282,8 @@ export function ClubDetailPanel({
             </div>
           </div>
           <div className="mt-6 rounded-2xl border border-dashed border-border bg-surface/60 p-4 text-sm leading-7 text-muted">
-            The Club is ready for premium access control. Private asset delivery
-            will be connected next, once the storage location is finalized.
+            Downloads are delivered via signed URLs. Previews use stored cover
+            images when available.
           </div>
         </div>
       </div>
