@@ -41,7 +41,7 @@ export default async function TheClubPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             {access.status === "anonymous" ? (
               <Link
-                href="/auth/login"
+                href="/auth/login?next=%2Fthe-club"
                 className="inline-flex items-center rounded-full border border-neon-cyan/40 bg-neon-cyan/10 px-5 py-3 text-sm font-medium text-neon-cyan transition-colors hover:bg-neon-cyan/15"
               >
                 Log in

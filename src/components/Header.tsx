@@ -90,6 +90,10 @@ function UserMenu() {
 export function Header() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
+  const loginHref =
+    pathname && pathname.startsWith("/") && !pathname.startsWith("//")
+      ? `/auth/login?next=${encodeURIComponent(pathname)}`
+      : "/auth/login";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
@@ -134,7 +138,7 @@ export function Header() {
               <UserMenu />
             ) : (
               <Link
-                href="/auth/login"
+                href={loginHref}
                 className="text-sm font-medium px-3 py-1.5 border border-neon-cyan text-neon-cyan rounded hover:bg-neon-cyan hover:text-background transition-colors"
               >
                 ログイン
