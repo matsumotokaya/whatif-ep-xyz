@@ -31,24 +31,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function resolveBaseUrl() {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  const origin = window.location.origin;
-  if (!envUrl) {
-    return origin;
-  }
-
-  try {
-    const envHost = new URL(envUrl).host;
-    const originHost = new URL(origin).host;
-    if (envHost !== originHost) {
-      return origin;
-    }
-  } catch {
-    return origin;
-  }
-
-  return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+function setAuthNextCookie(nextPath: string) {
+  const safeNextPath =
+    nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `whatif_auth_next=${encodeURIComponent(
+    safeNextPath
+  )}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -95,14 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   const signInWithGoogle = async (nextPath = '/') => {
-    const safeNextPath =
-      nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
-    const baseUrl = resolveBaseUrl();
+    setAuthNextCookie(nextPath);
 
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(safeNextPath)}`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
   };
@@ -113,12 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUpWithEmail = async (email: string, password: string, nextPath = '/') => {
-    const safeNextPath =
-      nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
-    const baseUrl = resolveBaseUrl();
-    const emailRedirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(
-      safeNextPath
-    )}`;
+    setAuthNextCookie(nextPath);
+    const emailRedirectTo = `${window.location.origin}/auth/callback`;
 
     const { data, error } = await supabase.auth.signUp({
       email,

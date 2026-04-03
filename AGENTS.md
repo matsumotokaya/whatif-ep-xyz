@@ -21,4 +21,3 @@ This version has breaking changes — APIs, conventions, and file structure may 
 **When the production domain is finalized:**
 1. Update the Production (final) row above
 2. Add the new URL to Supabase > Authentication > URL Configuration as an allowed redirect URL
-3. Update `NEXT_PUBLIC_SITE_URL` in Vercel environment variables

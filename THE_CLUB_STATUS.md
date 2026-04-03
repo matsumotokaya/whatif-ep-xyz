@@ -95,8 +95,6 @@
 1. 旧サイトから新サイトへの導線切替方法を決める
    - いつ `/the-club` を新導線にするか
    - 旧 PHP 側をいつ閉じるか
-2. `NEXT_PUBLIC_SITE_URL` を一時的に Vercel ドメインに設定
-   - 最終ドメイン確定時に値と Supabase Redirect URLs を更新する
 
 ### 実装は動くが、判断が必要
 

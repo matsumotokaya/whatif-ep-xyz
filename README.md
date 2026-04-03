@@ -58,7 +58,6 @@ NEXT_PUBLIC_R2_BASE_URL=https://pub-9339dc326a024891a297479881e66962.r2.dev
 NEXT_PUBLIC_GA_ID=G-X5E0WH9Y43
 NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
-NEXT_PUBLIC_SITE_URL=https://whatif-ep-xyz.vercel.app
 R2_ACCOUNT_ID=<your-r2-account-id>
 R2_ACCESS_KEY_ID=<your-r2-access-key>
 R2_SECRET_ACCESS_KEY=<your-r2-secret>
