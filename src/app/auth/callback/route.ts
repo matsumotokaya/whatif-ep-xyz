@@ -10,7 +10,18 @@ export async function GET(request: Request) {
       ? nextParam
       : '/';
   const envBase = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  const baseUrl = envBase && envBase.length > 0 ? envBase : origin;
+  let baseUrl = origin;
+  if (envBase && envBase.length > 0) {
+    try {
+      const envHost = new URL(envBase).host;
+      const originHost = new URL(origin).host;
+      if (envHost === originHost) {
+        baseUrl = envBase;
+      }
+    } catch {
+      baseUrl = origin;
+    }
+  }
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 
   if (code) {

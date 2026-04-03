@@ -32,10 +32,23 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function resolveBaseUrl() {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  const raw =
-    envUrl && envUrl.trim().length > 0 ? envUrl.trim() : window.location.origin;
-  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const origin = window.location.origin;
+  if (!envUrl) {
+    return origin;
+  }
+
+  try {
+    const envHost = new URL(envUrl).host;
+    const originHost = new URL(origin).host;
+    if (envHost !== originHost) {
+      return origin;
+    }
+  } catch {
+    return origin;
+  }
+
+  return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
