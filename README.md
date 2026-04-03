@@ -65,6 +65,7 @@ R2_BUCKET=whatif-ep-xyz
 ```
 
 `NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は The Club の private download 用。
+`R2_*` が未設定の場合は、The Club の download route が `NEXT_PUBLIC_R2_BASE_URL` を使って public redirect するフォールバックがあります。
 
 The Club 移行の進捗と引き継ぎメモは [`THE_CLUB_STATUS.md`](./THE_CLUB_STATUS.md) を参照。
 

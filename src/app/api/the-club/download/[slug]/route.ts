@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 const bucketName = process.env.R2_BUCKET ?? "whatif-ep-xyz";
+const publicBaseUrl = process.env.NEXT_PUBLIC_R2_BASE_URL;
 const accountId = process.env.R2_ACCOUNT_ID;
 const endpoint =
   process.env.R2_ENDPOINT ||
@@ -31,6 +32,16 @@ function buildContentDisposition(fileName: string) {
   const safeName = fileName.replace(/"/g, "");
   const encoded = encodeURIComponent(fileName);
   return `attachment; filename="${safeName}"; filename*=UTF-8''${encoded}`;
+}
+
+function buildPublicObjectUrl(storageKey: string) {
+  if (!publicBaseUrl) return null;
+
+  const base = publicBaseUrl.endsWith("/")
+    ? publicBaseUrl
+    : `${publicBaseUrl}/`;
+
+  return new URL(storageKey, base);
 }
 
 export async function GET(
@@ -69,6 +80,20 @@ export async function GET(
 
   if (error || !item || !item.is_published) {
     return NextResponse.json({ error: "Item not found." }, { status: 404 });
+  }
+
+  if (!r2Client) {
+    const publicUrl = buildPublicObjectUrl(item.storage_key);
+    if (publicUrl) {
+      const response = NextResponse.redirect(publicUrl);
+      response.headers.set("Cache-Control", "no-store");
+      return response;
+    }
+
+    return NextResponse.json(
+      { error: "R2 credentials are not configured." },
+      { status: 500 }
+    );
   }
 
   const signedUrl = await getSignedUrl(
