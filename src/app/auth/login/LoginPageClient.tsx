@@ -152,9 +152,8 @@ export default function LoginPageClient() {
         </p>
 
         <p className="mt-3 text-center text-sm text-muted">
-          Instagramでサブスクリプションしている方はこちら{' '}
           <Link href={`/auth/legacy-login?next=${encodeURIComponent(nextPath)}`} className="text-neon-cyan hover:opacity-80">
-            こちら
+            Instagramで、サブスクリプションしている方はこちら
           </Link>
         </p>
       </div>

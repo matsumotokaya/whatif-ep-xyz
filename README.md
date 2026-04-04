@@ -27,7 +27,9 @@ src/
 │   ├── episodes/
 │   │   ├── page.tsx                # Gallery with infinite scroll
 │   │   └── [number]/page.tsx       # Individual episode (SSG)
-│   └── the-club/page.tsx           # The Club link page
+│   ├── auth/
+│   │   └── legacy-login/           # Legacy The Club ID login
+│   └── the-club/page.tsx           # The Club member area entry
 ├── components/
 │   ├── Header.tsx
 │   ├── Footer.tsx
@@ -66,8 +68,6 @@ R2_BUCKET=whatif-ep-xyz
 
 `NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は The Club の private download 用。
 
-The Club 移行の進捗と引き継ぎメモは [`THE_CLUB_STATUS.md`](./THE_CLUB_STATUS.md) を参照。
-
 ## Development
 
 ```bash
@@ -105,17 +105,49 @@ npm run build
 - [x] Google Analytics 統合
 - [x] The Club（premium gating + catalog + download）
 
-### 移行中・未対応
+### The Club account model
+
+The Club は通常の WHATIF アカウントと同じ Supabase Auth を使いますが、旧サイト由来の少数の会員だけは別のログイン導線を持ちます。
+
+- 通常会員
+  - メールアドレス + パスワード
+  - Google OAuth
+- legacy 会員
+  - 旧 The Club の `ID` + パスワード
+  - ログイン画面は `/auth/legacy-login`
+  - `public.profiles.legacy_login_id` で識別する
+
+実装上の扱いは次のとおりです。
+
+- `auth.users.id` は通常どおり UUID のまま使う
+- 旧 ID は `profiles.legacy_login_id` に保存する
+- 旧 ID は `legacy+<id>@club.whatif.local` という内部メールに変換して Supabase Auth に渡す
+- パスワードは `profiles` には保存しない
+- パスワードの保存と検証は Supabase Auth に任せる
+
+この設計にしている理由は、現在は 3 名程度でも、将来 legacy 会員が増減する前提で、平文パスワードをアプリ側で管理しない方が安全で、運用を変えずに済むためです。
+
+legacy 会員を追加する手順は次のとおりです。
+
+1. Supabase Auth にユーザーを作成する
+2. メールを `legacy+<id>@club.whatif.local` にする
+3. パスワードは Supabase Auth 側で設定する
+4. `public.profiles.legacy_login_id` に `<id>` を入れる
+
+legacy 会員の ID は UUID である必要はありません。`bam.5878` のような文字列をそのまま使えます。
+
+The Club の機能移行はここで完了です。以降はサイト全体の運用タスクだけを残しています。
+
+### サイト運用の残件
 - [ ] **ドメイン移管** — 現在は仮URL（`whatif-ep-xyz.vercel.app`）。本番ドメインをCloudflare DNS → Vercelに向ける設定が必要
 - [ ] **旧The Clubの導線切替/停止** — PHP 版から新サイト側への切替手順を確定し、停止タイミングを決める
 - [ ] **R2カスタムドメイン** — 現在はR2のデフォルトURL。カスタムドメインへの切り替え予定
 
 ### 旧サイト（ロリポップ）
 - URL: `workflowdesign.chicappa.jp/whatif-ep/`
-- The Clubのみ継続稼働中（MySQL認証）
-- ドメイン移管・The Club移行が完了次第シャットダウン予定
+- 旧 The Club は legacy 会員の確認用に残る可能性がある
+- ドメイン移管・The Club 移行の最終整理が終わり次第、停止判断を行う
 
 ### 将来予定（DEVELOPMENT_PLAN.md 参照）
 - Phase 6: パララックス・アニメーション強化
 - Phase 7: 壁紙セクション
-- Phase 8: The Club のSupabase移行（MySQL → Supabase Auth）
