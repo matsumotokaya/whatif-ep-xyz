@@ -42,7 +42,7 @@ export default function LegacyLoginPageClient() {
           <Link href="/" className="text-2xl font-bold tracking-wider neon-text-cyan">
             WHATIF
           </Link>
-          <p className="mt-2 text-muted text-sm">ユーザーIDでログイン</p>
+          <p className="mt-2 text-muted text-sm">サブスクリプション会員ログイン</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -57,7 +57,7 @@ export default function LegacyLoginPageClient() {
               onChange={(e) => setLegacyId(e.target.value)}
               required
               className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-foreground placeholder-muted focus:outline-none focus:border-neon-cyan transition-colors"
-              placeholder="bam.5878"
+              placeholder="ユーザーID"
             />
           </div>
 
