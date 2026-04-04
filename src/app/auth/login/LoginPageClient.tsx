@@ -150,6 +150,13 @@ export default function LoginPageClient() {
             </>
           )}
         </p>
+
+        <p className="mt-3 text-center text-sm text-muted">
+          ユーザーIDでログインする方は{' '}
+          <Link href={`/auth/legacy-login?next=${encodeURIComponent(nextPath)}`} className="text-neon-cyan hover:opacity-80">
+            こちら
+          </Link>
+        </p>
       </div>
     </div>
   );

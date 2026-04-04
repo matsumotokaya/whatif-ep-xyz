@@ -21,6 +21,7 @@ interface AuthContextType {
   loading: boolean;
   signInWithGoogle: (nextPath?: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithLegacyId: (legacyId: string, password: string) => Promise<{ error: string | null }>;
   signUpWithEmail: (
     email: string,
     password: string,
@@ -38,6 +39,15 @@ function setAuthNextCookie(nextPath: string) {
   document.cookie = `whatif_auth_next=${encodeURIComponent(
     safeNextPath
   )}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
+}
+
+function legacyEmailFromId(rawId: string) {
+  const cleaned = rawId
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9._-]/g, "");
+  return cleaned ? `legacy+${cleaned}@club.whatif.local` : "";
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -99,6 +109,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message || null };
   };
 
+  const signInWithLegacyId = async (legacyId: string, password: string) => {
+    const email = legacyEmailFromId(legacyId);
+    if (!email) {
+      return { error: "有効なユーザーIDを入力してください。" };
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message || null };
+  };
+
   const signUpWithEmail = async (email: string, password: string, nextPath = '/') => {
     setAuthNextCookie(nextPath);
     const emailRedirectTo = `${window.location.origin}/auth/callback`;
@@ -120,7 +139,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        loading,
+        signInWithGoogle,
+        signInWithEmail,
+        signInWithLegacyId,
+        signUpWithEmail,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
