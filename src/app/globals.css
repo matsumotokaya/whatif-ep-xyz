@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0f;
-  --foreground: #e8e8e8;
-  --surface: #141420;
-  --surface-hover: #1a1a2e;
-  --border: #2a2a3e;
-  --muted: #6b6b80;
-  --neon-cyan: #00f0ff;
-  --neon-magenta: #ff00e5;
-  --neon-yellow: #f0ff00;
-  --neon-green: #00ff88;
-  --neon-cyan-glow: rgba(0, 240, 255, 0.3);
-  --neon-magenta-glow: rgba(255, 0, 229, 0.3);
+  --background: #eeeeee;
+  --foreground: #111111;
+  --surface: #ffffff;
+  --surface-hover: #f0f0f0;
+  --border: #cccccc;
+  --muted: #888888;
+  --neon-cyan: #111111;
+  --neon-magenta: #111111;
+  --neon-yellow: #111111;
+  --neon-green: #111111;
+  --neon-cyan-glow: transparent;
+  --neon-magenta-glow: transparent;
 }
 
 @theme inline {
@@ -38,6 +38,118 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* WHATIF text layer positioning */
+.parallax-whatif {
+  bottom: 24%;
+  left: 10%;
+  width: 80%;
+}
+
+/* Character layer positioning */
+.parallax-character {
+  top: 5%;
+  left: 5%;
+  width: 90%;
+}
+
+/* Red text texture positioning */
+.parallax-redtext {
+  top: 5%;
+  right: 2%;
+  width: 42%;
+}
+
+/* Diagonal line positioning */
+.parallax-line {
+  top: -10%;
+  left: 3%;
+  width: 22%;
+}
+
+/* Message bubble positioning */
+.parallax-message {
+  top: 6%;
+  right: 4%;
+  width: 28%;
+}
+
+/* Bag positioning */
+.parallax-bag {
+  bottom: 8%;
+  left: 2%;
+  width: 16%;
+}
+
+/* Pink screen phone positioning */
+.parallax-sp2 {
+  top: 52%;
+  left: 6%;
+  width: 13%;
+}
+
+/* Glasses positioning */
+.parallax-glasses {
+  top: 12%;
+  left: 28%;
+  width: 6%;
+}
+
+/* Small dark phone positioning */
+.parallax-sp1 {
+  top: 18%;
+  right: 10%;
+  width: 7%;
+}
+
+/* Mobile overrides (no !important needed — inline styles removed) */
+@media (max-width: 767px) {
+  .parallax-whatif {
+    width: 145%;
+    bottom: 30%;
+    left: 12%;
+  }
+  .parallax-character {
+    top: 5%;
+    left: -45%;
+    width: 240%;
+  }
+  .parallax-redtext {
+    width: 80%;
+    top: 50%;
+    right: -32%;
+  }
+  .parallax-line {
+    top: -5%;
+    left: 30%;
+    width: 60%;
+  }
+  .parallax-message {
+    top: 3%;
+    right: 33%;
+    width: 60%;
+  }
+  .parallax-bag {
+    bottom: 10%;
+    left: 62%;
+    width: 49%;
+  }
+  .parallax-sp2 {
+    top: 52%;
+    left: 6%;
+    width: 13%;
+  }
+  .parallax-glasses {
+    top: 10%;
+    left: 2%;
+    width: 16%;
+  }
+  .parallax-sp1 {
+    top: -1%;
+    right: 10%;
+    width: 19%;
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -56,21 +168,19 @@ body {
   background: var(--muted);
 }
 
-/* Neon glow utility */
+/* Neon glow utility (glow removed — monochrome scheme) */
 .neon-glow-cyan {
-  box-shadow: 0 0 10px var(--neon-cyan-glow), 0 0 30px var(--neon-cyan-glow);
+  box-shadow: none;
 }
 
 .neon-glow-magenta {
-  box-shadow: 0 0 10px var(--neon-magenta-glow), 0 0 30px var(--neon-magenta-glow);
+  box-shadow: none;
 }
 
 .neon-text-cyan {
-  color: var(--neon-cyan);
-  text-shadow: 0 0 10px var(--neon-cyan-glow);
+  color: var(--foreground);
 }
 
 .neon-text-magenta {
-  color: var(--neon-magenta);
-  text-shadow: 0 0 10px var(--neon-magenta-glow);
+  color: var(--foreground);
 }
