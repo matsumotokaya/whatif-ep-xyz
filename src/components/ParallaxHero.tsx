@@ -42,7 +42,7 @@ const LAYERS: LayerDef[] = [
     h: 973,
     speed: 0.05,
     className: "w-full h-auto",
-    style: { top: "15%", left: "38%", width: "22%" },
+    style: { top: "-21%", left: "-20%", width: "44%" },
   },
   // --- Red text texture ---
   {
@@ -112,7 +112,8 @@ const LAYERS: LayerDef[] = [
     h: 675,
     speed: 0.4,
     className: "w-full h-auto",
-    style: { top: "18%", right: "2%", width: "16%" },
+    style: {},
+    wrapperClass: "parallax-items",
   },
   // --- Bag ---
   {
@@ -146,11 +147,7 @@ const LAYERS: LayerDef[] = [
   },
 ];
 
-interface Props {
-  totalEpisodes: number;
-}
-
-export function ParallaxHero({ totalEpisodes }: Props) {
+export function ParallaxHero() {
   const sectionRef = useRef<HTMLElement>(null);
   const scrollIndicatorRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
@@ -169,8 +166,8 @@ export function ParallaxHero({ totalEpisodes }: Props) {
 
     const update = () => {
       const scrollY = window.scrollY;
-      // Scroll range: outer div is 220vh, inner is 100vh → range is 120vh
-      const heroRange = window.innerHeight * 1.2;
+      // Scroll range: outer div is 330vh, inner is 100vh → range is 230vh
+      const heroRange = window.innerHeight * 2.3;
       const progress = Math.min(scrollY / heroRange, 1);
 
       // Move parallax layers upward
@@ -185,9 +182,9 @@ export function ParallaxHero({ totalEpisodes }: Props) {
         scrollIndicatorRef.current.style.opacity = String(opacity);
       }
 
-      // CTA: fade in after ~8% progress
+      // CTA: fade in near the end (last ~15% of scroll)
       if (ctaRef.current) {
-        const ctaOpacity = Math.min(1, Math.max(0, (progress - 0.08) * 10));
+        const ctaOpacity = Math.min(1, Math.max(0, (progress - 0.82) * 12));
         ctaRef.current.style.opacity = String(ctaOpacity);
         ctaRef.current.style.pointerEvents = ctaOpacity > 0.3 ? "auto" : "none";
       }
@@ -207,8 +204,8 @@ export function ParallaxHero({ totalEpisodes }: Props) {
   }, []);
 
   return (
-    // Outer: tall container gives scroll range (220vh = 100vh visible + 120vh scroll room)
-    <div style={{ height: "220vh" }}>
+    // Outer: tall container gives scroll range (330vh = 100vh visible + 230vh scroll room)
+    <div style={{ height: "330vh" }}>
       {/* Inner: sticky, stays fixed at viewport top while scrolling through outer */}
       <section
         ref={sectionRef}
@@ -269,18 +266,15 @@ export function ParallaxHero({ totalEpisodes }: Props) {
           </div>
         </div>
 
-        {/* CTA — hidden initially, fades in after scrolling */}
+        {/* CTA — hidden initially, fades in near end of scroll */}
         <div
           ref={ctaRef}
-          className="absolute inset-x-0 bottom-12 flex flex-col items-center gap-4"
+          className="absolute inset-x-0 bottom-12 flex flex-col items-center"
           style={{ zIndex: LAYERS.length + 2, opacity: 0, pointerEvents: "none" }}
         >
-          <p className="text-xs tracking-widest text-foreground/60 uppercase">
-            Digital Art Gallery — {totalEpisodes} Episodes
-          </p>
           <Link
             href="/episodes"
-            className="inline-flex items-center gap-2 rounded-lg border border-foreground/30 bg-background/80 px-8 py-3 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-foreground hover:text-background"
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-10 py-4 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
           >
             <span>Enter Gallery</span>
             <svg
