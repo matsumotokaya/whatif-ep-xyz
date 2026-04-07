@@ -8,6 +8,7 @@ import {
 import { getAdminAccess } from "@/lib/admin/access";
 import { getOriginalUrl } from "@/lib/images";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
+import { EpisodeDownloadButton } from "@/components/EpisodeDownloadButton";
 
 interface EpisodePageProps {
   params: Promise<{ number: string }>;
@@ -48,6 +49,7 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
   const releasedOn = formatDate(episode.createdAt);
   const updatedOn = formatDate(episode.updatedAt);
   const publishedOn = formatDate(episode.publishedAt);
+  const downloadFilename = `whatif-${episode.number}.png`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background overflow-hidden">
@@ -67,15 +69,13 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <a
-                      href={imageUrl}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <EpisodeDownloadButton
+                      url={imageUrl}
+                      filename={downloadFilename}
                       className="inline-flex items-center justify-center rounded-full border border-neon-cyan/50 bg-neon-cyan/10 px-3 py-1 text-[11px] font-medium text-neon-cyan"
                     >
                       Download
-                    </a>
+                    </EpisodeDownloadButton>
                     <details className="group">
                       <summary className="cursor-pointer list-none rounded-full border border-border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:border-neon-cyan/60 hover:text-neon-cyan">
                         <span className="group-open:hidden">Info</span>
@@ -266,11 +266,9 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
                   編集する
                 </Link>
               )}
-              <a
-                href={imageUrl}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
+              <EpisodeDownloadButton
+                url={imageUrl}
+                filename={downloadFilename}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-hover px-4 py-3 text-sm font-medium text-foreground transition-colors hover:border-neon-cyan/50 hover:text-neon-cyan"
               >
                 Download
@@ -287,7 +285,7 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
                     d="M12 4v10m0 0l-4-4m4 4l4-4m-8 8h8"
                   />
                 </svg>
-              </a>
+              </EpisodeDownloadButton>
               {episode.productUrl && (
                 <a
                   href={episode.productUrl}

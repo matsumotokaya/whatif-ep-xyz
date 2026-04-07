@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -90,49 +91,33 @@ function UserMenu() {
 export function Header() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const loginHref =
     pathname && pathname.startsWith("/") && !pathname.startsWith("//")
       ? `/auth/login?next=${encodeURIComponent(pathname)}`
       : "/auth/login";
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen, mounted]);
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        <Link href="/" className="group flex items-center gap-2">
-          <span className="text-xl font-bold tracking-wider neon-text-cyan group-hover:opacity-80 transition-opacity">
-            WHATIF
-          </span>
-        </Link>
-
-        <nav className="flex items-center gap-6">
-          {navItems.map((item) => {
-            const isActive = pathname?.startsWith(item.href);
-            if ("external" in item && item.external) {
-              return (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-muted hover:text-foreground transition-colors"
-                >
-                  {item.label}
-                </a>
-              );
-            }
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`text-sm font-medium transition-colors ${
-                  isActive ? "text-neon-cyan" : "text-muted hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-
+      <div className="mx-auto grid h-16 max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4">
+        <div className="flex items-center">
           {!loading && (
             user ? (
               <UserMenu />
@@ -145,8 +130,99 @@ export function Header() {
               </Link>
             )
           )}
-        </nav>
+        </div>
+
+        <Link href="/" className="group justify-self-center">
+          <span className="text-xl font-bold tracking-wider neon-text-cyan group-hover:opacity-80 transition-opacity">
+            WHATIF
+          </span>
+        </Link>
+
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            aria-label="メニューを開く"
+            onClick={() => setMenuOpen(true)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted hover:text-neon-cyan hover:border-neon-cyan/60 transition-colors"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {mounted &&
+        menuOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[60] bg-black/95 text-white">
+            <div className="mx-auto flex h-full max-w-5xl flex-col px-6 py-8">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-[0.4em] text-white/60">
+                  Menu
+                </span>
+                <button
+                  type="button"
+                  aria-label="メニューを閉じる"
+                  onClick={() => setMenuOpen(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white hover:border-white hover:text-white transition-colors"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <nav className="mt-12 flex flex-col gap-6 text-3xl font-semibold">
+                {navItems.map((item) => {
+                  const isActive = pathname?.startsWith(item.href);
+                  if ("external" in item && item.external) {
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 text-white/80 hover:text-white transition-colors"
+                      >
+                        <span>{item.label}</span>
+                        <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+                          External
+                        </span>
+                      </a>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className={`transition-colors ${
+                        isActive ? "text-white" : "text-white/80 hover:text-white"
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>,
+          document.body
+        )}
     </header>
   );
 }

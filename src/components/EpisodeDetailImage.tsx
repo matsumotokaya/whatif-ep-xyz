@@ -23,7 +23,7 @@ export function EpisodeDetailImage({ src, alt }: EpisodeDetailImageProps) {
         alt={alt}
         fill
         sizes="100vw"
-        className={`object-contain p-2 sm:p-4 lg:p-8 transition-opacity duration-300 ${
+        className={`object-contain object-top p-2 sm:p-4 lg:p-8 transition-opacity duration-300 ${
           isLoading ? "opacity-0" : "opacity-100"
         }`}
         priority
