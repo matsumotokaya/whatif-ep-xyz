@@ -18,60 +18,49 @@ export default async function TheClubPage() {
     <ClubShell
       eyebrow="Members only"
       title="The Club"
-      description="A premium library for WHATIF members. The first version keeps the shared account system intact and opens the club to authenticated premium users."
+      description="An exclusive space for WHATIF members. Premium content, wallpapers, and archives — all in one place."
     >
-      <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-3xl border border-border bg-surface/80 p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-neon-cyan/80">
-            Current access
-          </p>
-          <h2 className="mt-3 text-2xl font-semibold text-foreground">
-            {access.status === "anonymous"
-              ? "Sign in with your WHATIF account"
-              : premium
-                ? `Welcome back, ${access.displayName}`
-                : "Your account is active, but premium is required"}
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-            The Club will share the same account identity as the rest of the
-            WHATIF service. That keeps the user model consistent while the club
-            content and private assets are moved in later.
-          </p>
+      <section className="rounded-2xl border border-border bg-surface p-8">
+        <p className="text-[11px] uppercase tracking-[0.35em] text-muted">
+          Access
+        </p>
+        <h2 className="mt-3 text-2xl font-bold text-foreground">
+          {access.status === "anonymous"
+            ? "Sign in to continue"
+            : premium
+              ? `Welcome, ${access.displayName}`
+              : "Premium required"}
+        </h2>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
+          {access.status === "anonymous"
+            ? "The Club uses the same WHATIF account you already have. Sign in to check your access."
+            : premium
+              ? "You have full access to The Club library and all member content."
+              : "Your account is active, but premium membership is required to enter The Club."}
+        </p>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            {access.status === "anonymous" ? (
-              <Link
-                href="/auth/login?next=%2Fthe-club"
-                className="inline-flex items-center rounded-full border border-neon-cyan/40 bg-neon-cyan/10 px-5 py-3 text-sm font-medium text-neon-cyan transition-colors hover:bg-neon-cyan/15"
-              >
-                Log in
-              </Link>
-            ) : (
-              <Link
-                href="/the-club/library"
-                className="inline-flex items-center rounded-full border border-neon-magenta/40 bg-neon-magenta/10 px-5 py-3 text-sm font-medium text-neon-magenta transition-colors hover:bg-neon-magenta/15"
-              >
-                Open library
-              </Link>
-            )}
+        <div className="mt-8 flex flex-wrap gap-3">
+          {access.status === "anonymous" ? (
             <Link
-              href="/"
-              className="inline-flex items-center rounded-full border border-border px-5 py-3 text-sm font-medium text-foreground transition-colors hover:border-muted hover:bg-surface"
+              href="/auth/login?next=%2Fthe-club"
+              className="inline-flex items-center rounded-lg bg-foreground px-8 py-3.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
             >
-              Back to gallery
+              Log in
             </Link>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-border bg-surface/70 p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-neon-magenta/80">
-            What is ready
-          </p>
-          <div className="mt-4 grid gap-3 text-sm leading-7 text-muted">
-            <p>Shared account system with premium gating.</p>
-            <p>Library and detail pages built for private asset delivery.</p>
-            <p>Cloudflare private storage is connected for signed downloads.</p>
-          </div>
+          ) : (
+            <Link
+              href="/the-club/library"
+              className="inline-flex items-center rounded-lg bg-foreground px-8 py-3.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            >
+              Open library
+            </Link>
+          )}
+          <Link
+            href="/episodes"
+            className="inline-flex items-center rounded-lg border border-border px-8 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+          >
+            Gallery
+          </Link>
         </div>
       </section>
 
@@ -79,7 +68,6 @@ export default async function TheClubPage() {
         items={[
           { label: "Catalog entries", value: String(stats.total) },
           { label: "Wallpaper sets", value: String(stats.wallpapers) },
-          { label: "Scaffold state", value: stats.ready > 0 ? "Ready" : "Pending" },
         ]}
       />
     </ClubShell>

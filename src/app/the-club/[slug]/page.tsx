@@ -34,7 +34,7 @@ export default async function ClubDetailPage({ params }: ClubDetailPageProps) {
   if (!canAccessClub(access)) {
     return (
       <ClubShell
-        eyebrow="Protected detail"
+        eyebrow="Protected"
         title="The Club"
         description="This page is only visible to premium members."
       >
@@ -51,18 +51,18 @@ export default async function ClubDetailPage({ params }: ClubDetailPageProps) {
 
   return (
     <ClubShell
-      eyebrow="Premium detail"
+      eyebrow="The Club"
       title={item.title}
       description="Premium members can download this item via a private, signed link."
     >
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-border bg-surface/70 px-5 py-4">
-        <div className="text-sm text-muted">
-          <span className="text-foreground">{access.displayName}</span> is viewing
-          a premium item.
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-6 py-4">
+        <p className="text-sm text-muted">
+          Signed in as{" "}
+          <span className="text-foreground">{access.displayName}</span>
+        </p>
         <Link
           href="/the-club/library"
-          className="inline-flex items-center rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:border-muted hover:bg-surface"
+          className="inline-flex items-center rounded-lg border border-border px-5 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
         >
           Back to library
         </Link>
@@ -72,19 +72,18 @@ export default async function ClubDetailPage({ params }: ClubDetailPageProps) {
         items={[
           { label: "File", value: item.fileName },
           { label: "Size", value: item.fileSizeLabel },
-          { label: "Status", value: item.status === "preview" ? "Preview" : "Soon" },
         ]}
       />
 
       <ClubDetailPanel item={item} />
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-border bg-surface/70 px-5 py-4">
-        <div className="text-sm text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-6 py-4">
+        <p className="text-sm text-muted">
           Downloads are delivered via a private, signed URL.
-        </div>
+        </p>
         <a
           href={`/api/the-club/download/${item.slug}`}
-          className="inline-flex items-center rounded-full border border-neon-cyan/40 bg-neon-cyan/10 px-4 py-2 text-sm font-medium text-neon-cyan transition-colors hover:bg-neon-cyan/15"
+          className="inline-flex items-center rounded-lg bg-foreground px-6 py-2.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
         >
           Download
         </a>

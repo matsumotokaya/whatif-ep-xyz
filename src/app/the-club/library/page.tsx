@@ -20,9 +20,9 @@ export default async function ClubLibraryPage() {
   if (!canAccessClub(access)) {
     return (
       <ClubShell
-        eyebrow="Protected library"
-        title="The Club Library"
-        description="This area is reserved for premium members using the shared WHATIF account system."
+        eyebrow="Protected"
+        title="Library"
+        description="This area is reserved for premium members."
       >
         <ClubAccessNotice status={access.status} nextPath="/the-club/library" />
       </ClubShell>
@@ -34,20 +34,22 @@ export default async function ClubLibraryPage() {
 
   return (
     <ClubShell
-      eyebrow="Premium library"
-      title="The Club Library"
-      description="Premium members can browse the catalog and download each item via a private link."
+      eyebrow="The Club"
+      title="Library"
+      description="Browse and download all premium content. Each item is delivered via a private link."
     >
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-border bg-surface/70 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-6 py-4">
         <div>
-          <p className="text-sm font-medium text-foreground">{access.displayName}</p>
-          <p className="mt-1 text-sm text-muted">
-            {access.profile?.subscription_status ?? "subscription status unavailable"}
+          <p className="text-sm font-medium text-foreground">
+            {access.displayName}
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
+            {access.profile?.subscription_status ?? "Premium"}
           </p>
         </div>
         <Link
           href="/the-club"
-          className="inline-flex items-center rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:border-muted hover:bg-surface"
+          className="inline-flex items-center rounded-lg border border-border px-5 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
         >
           Club home
         </Link>
@@ -57,11 +59,10 @@ export default async function ClubLibraryPage() {
         items={[
           { label: "Entries", value: String(stats.total) },
           { label: "Wallpapers", value: String(stats.wallpapers) },
-          { label: "State", value: "Premium gated" },
         ]}
       />
 
-      <section className="grid gap-5">
+      <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <ClubItemCard key={item.slug} item={item} />
         ))}
