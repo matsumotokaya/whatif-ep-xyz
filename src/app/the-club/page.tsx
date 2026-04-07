@@ -43,21 +43,21 @@ export default async function TheClubPage() {
           {access.status === "anonymous" ? (
             <Link
               href="/auth/login?next=%2Fthe-club"
-              className="inline-flex items-center rounded-lg bg-foreground px-8 py-3.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+              className="btn-press inline-flex items-center rounded-lg bg-foreground px-8 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
             >
               Log in
             </Link>
           ) : (
             <Link
               href="/the-club/library"
-              className="inline-flex items-center rounded-lg bg-foreground px-8 py-3.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+              className="btn-press inline-flex items-center rounded-lg bg-foreground px-8 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
             >
               Open library
             </Link>
           )}
           <Link
             href="/episodes"
-            className="inline-flex items-center rounded-lg border border-border px-8 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+            className="btn-press inline-flex items-center rounded-lg border border-border px-8 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
           >
             Gallery
           </Link>

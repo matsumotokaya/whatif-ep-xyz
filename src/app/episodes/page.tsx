@@ -18,21 +18,21 @@ export default async function EpisodesPage() {
   ]);
 
   return (
-    <div className="w-full px-2 py-6 sm:px-4 sm:py-8">
+    <div className="w-full px-3 py-6 sm:px-5 sm:py-8">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight neon-text-cyan">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             Episodes
           </h1>
-          <p className="mt-2 text-sm text-muted">{total} episodes</p>
+          <p className="mt-1 text-sm text-muted">{total} episodes</p>
         </div>
 
         {adminAccess.isAdmin && (
           <Link
             href="/episodes/new"
-            className="inline-flex items-center rounded-lg border border-neon-cyan px-4 py-2.5 text-sm font-medium text-neon-cyan transition-colors hover:bg-neon-cyan hover:text-background"
+            className="btn-press inline-flex items-center rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
           >
-            新しいエピソード追加
+            Add episode
           </Link>
         )}
       </div>

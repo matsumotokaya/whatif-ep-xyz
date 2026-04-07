@@ -49,7 +49,7 @@ export default async function ClubLibraryPage() {
         </div>
         <Link
           href="/the-club"
-          className="inline-flex items-center rounded-lg border border-border px-5 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
+          className="btn-press inline-flex items-center rounded-lg border border-border px-5 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
         >
           Club home
         </Link>

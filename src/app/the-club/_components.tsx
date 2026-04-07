@@ -30,7 +30,7 @@ export function ClubShell({
           <p className="mb-3 text-[11px] uppercase tracking-[0.35em] text-muted">
             {eyebrow}
           </p>
-          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             {title}
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-muted">
@@ -83,7 +83,7 @@ export function ClubAccessNotice({
         <div className="flex flex-col gap-3 lg:items-end">
           <Link
             href={copy.actionHref}
-            className="inline-flex items-center justify-center rounded-lg bg-foreground px-6 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            className="btn-press inline-flex items-center justify-center rounded-lg bg-foreground px-6 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
           >
             {copy.actionLabel}
           </Link>
@@ -99,13 +99,13 @@ export function ClubStatsRow({
   items: Array<{ label: string; value: string }>;
 }) {
   return (
-    <dl className="grid gap-px border border-border bg-border sm:grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
+    <dl className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
       {items.map((item) => (
         <div key={item.label} className="bg-surface px-6 py-5">
           <dt className="text-[11px] uppercase tracking-[0.28em] text-muted">
             {item.label}
           </dt>
-          <dd className="mt-2 text-2xl font-bold text-foreground">
+          <dd className="mt-2 text-2xl font-bold tabular-nums text-foreground">
             {item.value}
           </dd>
         </div>
@@ -116,7 +116,7 @@ export function ClubStatsRow({
 
 export function ClubItemCard({ item }: { item: ClubItem }) {
   return (
-    <article className="overflow-hidden rounded-2xl border border-border bg-surface">
+    <article className="hover-lift overflow-hidden rounded-2xl border border-border bg-surface">
       {item.coverImageUrl ? (
         <div className="overflow-hidden border-b border-border">
           <Image
@@ -124,7 +124,7 @@ export function ClubItemCard({ item }: { item: ClubItem }) {
             alt={`${item.title} preview`}
             width={1200}
             height={675}
-            className="h-52 w-full object-cover"
+            className="h-52 w-full object-cover transition-transform duration-500 ease-out hover:scale-[1.03]"
             sizes="(min-width: 1024px) 420px, 100vw"
           />
         </div>
@@ -166,7 +166,7 @@ export function ClubItemCard({ item }: { item: ClubItem }) {
           </div>
           <Link
             href={`/the-club/${item.slug}`}
-            className="inline-flex shrink-0 items-center rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            className="btn-press inline-flex shrink-0 items-center rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
           >
             Open
           </Link>
@@ -178,7 +178,7 @@ export function ClubItemCard({ item }: { item: ClubItem }) {
 
 export function ClubDetailPanel({ item }: { item: ClubItem }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-border bg-surface">
       <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
         <div className="p-8">
           <div className="flex flex-wrap gap-2">

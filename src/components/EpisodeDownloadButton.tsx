@@ -44,9 +44,16 @@ export function EpisodeDownloadButton({
       type="button"
       onClick={handleDownload}
       disabled={isLoading}
-      className={className}
+      className={`btn-press relative overflow-hidden ${className ?? ""}`}
     >
-      {children}
+      {isLoading && (
+        <span className="absolute inset-x-0 bottom-0 h-[2px] overflow-hidden rounded-full bg-border">
+          <span className="absolute inset-0 animate-[shimmer_1.2s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-foreground/40 to-transparent" />
+        </span>
+      )}
+      <span className={`inline-flex items-center gap-2 transition-opacity ${isLoading ? "opacity-60" : ""}`}>
+        {isLoading ? "Downloading..." : children}
+      </span>
     </button>
   );
 }

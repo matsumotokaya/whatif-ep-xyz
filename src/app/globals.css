@@ -165,7 +165,23 @@ body {
   }
 }
 
-/* Scrollbar styling */
+/* ─── Global transitions ─── */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+}
+
+/* ─── Focus ring ─── */
+:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Scrollbar styling ─── */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -183,7 +199,7 @@ body {
   background: var(--muted);
 }
 
-/* Neon glow utility (glow removed — monochrome scheme) */
+/* ─── Neon glow utility (glow removed — monochrome scheme) ─── */
 .neon-glow-cyan {
   box-shadow: none;
 }
@@ -198,4 +214,157 @@ body {
 
 .neon-text-magenta {
   color: var(--foreground);
+}
+
+/* ─── Button press effect ─── */
+.btn-press {
+  transition: transform var(--duration-fast) var(--ease-out-expo),
+              box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* ─── Lift on hover ─── */
+.hover-lift {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+.hover-lift:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
+}
+
+/* ─── Shimmer loading placeholder ─── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-hover) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ─── Staggered fade-in for gallery cards ─── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fadeInUp var(--duration-slow) var(--ease-out-expo) both;
+}
+
+/* ─── Menu overlay animations ─── */
+@keyframes menuFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes menuFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes menuItemSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.menu-overlay-enter {
+  animation: menuFadeIn var(--duration-normal) var(--ease-out-expo) both;
+}
+.menu-overlay-exit {
+  animation: menuFadeOut var(--duration-fast) ease-in both;
+}
+.menu-item-slide {
+  opacity: 0;
+  animation: menuItemSlideIn var(--duration-slow) var(--ease-out-expo) both;
+}
+
+/* ─── Dropdown scale-in ─── */
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.dropdown-enter {
+  animation: dropdownIn var(--duration-fast) var(--ease-out-expo) both;
+}
+
+/* ─── Bottom sheet slide-up ─── */
+@keyframes sheetSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes sheetSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+/* ─── Dot loader ─── */
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+.dot-loader span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: dotBounce 1.2s ease-in-out infinite;
+}
+.dot-loader span:nth-child(2) { animation-delay: 0.15s; }
+.dot-loader span:nth-child(3) { animation-delay: 0.3s; }
+
+/* ─── Page initial fade-in ─── */
+@keyframes pageIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+body {
+  animation: pageIn var(--duration-slow) ease-out both;
+}
+
+/* ─── Sliding indicator for tabs ─── */
+.tab-indicator {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              width var(--duration-normal) var(--ease-out-expo);
 }

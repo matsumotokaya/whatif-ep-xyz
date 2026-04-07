@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -10,7 +10,6 @@ interface LayerDef {
   file: string;
   w: number;
   h: number;
-  /** px per scroll-px (0 = fixed, higher = moves more) */
   speed: number;
   fill?: boolean;
   className: string;
@@ -19,12 +18,7 @@ interface LayerDef {
   wrapperClass?: string;
 }
 
-/**
- * Background stays fixed (speed=0).
- * Elements move upward as user scrolls — higher speed = faster departure.
- */
 const LAYERS: LayerDef[] = [
-  // --- Background (fixed) ---
   {
     file: "12_bg.jpg",
     w: 2500,
@@ -35,7 +29,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     priority: true,
   },
-  // --- Blur silhouette ---
   {
     file: "11_bler001.png",
     w: 800,
@@ -44,7 +37,6 @@ const LAYERS: LayerDef[] = [
     className: "w-full h-auto",
     style: { top: "-21%", left: "-20%", width: "44%" },
   },
-  // --- Red text texture ---
   {
     file: "10_texr_red_001.png",
     w: 1135,
@@ -54,7 +46,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-redtext",
   },
-  // --- Diagonal dashed line ---
   {
     file: "09_line_001.png",
     w: 1011,
@@ -64,7 +55,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-line",
   },
-  // --- WHATIF logo text ---
   {
     file: "08_text_WHATIF_001.png",
     w: 2500,
@@ -74,7 +64,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-whatif",
   },
-  // --- Main character ---
   {
     file: "07_character_001_001.png",
     w: 2500,
@@ -85,7 +74,6 @@ const LAYERS: LayerDef[] = [
     wrapperClass: "parallax-character",
     priority: true,
   },
-  // --- Small dark phone ---
   {
     file: "06_sp_001.png",
     w: 214,
@@ -95,7 +83,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-sp1",
   },
-  // --- Phone with pink screen ---
   {
     file: "05_sp_002.png",
     w: 454,
@@ -105,7 +92,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-sp2",
   },
-  // --- Scattered devices ---
   {
     file: "04_items_001.png",
     w: 495,
@@ -115,7 +101,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-items",
   },
-  // --- Bag ---
   {
     file: "03_bag_001.png",
     w: 611,
@@ -125,7 +110,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-bag",
   },
-  // --- Glasses ---
   {
     file: "02_glasses_001.png",
     w: 205,
@@ -135,7 +119,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-glasses",
   },
-  // --- Message bubble (frontmost) ---
   {
     file: "01_message_001.png",
     w: 1002,
@@ -151,6 +134,17 @@ export function ParallaxHero() {
   const sectionRef = useRef<HTMLElement>(null);
   const scrollIndicatorRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const loadedRef = useRef(0);
+
+  const priorityCount = LAYERS.filter((l) => l.priority).length;
+
+  const handleImageLoad = () => {
+    loadedRef.current += 1;
+    if (loadedRef.current >= priorityCount) {
+      setReady(true);
+    }
+  };
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -166,27 +160,24 @@ export function ParallaxHero() {
 
     const update = () => {
       const scrollY = window.scrollY;
-      // Scroll range: outer div is 330vh, inner is 100vh → range is 230vh
       const heroRange = window.innerHeight * 2.3;
       const progress = Math.min(scrollY / heroRange, 1);
 
-      // Move parallax layers upward
       layers.forEach((el) => {
         const speed = Number(el.dataset.parallaxSpeed);
         el.style.transform = `translate3d(0,${-scrollY * speed}px,0)`;
       });
 
-      // Scroll indicator: fade out at start of scroll
       if (scrollIndicatorRef.current) {
         const opacity = Math.max(0, 1 - progress * 6);
         scrollIndicatorRef.current.style.opacity = String(opacity);
       }
 
-      // CTA: fade in near the end (last ~15% of scroll)
       if (ctaRef.current) {
         const ctaOpacity = Math.min(1, Math.max(0, (progress - 0.82) * 12));
         ctaRef.current.style.opacity = String(ctaOpacity);
-        ctaRef.current.style.pointerEvents = ctaOpacity > 0.3 ? "auto" : "none";
+        ctaRef.current.style.pointerEvents =
+          ctaOpacity > 0.3 ? "auto" : "none";
       }
 
       ticking = false;
@@ -204,13 +195,25 @@ export function ParallaxHero() {
   }, []);
 
   return (
-    // Outer: tall container gives scroll range (330vh = 100vh visible + 230vh scroll room)
     <div style={{ height: "330vh" }}>
-      {/* Inner: sticky, stays fixed at viewport top while scrolling through outer */}
       <section
         ref={sectionRef}
         className="sticky top-0 h-svh w-full overflow-hidden bg-background"
       >
+        {/* Loading screen */}
+        <div
+          className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-background transition-opacity duration-700 ease-out ${
+            ready ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+        >
+          <span className="text-xl font-bold tracking-[0.3em] text-foreground">
+            WHATIF
+          </span>
+          <div className="mt-6 h-px w-16 overflow-hidden rounded-full bg-border">
+            <div className="h-full w-full animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-foreground/30 to-transparent" style={{ backgroundSize: "200% 100%" }} />
+          </div>
+        </div>
+
         {/* Parallax layers */}
         {LAYERS.map((layer, i) => (
           <div
@@ -226,6 +229,7 @@ export function ParallaxHero() {
                 fill
                 className={layer.className}
                 priority={layer.priority ?? false}
+                onLoad={layer.priority ? handleImageLoad : undefined}
               />
             ) : (
               <Image
@@ -235,18 +239,19 @@ export function ParallaxHero() {
                 height={layer.h}
                 className={layer.className}
                 priority={layer.priority ?? false}
+                onLoad={layer.priority ? handleImageLoad : undefined}
               />
             )}
           </div>
         ))}
 
-        {/* Scroll indicator — visible initially, fades out on scroll */}
+        {/* Scroll indicator */}
         <div
           ref={scrollIndicatorRef}
           className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-2 transition-none"
           style={{ zIndex: LAYERS.length + 1 }}
         >
-          <span className="text-[10px] tracking-[0.3em] text-foreground/60 uppercase">
+          <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/60">
             Scroll
           </span>
           <div className="animate-bounce">
@@ -266,15 +271,19 @@ export function ParallaxHero() {
           </div>
         </div>
 
-        {/* CTA — hidden initially, fades in near end of scroll */}
+        {/* CTA */}
         <div
           ref={ctaRef}
           className="absolute inset-x-0 bottom-12 flex flex-col items-center"
-          style={{ zIndex: LAYERS.length + 2, opacity: 0, pointerEvents: "none" }}
+          style={{
+            zIndex: LAYERS.length + 2,
+            opacity: 0,
+            pointerEvents: "none",
+          }}
         >
           <Link
             href="/episodes"
-            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-10 py-4 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            className="btn-press inline-flex items-center gap-2 rounded-lg bg-foreground px-10 py-4 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
           >
             <span>Enter Gallery</span>
             <svg

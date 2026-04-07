@@ -14,8 +14,8 @@ export function EpisodeDetailImage({ src, alt }: EpisodeDetailImageProps) {
   return (
     <div className="relative h-full w-full">
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-surface/50">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-neon-cyan border-t-transparent" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="shimmer h-full w-full" />
         </div>
       )}
       <Image
@@ -23,7 +23,7 @@ export function EpisodeDetailImage({ src, alt }: EpisodeDetailImageProps) {
         alt={alt}
         fill
         sizes="100vw"
-        className={`object-contain object-top p-2 sm:p-4 lg:p-8 transition-opacity duration-300 ${
+        className={`object-contain object-top p-2 transition-opacity duration-500 ease-out sm:p-4 lg:p-8 ${
           isLoading ? "opacity-0" : "opacity-100"
         }`}
         priority

@@ -8,28 +8,21 @@ import { getThumbnailCandidates } from "@/lib/images";
 
 interface EpisodeCardProps {
   episode: Episode;
-}
-
-function EpisodeSkeleton() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center bg-surface animate-pulse">
-      <div className="h-8 w-8 rounded-full bg-surface-hover" />
-    </div>
-  );
+  style?: React.CSSProperties;
 }
 
 function EpisodePlaceholder({ number }: { number: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-surface to-surface-hover">
       <span className="font-mono text-xs text-muted">EP</span>
-      <span className="font-mono text-2xl font-bold text-neon-cyan/40">
+      <span className="font-mono text-2xl font-bold text-foreground/20">
         {number}
       </span>
     </div>
   );
 }
 
-export function EpisodeCard({ episode }: EpisodeCardProps) {
+export function EpisodeCard({ episode, style }: EpisodeCardProps) {
   const candidates = getThumbnailCandidates(episode);
   const [index, setIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,10 +32,11 @@ export function EpisodeCard({ episode }: EpisodeCardProps) {
   return (
     <Link
       href={`/episodes/${episode.number}`}
-      className="group relative block overflow-hidden rounded-lg border border-border bg-surface transition-all hover:border-neon-cyan/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)]"
+      className="hover-lift group relative block overflow-hidden rounded-xl border border-border bg-surface"
+      style={style}
     >
       <div className="relative aspect-square overflow-hidden bg-surface">
-        {isLoading && <EpisodeSkeleton />}
+        {isLoading && src && <div className="shimmer absolute inset-0" />}
         {src && (
           <Image
             key={src}
@@ -50,7 +44,7 @@ export function EpisodeCard({ episode }: EpisodeCardProps) {
             alt={episode.title}
             fill
             sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
-            className={`object-cover transition-all duration-300 group-hover:scale-105 ${
+            className={`object-cover transition-all duration-500 ease-out group-hover:scale-[1.03] ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
             loading="lazy"
@@ -61,10 +55,12 @@ export function EpisodeCard({ episode }: EpisodeCardProps) {
         {!src && <EpisodePlaceholder number={episode.number} />}
       </div>
       <div className="p-2 sm:p-3">
-        <p className="text-xs font-mono text-neon-cyan">#{episode.number}</p>
-        <p className="mt-1 text-sm text-foreground truncate">{episode.title}</p>
+        <p className="font-mono text-[11px] text-muted">#{episode.number}</p>
+        <p className="mt-0.5 truncate text-sm text-foreground">
+          {episode.title}
+        </p>
         {episode.category && (
-          <p className="mt-1 text-xs text-muted">{episode.category}</p>
+          <p className="mt-0.5 text-[11px] text-muted">{episode.category}</p>
         )}
       </div>
     </Link>
