@@ -9,6 +9,7 @@ WHATIF EP digital art gallery site. Next.js 16 + Tailwind CSS v4 + Vercel + Clou
 - **Framework**: Next.js 16 (App Router, `src/` directory)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4 (PostCSS plugin, `@theme inline` in globals.css)
+- **Database**: Supabase (Postgres)
 - **Images**: Cloudflare R2 CDN (env: `NEXT_PUBLIC_R2_BASE_URL`)
 - **Hosting**: Vercel (planned)
 - **Domain**: Cloudflare DNS (planned)
@@ -21,8 +22,10 @@ src/
 │   ├── page.tsx            # Top page (hero)
 │   ├── episodes/
 │   │   ├── page.tsx        # Gallery (server) + EpisodesPageClient (client)
+│   │   ├── new/            # Admin create
 │   │   └── [number]/
-│   │       └── page.tsx    # Individual episode (SSG)
+│   │       ├── page.tsx    # Individual episode (SSG)
+│   │       └── edit/       # Admin edit/delete
 │   └── the-club/
 │       └── page.tsx        # Link to existing Lolipop club
 ├── components/
@@ -33,13 +36,19 @@ src/
 ├── hooks/
 │   └── useInfiniteScroll.ts
 └── lib/
+    ├── admin/              # Admin access helpers
     ├── episodes.ts         # Data access functions
     ├── images.ts           # R2 URL helpers
+    ├── r2.ts               # R2 upload/delete helpers
     └── types.ts            # Episode types
-data/
-    └── episodes.json       # 440 episodes metadata (generated from v1 data)
+src/data/
+    └── episodes.json       # Seed source (legacy)
 scripts/
-    └── generate-episodes.mjs  # Data generation script
+    ├── generate-episodes.mjs       # Data generation script
+    └── generate-episodes-seed-sql.mjs # Seed SQL from JSON
+supabase/
+    ├── migrations/20260407_create_episodes.sql
+    └── seeds/episodes.sql
 ```
 
 ## Design System
@@ -49,8 +58,8 @@ scripts/
 - CSS utility classes: `neon-text-cyan`, `neon-text-magenta`, `neon-glow-cyan`, `neon-glow-magenta`
 
 ## Episode Data
-- 440 episodes (0001-0440)
-- Data source: `data/episodes.json` (JSON, imported at build time)
+- Source of truth: `public.episodes` (Supabase)
+- Legacy seed source: `src/data/episodes.json`
 - Images: R2 `/originals/{number}.png` and `/thumbnails/{number}.jpg`
 
 ## The Club

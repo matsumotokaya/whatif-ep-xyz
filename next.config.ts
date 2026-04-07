@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Episode uploads include the original PNG and optional thumbnail.
+      bodySizeLimit: "25mb",
+    },
+  },
   images: {
     remotePatterns: [
       {

@@ -30,7 +30,7 @@ function EpisodePlaceholder({ number }: { number: string }) {
 }
 
 export function EpisodeCard({ episode }: EpisodeCardProps) {
-  const candidates = getThumbnailCandidates(episode.number);
+  const candidates = getThumbnailCandidates(episode);
   const [index, setIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 

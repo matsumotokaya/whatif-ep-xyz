@@ -1,53 +1,81 @@
-import episodesData from "@/data/episodes.json";
-import type { Episode, EpisodesData } from "./types";
+import "server-only";
 
-const data = episodesData as EpisodesData;
+import { cache } from "react";
+import { createClient } from "@/lib/supabase/server";
+import type { Episode, EpisodeRow } from "./types";
 
-export function getAllEpisodes(sort: "newest" | "oldest" = "newest"): Episode[] {
-  const episodes = [...data.episodes];
-  if (sort === "newest") {
-    episodes.sort((a, b) => b.id - a.id);
-  } else {
-    episodes.sort((a, b) => a.id - b.id);
+const EPISODE_COLUMNS = [
+  "id",
+  "number",
+  "title",
+  "category",
+  "product_url",
+  "released_on",
+  "original_storage_key",
+  "thumbnail_storage_key",
+  "is_published",
+  "published_at",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+function mapEpisode(row: EpisodeRow): Episode {
+  return {
+    id: row.id,
+    number: row.number,
+    title: row.title,
+    category: row.category,
+    hasOriginalPng: row.original_storage_key.toLowerCase().endsWith(".png"),
+    hasThumbnailJpg: row.thumbnail_storage_key?.toLowerCase().endsWith(".jpg") ?? false,
+    productUrl: row.product_url,
+    createdAt: row.released_on ?? row.created_at.slice(0, 10),
+    updatedAt: row.updated_at,
+    originalStorageKey: row.original_storage_key,
+    thumbnailStorageKey: row.thumbnail_storage_key,
+    isPublished: row.is_published,
+    publishedAt: row.published_at,
+  };
+}
+
+const getVisibleEpisodes = cache(async (): Promise<Episode[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("episodes")
+    .select(EPISODE_COLUMNS)
+    .order("id", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load episodes: ${error.message}`);
   }
-  return episodes;
-}
 
-export function getEpisodesByPage(
-  page: number,
-  perPage: number = 20,
+  return ((data ?? []) as unknown as EpisodeRow[]).map(mapEpisode);
+});
+
+export async function getAllEpisodes(
   sort: "newest" | "oldest" = "newest"
-): { episodes: Episode[]; hasMore: boolean; total: number } {
-  const all = getAllEpisodes(sort);
-  const start = (page - 1) * perPage;
-  const episodes = all.slice(start, start + perPage);
+): Promise<Episode[]> {
+  const episodes = await getVisibleEpisodes();
+  return sort === "newest" ? [...episodes].reverse() : episodes;
+}
+
+export async function getEpisodeByNumber(number: string): Promise<Episode | undefined> {
+  const episodes = await getVisibleEpisodes();
+  return episodes.find((episode) => episode.number === number);
+}
+
+export async function getAdjacentEpisodes(
+  id: number
+): Promise<{ prev: Episode | undefined; next: Episode | undefined }> {
+  const episodes = await getVisibleEpisodes();
+  const index = episodes.findIndex((episode) => episode.id === id);
+
   return {
-    episodes,
-    hasMore: start + perPage < all.length,
-    total: all.length,
+    prev: index > 0 ? episodes[index - 1] : undefined,
+    next: index >= 0 && index < episodes.length - 1 ? episodes[index + 1] : undefined,
   };
 }
 
-export function getEpisodeByNumber(number: string): Episode | undefined {
-  return data.episodes.find((ep) => ep.number === number);
-}
-
-export function getEpisodeById(id: number): Episode | undefined {
-  return data.episodes.find((ep) => ep.id === id);
-}
-
-export function getAdjacentEpisodes(id: number): {
-  prev: Episode | undefined;
-  next: Episode | undefined;
-} {
-  const sorted = getAllEpisodes("oldest");
-  const index = sorted.findIndex((ep) => ep.id === id);
-  return {
-    prev: index > 0 ? sorted[index - 1] : undefined,
-    next: index < sorted.length - 1 ? sorted[index + 1] : undefined,
-  };
-}
-
-export function getTotalCount(): number {
-  return data.total;
+export async function getTotalCount(): Promise<number> {
+  const episodes = await getVisibleEpisodes();
+  return episodes.length;
 }

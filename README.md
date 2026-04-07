@@ -14,6 +14,7 @@ WHATIF EP - Digital Art Gallery
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 |
 | Hosting | Vercel |
+| Database | Supabase (Postgres) |
 | Image Storage | Cloudflare R2 |
 | Analytics | Google Analytics (G-X5E0WH9Y43) |
 | Repository | github.com/matsumotokaya/whatif-ep-xyz |
@@ -26,7 +27,10 @@ src/
 │   ├── page.tsx                    # Top page
 │   ├── episodes/
 │   │   ├── page.tsx                # Gallery with infinite scroll
-│   │   └── [number]/page.tsx       # Individual episode (SSG)
+│   │   ├── new/                    # Admin create
+│   │   └── [number]/               # Episode detail/edit
+│   │       ├── page.tsx            # Individual episode (SSG)
+│   │       └── edit/               # Admin edit/delete
 │   ├── auth/
 │   │   └── legacy-login/           # Legacy The Club ID login
 │   └── the-club/page.tsx           # The Club member area entry
@@ -40,15 +44,21 @@ src/
 ├── hooks/
 │   └── useInfiniteScroll.ts
 └── lib/
+    ├── admin/                      # Admin access helpers
     ├── episodes.ts                 # Data access
     ├── images.ts                   # R2 URL helpers
+    ├── r2.ts                       # R2 upload/delete helpers
     └── types.ts
 src/data/
-└── episodes.json                   # 440 episodes metadata
+└── episodes.json                   # Seed source for Supabase
 scripts/
 ├── generate-episodes.mjs           # Regenerate episodes.json from meta.json
-├── upload-episode.sh               # Add new episode (upload to R2 + update JSON)
+├── generate-episodes-seed-sql.mjs  # Build supabase/seeds/episodes.sql
+├── upload-episode.sh               # Legacy: upload to R2 + update episodes.json
 └── migrate-images.sh               # One-time FTP → R2 bulk migration
+supabase/
+├── migrations/20260407_create_episodes.sql
+└── seeds/episodes.sql
 ```
 
 ## Environment Variables
@@ -64,9 +74,11 @@ R2_ACCOUNT_ID=<your-r2-account-id>
 R2_ACCESS_KEY_ID=<your-r2-access-key>
 R2_SECRET_ACCESS_KEY=<your-r2-secret>
 R2_BUCKET=whatif-ep-xyz
+R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 ```
 
-`NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は The Club の private download 用。
+`NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は管理画面からの画像アップロード/削除用。
+`R2_ENDPOINT` は未指定なら `R2_ACCOUNT_ID` から自動生成します。
 
 ## Development
 
@@ -78,20 +90,30 @@ npm run build
 
 ## Adding a New Episode
 
+### Admin UI（推奨）
+1. Supabase `public.profiles.role` を `admin` に設定したユーザーでログイン
+2. `/episodes/new` から登録（original は PNG/JPG 必須、サムネイルは任意）
+3. 送信すると R2 へアップロードされ、`public.episodes` に保存されます
+4. 既存エピソードの編集/削除は `/episodes/[number]/edit`
+
+### Legacy script（JSON更新のみ）
+`scripts/upload-episode.sh` は R2 と `src/data/episodes.json` を更新しますが、
+Supabase への登録は行いません。seed 生成用の JSON 更新に使う場合のみ利用してください。
+
 ```bash
 ./scripts/upload-episode.sh <PNG_FILE> [EPISODE_NUMBER] [PRODUCT_URL]
-
-# Examples:
-./scripts/upload-episode.sh ~/Desktop/0441.png
-./scripts/upload-episode.sh ~/Desktop/0441.png 0441 https://whatif.stores.jp/items/xxx
 ```
 
-スクリプトが自動で：
-1. サムネイル生成（JPG）
-2. R2にoriginal + thumbnail をアップロード
-3. `src/data/episodes.json` を更新
+## Supabase Episodes
 
-その後 `git add src/data/episodes.json && git commit && git push` でVercelに自動デプロイ。
+- メタデータの正本は `public.episodes` テーブル
+- 反映には `supabase/migrations/20260407_create_episodes.sql` を適用
+- 初期データは `supabase/seeds/episodes.sql`
+- `src/data/episodes.json` から seed を作り直す場合:
+
+```bash
+node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
+```
 
 ---
 
@@ -102,6 +124,7 @@ npm run build
 - [x] Cloudflare R2 への全画像移行（444 PNG / 369 JPG）
 - [x] Episodes Gallery（無限スクロール）
 - [x] 全440エピソードの個別ページ（SSG）
+- [x] エピソード管理（Supabase + Admin UI で追加/編集/削除）
 - [x] Google Analytics 統合
 - [x] The Club（premium gating + catalog + download）
 

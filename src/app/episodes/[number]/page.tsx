@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import {
   getEpisodeByNumber,
   getAdjacentEpisodes,
-  getAllEpisodes,
 } from "@/lib/episodes";
+import { getAdminAccess } from "@/lib/admin/access";
 import { getOriginalUrl } from "@/lib/images";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 
@@ -17,7 +17,7 @@ export async function generateMetadata({
   params,
 }: EpisodePageProps): Promise<Metadata> {
   const { number } = await params;
-  const episode = getEpisodeByNumber(number);
+  const episode = await getEpisodeByNumber(number);
   if (!episode) return { title: "Not Found" };
 
   return {
@@ -26,17 +26,14 @@ export async function generateMetadata({
   };
 }
 
-export function generateStaticParams() {
-  return getAllEpisodes().map((ep) => ({ number: ep.number }));
-}
-
 export default async function EpisodePage({ params }: EpisodePageProps) {
   const { number } = await params;
-  const episode = getEpisodeByNumber(number);
+  const episode = await getEpisodeByNumber(number);
   if (!episode) notFound();
 
-  const { prev, next } = getAdjacentEpisodes(episode.id);
-  const imageUrl = getOriginalUrl(episode.number);
+  const { prev, next } = await getAdjacentEpisodes(episode.id);
+  const adminAccess = await getAdminAccess();
+  const imageUrl = getOriginalUrl(episode);
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,6 +77,14 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
             </div>
 
             <div className="mt-4 flex flex-col gap-4">
+              {adminAccess.isAdmin && (
+                <Link
+                  href={`/episodes/${episode.number}/edit`}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-neon-cyan/50 bg-neon-cyan/10 px-4 py-3 text-sm font-medium text-neon-cyan transition-all hover:bg-neon-cyan/20 hover:shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+                >
+                  編集する
+                </Link>
+              )}
               {episode.productUrl && (
                 <a
                   href={episode.productUrl}
