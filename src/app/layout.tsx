@@ -43,7 +43,7 @@ export default function RootLayout({
         <GoogleAnalytics />
         <AuthProvider>
           <Header />
-          <main className="flex-1 flex flex-col">{children}</main>
+          <main className="flex-1 flex min-h-0 flex-col">{children}</main>
           <ConditionalFooter />
         </AuthProvider>
       </body>
