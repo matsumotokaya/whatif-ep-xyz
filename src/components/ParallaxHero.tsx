@@ -38,24 +38,6 @@ const LAYERS: LayerDef[] = [
     style: { top: "-21%", left: "-20%", width: "44%" },
   },
   {
-    file: "10_texr_red_001.png",
-    w: 1135,
-    h: 1167,
-    speed: 0.08,
-    className: "w-full h-auto",
-    style: {},
-    wrapperClass: "parallax-redtext",
-  },
-  {
-    file: "09_line_001.png",
-    w: 1011,
-    h: 2878,
-    speed: 0.1,
-    className: "w-full h-auto",
-    style: {},
-    wrapperClass: "parallax-line",
-  },
-  {
     file: "08_text_WHATIF_001.png",
     w: 2500,
     h: 501,
@@ -119,15 +101,6 @@ const LAYERS: LayerDef[] = [
     style: {},
     wrapperClass: "parallax-glasses",
   },
-  {
-    file: "01_message_001.png",
-    w: 1002,
-    h: 192,
-    speed: 0.5,
-    className: "w-full h-auto",
-    style: {},
-    wrapperClass: "parallax-message",
-  },
 ];
 
 export function ParallaxHero() {
@@ -160,7 +133,7 @@ export function ParallaxHero() {
 
     const update = () => {
       const scrollY = window.scrollY;
-      const heroRange = window.innerHeight * 2.3;
+      const heroRange = window.innerHeight * 0.65;
       const progress = Math.min(scrollY / heroRange, 1);
 
       layers.forEach((el) => {
@@ -195,7 +168,7 @@ export function ParallaxHero() {
   }, []);
 
   return (
-    <div style={{ height: "330vh" }}>
+    <div style={{ height: "165vh", marginTop: "-3.5rem" }}>
       <section
         ref={sectionRef}
         className="sticky top-0 h-svh w-full overflow-hidden bg-background"
@@ -248,26 +221,11 @@ export function ParallaxHero() {
         {/* Scroll indicator */}
         <div
           ref={scrollIndicatorRef}
-          className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-2 transition-none"
+          className="absolute inset-x-0 bottom-10 flex justify-center transition-none"
           style={{ zIndex: LAYERS.length + 1 }}
         >
-          <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/60">
-            Scroll
-          </span>
-          <div className="animate-bounce">
-            <svg
-              className="h-5 w-5 text-foreground/60"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+          <div className="relative h-20 w-0.5 overflow-hidden bg-foreground/20">
+            <div className="animate-scroll-line absolute inset-x-0 h-1/2 rounded-full bg-foreground/70" />
           </div>
         </div>
 

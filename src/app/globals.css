@@ -40,15 +40,15 @@ body {
 
 /* WHATIF text layer positioning */
 .parallax-whatif {
-  width: 127%;
-  bottom: 30%;
-  left: 8%;
+  width: 110%;
+  bottom: 15%;
+  left: 2%;
 }
 
 /* Character layer positioning */
 .parallax-character {
   width: 90%;
-  top: 15%;
+  top: 3%;
   left: -2%;
 }
 
@@ -75,36 +75,36 @@ body {
 
 /* Scattered items positioning */
 .parallax-items {
-  top: 1%;
+  width: 32%;
+  top: 19%;
   right: 20%;
-  width: 26%;
 }
 
 /* Bag positioning */
 .parallax-bag {
   width: 32%;
-  bottom: 44%;
+  bottom: 5%;
   left: 73%;
 }
 
 /* Pink screen phone positioning */
 .parallax-sp2 {
   width: 11%;
-  top: 18%;
-  left: 48%;
+  top: 29%;
+  left: 54%;
 }
 
 /* Glasses positioning */
 .parallax-glasses {
-  width: 10%;
-  top: 15%;
-  left: 13%;
+  width: 8%;
+  top: 11%;
+  left: 7%;
 }
 
 /* Small dark phone positioning */
 .parallax-sp1 {
   width: 9%;
-  top: 82%;
+  top: 6%;
   right: 45%;
 }
 
@@ -114,14 +114,14 @@ body {
     object-position: 18%;
   }
   .parallax-whatif {
-    width: 200%;
-    bottom: 14%;
-    left: 5%;
+    width: 238%;
+    bottom: 29%;
+    left: -26%;
   }
   .parallax-character {
     width: 250%;
-    top: 19%;
-    left: -45%;
+    top: 1%;
+    left: -24%;
   }
   .parallax-redtext {
     width: 91%;
@@ -139,28 +139,28 @@ body {
     right: 28%;
   }
   .parallax-items {
-    top: 2%;
-    right: 5%;
-    width: 51%;
+    width: 71%;
+    top: 12%;
+    right: 2%;
   }
   .parallax-bag {
-    width: 58%;
-    bottom: 74%;
-    left: 69%;
+    width: 76%;
+    bottom: 6%;
+    left: 51%;
   }
   .parallax-sp2 {
-    width: 22%;
-    top: 45%;
+    width: 20%;
+    top: 1%;
     left: 56%;
   }
   .parallax-glasses {
     width: 24%;
-    top: 23%;
-    left: 2%;
+    top: 7%;
+    left: 16%;
   }
   .parallax-sp1 {
     width: 19%;
-    top: 72%;
+    top: -2%;
     right: 10%;
   }
 }
@@ -181,22 +181,12 @@ body {
   border-radius: 4px;
 }
 
-/* ─── Scrollbar styling ─── */
+/* ─── Scrollbar: hidden ─── */
+html {
+  scrollbar-width: none;
+}
 ::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--background);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
+  display: none;
 }
 
 /* ─── Neon glow utility (glow removed — monochrome scheme) ─── */
@@ -253,6 +243,15 @@ body {
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ─── Scroll line indicator ─── */
+@keyframes scrollDown {
+  0% { top: -50%; }
+  100% { top: 100%; }
+}
+.animate-scroll-line {
+  animation: scrollDown 1.4s ease-in-out infinite;
 }
 
 /* ─── Staggered fade-in for gallery cards ─── */
