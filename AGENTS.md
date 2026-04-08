@@ -15,9 +15,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | Environment | URL | Status |
 |-------------|-----|--------|
 | Local | http://localhost:3710 | active |
-| Production | https://whatif-ep-xyz.vercel.app | temporary (pending domain migration) |
-| Production (final) | TBD | not yet configured |
-
-**When the production domain is finalized:**
-1. Update the Production (final) row above
-2. Add the new URL to Supabase > Authentication > URL Configuration as an allowed redirect URL
+| Production | https://whatif-ep.xyz | active |
