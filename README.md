@@ -127,6 +127,7 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 - [x] エピソード管理（Supabase + Admin UI で追加/編集/削除）
 - [x] Google Analytics 統合
 - [x] The Club（premium gating + catalog + download）
+- [x] 多言語表示（EN/JA）対応（ハンバーガーメニュー / The Club 説明・Access）
 - [x] ドメイン移管（`whatif-ep.xyz` → Vercel）
 - [x] www → non-www 308リダイレクト（Vercel Domains設定）
 - [x] Supabase認証リダイレクトURL設定（`whatif-ep.xyz` 追加）
@@ -136,9 +137,13 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 
 The Club は通常の WHATIF アカウントと同じ Supabase Auth を使いますが、旧サイト由来の少数の会員だけは別のログイン導線を持ちます。
 
+2026年4月以降、`/IMAGINE` のプレミアム会員も同じアカウント基盤で The Club を利用できるようにしています。  
+The Club と `/IMAGINE` は同一アカウントでログインでき、対象会員は The Club のダウンロード機能を利用できます。
+
 - 通常会員
   - メールアドレス + パスワード
   - Google OAuth
+  - `/IMAGINE` プレミアム会員（同一アカウント連携）
 - legacy 会員
   - 旧 The Club の `ID` + パスワード
   - ログイン画面は `/auth/legacy-login`
