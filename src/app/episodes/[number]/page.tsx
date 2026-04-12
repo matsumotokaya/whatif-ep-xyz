@@ -39,6 +39,13 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
+function resolveDownloadExtension(storageKey: string): "png" | "jpg" | "webp" {
+  const lower = storageKey.toLowerCase();
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "jpg";
+  if (lower.endsWith(".webp")) return "webp";
+  return "png";
+}
+
 export default async function EpisodePage({ params }: EpisodePageProps) {
   const { number } = await params;
   const episode = await getEpisodeByNumber(number);
@@ -50,7 +57,8 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
   const releasedOn = formatDate(episode.createdAt);
   const updatedOn = formatDate(episode.updatedAt);
   const publishedOn = formatDate(episode.publishedAt);
-  const downloadFilename = `whatif-${episode.number}.png`;
+  const downloadFilename = `whatif-${episode.number}.${resolveDownloadExtension(episode.originalStorageKey)}`;
+  const downloadUrl = `/api/episodes/${episode.number}/download?filename=${encodeURIComponent(downloadFilename)}`;
 
   const dates = [
     releasedOn && { label: "Released", value: releasedOn },
@@ -80,7 +88,7 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <EpisodeDownloadButton
-                      url={imageUrl}
+                      url={downloadUrl}
                       filename={downloadFilename}
                       className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-surface-hover"
                     >
@@ -90,7 +98,7 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
                       episode={episode}
                       dates={dates}
                       isAdmin={adminAccess.isAdmin}
-                      imageUrl={imageUrl}
+                      downloadUrl={downloadUrl}
                       downloadFilename={downloadFilename}
                     />
                   </div>
@@ -210,7 +218,7 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
                 </Link>
               )}
               <EpisodeDownloadButton
-                url={imageUrl}
+                url={downloadUrl}
                 filename={downloadFilename}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
               >

@@ -9,7 +9,7 @@ interface EpisodeMobileInfoProps {
   episode: Episode;
   dates: { label: string; value: string }[];
   isAdmin: boolean;
-  imageUrl: string;
+  downloadUrl: string;
   downloadFilename: string;
 }
 
@@ -17,7 +17,7 @@ export function EpisodeMobileInfo({
   episode,
   dates,
   isAdmin,
-  imageUrl,
+  downloadUrl,
   downloadFilename,
 }: EpisodeMobileInfoProps) {
   const [open, setOpen] = useState(false);
@@ -119,7 +119,7 @@ export function EpisodeMobileInfo({
               {/* Actions */}
               <div className="mt-5 flex flex-col gap-2.5">
                 <EpisodeDownloadButton
-                  url={imageUrl}
+                  url={downloadUrl}
                   filename={downloadFilename}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
                 >
