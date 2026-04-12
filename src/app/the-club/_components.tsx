@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import type { ClubAccessState } from "@/lib/club/access";
 import type { ClubItem, ClubItemKind } from "@/lib/club/catalog";
 
+const IMAGINE_UPGRADE_URL = "https://app.whatif-ep.xyz/upgrade";
+
 const kindLabel: Record<ClubItemKind, string> = {
   wallpaper: "Wallpaper",
   zip: "ZIP",
@@ -58,7 +60,15 @@ export function ClubAccessNotice({
     nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
       ? `?next=${encodeURIComponent(nextPath)}`
       : "";
-  const copy =
+  const copy: {
+    title: string;
+    description: string;
+    actionHref: string;
+    actionLabel: string;
+    secondaryHref?: string;
+    secondaryLabel?: string;
+    external?: boolean;
+  } =
     status === "anonymous"
       ? {
           title: "Sign in to continue",
@@ -70,9 +80,12 @@ export function ClubAccessNotice({
       : {
           title: "Premium access required",
           description:
-            "Your account is active, but The Club is reserved for premium members. Contact us to upgrade your membership.",
-          actionHref: "/",
-          actionLabel: "Back to gallery",
+            "Your account is active, but The Club is reserved for premium members. Upgrade from the /IMAGINE page to enable access.",
+          actionHref: IMAGINE_UPGRADE_URL,
+          actionLabel: "Upgrade in /IMAGINE",
+          secondaryHref: "/",
+          secondaryLabel: "Back to gallery",
+          external: true,
         };
 
   return (
@@ -85,12 +98,31 @@ export function ClubAccessNotice({
           </p>
         </div>
         <div className="flex flex-col gap-3 lg:items-end">
-          <Link
-            href={copy.actionHref}
-            className="btn-press inline-flex items-center justify-center rounded-lg bg-foreground px-6 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
-          >
-            {copy.actionLabel}
-          </Link>
+          {copy.external ? (
+            <a
+              href={copy.actionHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-press inline-flex items-center justify-center rounded-lg bg-foreground px-6 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            >
+              {copy.actionLabel}
+            </a>
+          ) : (
+            <Link
+              href={copy.actionHref}
+              className="btn-press inline-flex items-center justify-center rounded-lg bg-foreground px-6 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            >
+              {copy.actionLabel}
+            </Link>
+          )}
+          {copy.secondaryHref && copy.secondaryLabel ? (
+            <Link
+              href={copy.secondaryHref}
+              className="btn-press inline-flex items-center justify-center rounded-lg border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+            >
+              {copy.secondaryLabel}
+            </Link>
+          ) : null}
         </div>
       </div>
     </section>

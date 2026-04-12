@@ -8,6 +8,7 @@ type AccessLocale = "en" | "ja";
 
 const LOCALE_STORAGE_KEY = "whatif_menu_locale";
 const LOCALE_EVENT_NAME = "whatif-locale-change";
+const IMAGINE_UPGRADE_URL = "https://app.whatif-ep.xyz/upgrade";
 
 type AccessCopy = {
   sectionLabel: string;
@@ -19,6 +20,7 @@ type AccessCopy = {
   freeDescription: string;
   loginLabel: string;
   openLibraryLabel: string;
+  upgradeLabel: string;
   galleryLabel: string;
   catalogEntriesLabel: string;
   wallpaperSetsLabel: string;
@@ -38,6 +40,7 @@ const copy: Record<AccessLocale, AccessCopy> = {
       "Your account is active, but premium membership is required to enter The Club.",
     loginLabel: "Log in",
     openLibraryLabel: "Open library",
+    upgradeLabel: "Upgrade in /IMAGINE",
     galleryLabel: "Gallery",
     catalogEntriesLabel: "Catalog entries",
     wallpaperSetsLabel: "Wallpaper sets",
@@ -55,6 +58,7 @@ const copy: Record<AccessLocale, AccessCopy> = {
       "アカウントは有効ですが、The Club の利用にはプレミアム会員登録が必要です。",
     loginLabel: "ログイン",
     openLibraryLabel: "ライブラリを開く",
+    upgradeLabel: "/IMAGINE でアップグレード",
     galleryLabel: "ギャラリー",
     catalogEntriesLabel: "カタログ数",
     wallpaperSetsLabel: "壁紙セット数",
@@ -171,13 +175,22 @@ export function TheClubAccessSection({
             >
               {copy[locale].loginLabel}
             </Link>
-          ) : (
+          ) : premium ? (
             <Link
               href="/the-club/library"
               className="btn-press inline-flex items-center rounded-lg bg-foreground px-8 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
             >
               {copy[locale].openLibraryLabel}
             </Link>
+          ) : (
+            <a
+              href={IMAGINE_UPGRADE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-press inline-flex items-center rounded-lg bg-foreground px-8 py-3 text-sm font-medium tracking-widest text-background transition-opacity hover:opacity-80"
+            >
+              {copy[locale].upgradeLabel}
+            </a>
           )}
           <Link
             href="/episodes"
