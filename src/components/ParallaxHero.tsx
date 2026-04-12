@@ -107,17 +107,74 @@ export function ParallaxHero() {
   const sectionRef = useRef<HTMLElement>(null);
   const scrollIndicatorRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
-  const [ready, setReady] = useState(false);
+  const [priorityReady, setPriorityReady] = useState(false);
+  const [overlayPhase, setOverlayPhase] = useState<"loading" | "fading" | "hidden">("loading");
+  const [loaderProgress, setLoaderProgress] = useState(0);
+  const [introVisible, setIntroVisible] = useState(false);
   const loadedRef = useRef(0);
+  const overlayStartRef = useRef<number | null>(null);
 
   const priorityCount = LAYERS.filter((l) => l.priority).length;
 
   const handleImageLoad = () => {
     loadedRef.current += 1;
     if (loadedRef.current >= priorityCount) {
-      setReady(true);
+      setPriorityReady(true);
     }
   };
+
+  useEffect(() => {
+    if (overlayPhase !== "loading") return;
+
+    const MIN_OVERLAY_MS = 1000;
+    const COMPLETE_BAR_MS = 260;
+    let rafId = 0;
+
+    const tick = (now: number) => {
+      if (overlayStartRef.current === null) {
+        overlayStartRef.current = now;
+      }
+
+      const elapsed = now - overlayStartRef.current;
+      const waitingProgress = Math.min((elapsed / MIN_OVERLAY_MS) * 88, 88);
+
+      if (priorityReady && elapsed >= MIN_OVERLAY_MS) {
+        const afterMin = elapsed - MIN_OVERLAY_MS;
+        const finalProgress = Math.min(100, 88 + (afterMin / COMPLETE_BAR_MS) * 12);
+        setLoaderProgress(finalProgress);
+      } else {
+        setLoaderProgress(waitingProgress);
+      }
+
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [priorityReady, overlayPhase]);
+
+  useEffect(() => {
+    if (overlayPhase !== "loading") return;
+    if (!(priorityReady && loaderProgress >= 99.9)) return;
+
+    const fadeTimer = window.setTimeout(() => {
+      setOverlayPhase("fading");
+    }, 120);
+
+    return () => window.clearTimeout(fadeTimer);
+  }, [priorityReady, loaderProgress, overlayPhase]);
+
+  useEffect(() => {
+    if (overlayPhase !== "fading") return;
+
+    const fadeDurationMs = 700;
+    const revealTimer = window.setTimeout(() => {
+      setOverlayPhase("hidden");
+      setIntroVisible(true);
+    }, fadeDurationMs);
+
+    return () => window.clearTimeout(revealTimer);
+  }, [overlayPhase]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -176,16 +233,18 @@ export function ParallaxHero() {
         {/* Loading screen */}
         <div
           className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-opacity duration-700 ease-out ${
-            ready ? "pointer-events-none opacity-0" : "opacity-100"
+            overlayPhase === "fading" || overlayPhase === "hidden"
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
           }`}
         >
           <span className="text-sm font-semibold tracking-[0.28em] text-white/90">
             WHATIF
           </span>
-          <div className="mt-3 h-[2px] w-14 overflow-hidden rounded-full bg-white/20">
+          <div className="mt-3 h-[2px] w-20 overflow-hidden rounded-full bg-white/20">
             <div
-              className="h-full w-full animate-[shimmer_1.2s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/90 to-transparent"
-              style={{ backgroundSize: "200% 100%" }}
+              className="h-full rounded-full bg-white/90 transition-[width] duration-100 ease-linear"
+              style={{ width: `${loaderProgress}%` }}
             />
           </div>
         </div>
@@ -198,26 +257,41 @@ export function ParallaxHero() {
             className={`absolute will-change-transform ${layer.fill ? "inset-0" : ""} ${layer.wrapperClass ?? ""}`}
             style={{ zIndex: i + 1, ...(!layer.fill ? layer.style : {}) }}
           >
-            {layer.fill ? (
-              <Image
-                src={`${IMG}/${layer.file}`}
-                alt=""
-                fill
-                className={layer.className}
-                priority={layer.priority ?? false}
-                onLoad={layer.priority ? handleImageLoad : undefined}
-              />
-            ) : (
-              <Image
-                src={`${IMG}/${layer.file}`}
-                alt=""
-                width={layer.w}
-                height={layer.h}
-                className={layer.className}
-                priority={layer.priority ?? false}
-                onLoad={layer.priority ? handleImageLoad : undefined}
-              />
-            )}
+            <div
+              className="will-change-transform"
+              style={{
+                opacity: introVisible ? 1 : 0,
+                transform: introVisible
+                  ? "translate3d(0,0,0)"
+                  : "translate3d(0,56px,0)",
+                transitionProperty: "opacity, transform",
+                transitionDuration: "700ms, 900ms",
+                transitionTimingFunction:
+                  "ease-out, cubic-bezier(0.16, 1, 0.3, 1)",
+                transitionDelay: `${i * 45}ms`,
+              }}
+            >
+              {layer.fill ? (
+                <Image
+                  src={`${IMG}/${layer.file}`}
+                  alt=""
+                  fill
+                  className={layer.className}
+                  priority={layer.priority ?? false}
+                  onLoad={layer.priority ? handleImageLoad : undefined}
+                />
+              ) : (
+                <Image
+                  src={`${IMG}/${layer.file}`}
+                  alt=""
+                  width={layer.w}
+                  height={layer.h}
+                  className={layer.className}
+                  priority={layer.priority ?? false}
+                  onLoad={layer.priority ? handleImageLoad : undefined}
+                />
+              )}
+            </div>
           </div>
         ))}
 
