@@ -175,15 +175,18 @@ export function ParallaxHero() {
       >
         {/* Loading screen */}
         <div
-          className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-background transition-opacity duration-700 ease-out ${
+          className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-opacity duration-700 ease-out ${
             ready ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
         >
-          <span className="text-xl font-bold tracking-[0.3em] text-foreground">
+          <span className="text-sm font-semibold tracking-[0.28em] text-white/90">
             WHATIF
           </span>
-          <div className="mt-6 h-px w-16 overflow-hidden rounded-full bg-border">
-            <div className="h-full w-full animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-foreground/30 to-transparent" style={{ backgroundSize: "200% 100%" }} />
+          <div className="mt-3 h-[2px] w-14 overflow-hidden rounded-full bg-white/20">
+            <div
+              className="h-full w-full animate-[shimmer_1.2s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/90 to-transparent"
+              style={{ backgroundSize: "200% 100%" }}
+            />
           </div>
         </div>
 
