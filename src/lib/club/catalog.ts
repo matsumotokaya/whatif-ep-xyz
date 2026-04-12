@@ -1,4 +1,8 @@
+import { cache } from "react";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ClubItemKind = "wallpaper" | "zip" | "reel" | "other" | "book";
 
@@ -17,6 +21,12 @@ export interface ClubItem {
   updatedAt: string;
   accent: "cyan" | "magenta" | "green";
   tags: string[];
+}
+
+export interface ClubStats {
+  total: number;
+  wallpapers: number;
+  ready: number;
 }
 
 type ClubItemRecord = {
@@ -159,14 +169,78 @@ export async function getClubItem(slug: string): Promise<ClubItem | null> {
 }
 
 export async function getClubStats() {
+  const admin = createAdminClient();
+  if (admin) {
+    const [totalResult, wallpaperResult] = await Promise.all([
+      admin
+        .from("club_items")
+        .select("id", { count: "exact", head: true })
+        .eq("is_published", true),
+      admin
+        .from("club_items")
+        .select("id", { count: "exact", head: true })
+        .eq("is_published", true)
+        .eq("kind", "wallpaper"),
+    ]);
+
+    if (!totalResult.error && !wallpaperResult.error) {
+      const total = totalResult.count ?? 0;
+      const wallpapers = wallpaperResult.count ?? 0;
+      return {
+        total,
+        wallpapers,
+        ready: total,
+      };
+    }
+  }
+
   const items = await getClubItems();
-  const total = items.length;
-  const wallpapers = items.filter((item) => item.kind === "wallpaper").length;
-  const ready = items.filter((item) => item.status === "preview").length;
+  if (items.length > 0) {
+    const total = items.length;
+    const wallpapers = items.filter((item) => item.kind === "wallpaper").length;
+    const ready = items.filter((item) => item.status === "preview").length;
+
+    return {
+      total,
+      wallpapers,
+      ready,
+    };
+  }
+
+  const seedStats = await getClubStatsFromSeedSql();
+  if (seedStats) {
+    return seedStats;
+  }
 
   return {
-    total,
-    wallpapers,
-    ready,
+    total: 0,
+    wallpapers: 0,
+    ready: 0,
   };
 }
+
+const getClubStatsFromSeedSql = cache(async (): Promise<ClubStats | null> => {
+  try {
+    const sqlPath = path.join(process.cwd(), "data", "club-items-upsert.sql");
+    const sql = await readFile(sqlPath, "utf8");
+    const blocks = sql.split(/insert into public\.club_items\s*\(/i).slice(1);
+
+    let total = 0;
+    let wallpapers = 0;
+
+    for (const block of blocks) {
+      const valuesBlock = block.split("on conflict")[0];
+      const isPublished = /,\s*true,\s*[\r\n]+\s*timezone\(/m.test(valuesBlock);
+      if (!isPublished) continue;
+      total += 1;
+
+      const isWallpaper = /[\r\n]\s*'wallpaper',\s*[\r\n]/m.test(valuesBlock);
+      if (isWallpaper) wallpapers += 1;
+    }
+
+    if (total === 0) return null;
+    return { total, wallpapers, ready: total };
+  } catch {
+    return null;
+  }
+});

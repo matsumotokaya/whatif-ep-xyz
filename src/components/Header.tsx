@@ -274,11 +274,11 @@ export function Header() {
       {menuOpen &&
         createPortal(
           <div
-            className={`fixed inset-0 z-[60] bg-background ${
+            className={`fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-background ${
               menuClosing ? "menu-overlay-exit" : "menu-overlay-enter"
             }`}
           >
-            <div className="mx-auto flex h-full max-w-5xl flex-col px-6 py-8">
+            <div className="mx-auto flex min-h-full max-w-5xl flex-col px-6 py-8">
               {/* Top bar */}
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-[0.4em] text-muted">

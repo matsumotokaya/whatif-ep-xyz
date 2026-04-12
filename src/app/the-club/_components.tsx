@@ -20,7 +20,7 @@ export function ClubShell({
 }: {
   eyebrow: string;
   title: string;
-  description: string;
+  description: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -33,9 +33,13 @@ export function ClubShell({
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             {title}
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-muted">
-            {description}
-          </p>
+          {typeof description === "string" ? (
+            <p className="mt-4 max-w-xl text-sm leading-7 text-muted">
+              {description}
+            </p>
+          ) : (
+            <div className="mt-4">{description}</div>
+          )}
         </div>
         {children}
       </div>
