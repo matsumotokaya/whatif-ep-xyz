@@ -22,8 +22,14 @@ export function EpisodeMobileInfo({
 }: EpisodeMobileInfoProps) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const close = useCallback(() => {
+    setDragOffsetY(0);
+    setDragStartY(null);
+    setIsDragging(false);
     setClosing(true);
     setTimeout(() => {
       setOpen(false);
@@ -41,6 +47,34 @@ export function EpisodeMobileInfo({
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!open || closing) return;
+    setDragStartY(event.touches[0].clientY);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || dragStartY === null) return;
+    const offset = event.touches[0].clientY - dragStartY;
+    if (offset <= 0) {
+      setDragOffsetY(0);
+      return;
+    }
+    setDragOffsetY(Math.min(offset, 180));
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    const shouldClose = dragOffsetY > 80;
+    setIsDragging(false);
+    setDragStartY(null);
+    if (shouldClose) {
+      close();
+      return;
+    }
+    setDragOffsetY(0);
+  };
 
   return (
     <>
@@ -69,6 +103,14 @@ export function EpisodeMobileInfo({
                 ? "animate-[sheetSlideDown_250ms_ease-in_both]"
                 : "animate-[sheetSlideUp_350ms_cubic-bezier(0.16,1,0.3,1)_both]"
             }`}
+            style={{
+              transform: dragOffsetY > 0 ? `translateY(${dragOffsetY}px)` : undefined,
+              transition: isDragging ? "none" : undefined,
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
           >
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
@@ -78,15 +120,39 @@ export function EpisodeMobileInfo({
             <div className="max-h-[60vh] overflow-y-auto px-5 pb-8 pt-2">
               {/* Title */}
               <div className="mb-4">
-                <p className="font-mono text-xs text-muted">
-                  #{episode.number}
-                </p>
-                <h2 className="mt-1 text-lg font-bold text-foreground">
-                  {episode.title}
-                </h2>
-                {episode.category && (
-                  <p className="mt-1 text-sm text-muted">{episode.category}</p>
-                )}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-xs text-muted">
+                      #{episode.number}
+                    </p>
+                    <h2 className="mt-1 text-lg font-bold text-foreground">
+                      {episode.title}
+                    </h2>
+                    {episode.category && (
+                      <p className="mt-1 text-sm text-muted">{episode.category}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={close}
+                    className="btn-press inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+                    aria-label="Close info panel"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 6l12 12M18 6L6 18"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Metadata */}
