@@ -6,12 +6,65 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
+type MenuLocale = "en" | "ja";
+type NavItemKey = "episodes" | "imagine" | "club" | "store";
+
 const navItems = [
-  { href: "/episodes", label: "EPISODES", description: "ARTWORK GALLERY" },
-  { href: "https://app.whatif-ep.xyz/", label: "/IMAGINE", description: "FREE DESIGN TEMPLATES", external: true },
-  { href: "/the-club", label: "THE CLUB", description: "MEMBERSHIP DOWNLOAD PAGE" },
-  { href: "https://whatif.stores.jp", label: "SHOP", description: "ORIGINAL MERCHANDISE & PRINTS", external: true },
+  { key: "episodes" as NavItemKey, href: "/episodes" },
+  { key: "imagine" as NavItemKey, href: "https://app.whatif-ep.xyz/", external: true },
+  { key: "club" as NavItemKey, href: "/the-club" },
+  { key: "store" as NavItemKey, href: "https://whatif.stores.jp", external: true },
 ];
+
+const menuCopy: Record<
+  MenuLocale,
+  Record<NavItemKey, { label: string; description: string }>
+> = {
+  en: {
+    episodes: {
+      label: "EPISODES",
+      description:
+        "A gallery of WHATIF artworks shared on Instagram and Threads. Selected images are available for download.",
+    },
+    imagine: {
+      label: "/IMAGINE",
+      description:
+        "A free design site where you can create illustrations from 99% complete design kits. Build original designs using WHATIF artwork assets.",
+    },
+    club: {
+      label: "THE CLUB",
+      description:
+        "A members-only wallpaper download service for Instagram subscription members. Accounts are now shared with Imagine, and paid Imagine users get unlimited wallpaper downloads.",
+    },
+    store: {
+      label: "STORE",
+      description:
+        "Shop fashion items like T-shirts and sweatshirts featuring WHATIF artwork, plus downloadable items such as wallpapers and digital books.",
+    },
+  },
+  ja: {
+    episodes: {
+      label: "エピソード",
+      description:
+        "Instagram と Threads で公開している WHATIF のアートワークギャラリーです。一部画像はダウンロードできます。",
+    },
+    imagine: {
+      label: "Imagine",
+      description:
+        "99%完成済みのデザインキットから自由にイラストを作れる無料デザインサイトです。WHATIFのアートワーク素材でオリジナルデザインを作成できます。",
+    },
+    club: {
+      label: "ザ・クラブ",
+      description:
+        "会員制の壁紙ダウンロードサービスです。Instagramサブスク会員向けプランに加え、Imagineとのアカウント共有に対応しています。Imagine有料プランなら壁紙をダウンロードし放題です。",
+    },
+    store: {
+      label: "ストア",
+      description:
+        "WHATIFアートワークを使ったTシャツやスウェットなどのファッションアイテムに加え、壁紙や電子書籍などのダウンロード商品も購入できます。",
+    },
+  },
+};
 
 const socialLinks = [
   {
@@ -128,16 +181,16 @@ export function Header() {
   const { user, loading } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [menuLocale, setMenuLocale] = useState<MenuLocale>(() => {
+    if (typeof window === "undefined") return "en";
+    const savedLocale = window.localStorage.getItem("whatif_menu_locale");
+    return savedLocale === "ja" ? "ja" : "en";
+  });
 
   const loginHref =
     pathname && pathname.startsWith("/") && !pathname.startsWith("//")
       ? `/auth/login?next=${encodeURIComponent(pathname)}`
       : "/auth/login";
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const closeMenu = useCallback(() => {
     setMenuClosing(true);
@@ -148,7 +201,6 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
     if (menuOpen) {
       document.body.style.overflow = "hidden";
     } else {
@@ -157,7 +209,7 @@ export function Header() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [menuOpen, mounted]);
+  }, [menuOpen]);
 
   return (
     <header className={`fixed top-0 z-50 w-full transition-colors ${isHome ? "" : "border-b border-border bg-background/80 backdrop-blur-md"}`}>
@@ -219,8 +271,7 @@ export function Header() {
       </div>
 
       {/* Full-screen menu overlay via portal */}
-      {mounted &&
-        menuOpen &&
+      {menuOpen &&
         createPortal(
           <div
             className={`fixed inset-0 z-[60] bg-background ${
@@ -231,37 +282,72 @@ export function Header() {
               {/* Top bar */}
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-[0.4em] text-muted">
-                  Menu
+                  {menuLocale === "en" ? "Menu" : "メニュー"}
                 </span>
-                <button
-                  type="button"
-                  aria-label="Close menu"
-                  onClick={closeMenu}
-                  className="btn-press flex h-10 w-10 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-surface-hover"
-                >
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full border border-border bg-surface p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuLocale("en");
+                        window.localStorage.setItem("whatif_menu_locale", "en");
+                      }}
+                      className={`btn-press rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        menuLocale === "en"
+                          ? "bg-foreground text-background"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                      aria-label="Switch menu language to English"
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuLocale("ja");
+                        window.localStorage.setItem("whatif_menu_locale", "ja");
+                      }}
+                      className={`btn-press rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        menuLocale === "ja"
+                          ? "bg-foreground text-background"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                      aria-label="Switch menu language to Japanese"
+                    >
+                      JA
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close menu"
+                    onClick={closeMenu}
+                    className="btn-press flex h-10 w-10 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-surface-hover"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Nav items with staggered slide-in */}
               <nav className="mt-12 flex flex-col">
                 {navItems.map((item, i) => {
-                  const isActive = pathname?.startsWith(item.href);
+                  const copy = menuCopy[menuLocale][item.key];
+                  const isActive = !item.external && pathname?.startsWith(item.href);
                   const delay = `${80 + i * 60}ms`;
 
-                  if ("external" in item && item.external) {
+                  if (item.external) {
                     return (
                       <a
                         key={item.href}
@@ -272,12 +358,12 @@ export function Header() {
                         className="menu-item-slide group flex items-center justify-between rounded-xl px-4 py-4 text-foreground transition-colors hover:bg-surface-hover"
                         style={{ animationDelay: delay }}
                       >
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex max-w-3xl flex-col gap-1.5">
                           <span className="text-2xl font-bold tracking-tight sm:text-3xl">
-                            {item.label}
+                            {copy.label}
                           </span>
-                          <span className="text-[10px] tracking-[0.25em] text-muted">
-                            {item.description}
+                          <span className="text-sm leading-relaxed text-muted">
+                            {copy.description}
                           </span>
                         </div>
                         <svg
@@ -306,12 +392,12 @@ export function Header() {
                       }`}
                       style={{ animationDelay: delay }}
                     >
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex max-w-3xl flex-col gap-1.5">
                         <span className="text-2xl font-bold tracking-tight sm:text-3xl">
-                          {item.label}
+                          {copy.label}
                         </span>
-                        <span className="text-[10px] tracking-[0.25em] text-muted">
-                          {item.description}
+                        <span className="text-sm leading-relaxed text-muted">
+                          {copy.description}
                         </span>
                       </div>
                       <svg
