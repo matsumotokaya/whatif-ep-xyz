@@ -10,7 +10,7 @@ type MenuLocale = "en" | "ja";
 type NavItemKey = "episodes" | "imagine" | "club" | "store";
 
 const navItems = [
-  { key: "episodes" as NavItemKey, href: "/episodes" },
+  { key: "episodes" as NavItemKey, href: "/works/episode" },
   { key: "imagine" as NavItemKey, href: "https://app.whatif-ep.xyz/", external: true },
   { key: "club" as NavItemKey, href: "/the-club" },
   { key: "store" as NavItemKey, href: "https://whatif.stores.jp", external: true },

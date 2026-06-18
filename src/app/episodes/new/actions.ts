@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminAccess } from "@/lib/admin/access";
+import { syncEpisodeWork } from "@/lib/admin/work-sync";
 import { isR2Configured, uploadR2Object } from "@/lib/r2";
 
 export interface CreateEpisodeState {
@@ -166,6 +167,8 @@ export async function createEpisodeAction(
       });
     }
 
+    const publishedAt = isPublished ? new Date().toISOString() : null;
+
     const { error } = await supabase.from("episodes").insert({
       id,
       number,
@@ -176,7 +179,7 @@ export async function createEpisodeAction(
       original_storage_key: originalStorageKey,
       thumbnail_storage_key: thumbnailStorageKey,
       is_published: isPublished,
-      published_at: isPublished ? new Date().toISOString() : null,
+      published_at: publishedAt,
     });
 
     if (error) {
@@ -184,6 +187,19 @@ export async function createEpisodeAction(
         message: `DB 保存に失敗しました: ${error.message}`,
       };
     }
+
+    await syncEpisodeWork(supabase, {
+      id,
+      number,
+      title,
+      category,
+      product_url: productUrl,
+      released_on: releasedOn,
+      original_storage_key: originalStorageKey,
+      thumbnail_storage_key: thumbnailStorageKey,
+      is_published: isPublished,
+      published_at: publishedAt,
+    });
   } catch (error) {
     return {
       message:
@@ -195,5 +211,8 @@ export async function createEpisodeAction(
 
   revalidatePath("/episodes");
   revalidatePath(`/episodes/${number}`);
+  revalidatePath("/works");
+  revalidatePath("/works/episode");
+  revalidatePath(`/works/episode/${number}`);
   redirect(`/episodes/${number}`);
 }

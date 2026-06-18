@@ -6,6 +6,16 @@ WHATIF EP - Digital Art Gallery
 
 ---
 
+## Renewal Status
+
+このリポジトリは現在、`WHATIF Gallery` を `作品ハブ + 壁紙 + IMAGINE編集導線` に再設計するリニューアル計画を進行中です。
+
+- 計画書: [docs/RENEWAL_PLAN.md](docs/RENEWAL_PLAN.md)
+- 現行 README は本番運用中の構成説明
+- 新しいデータモデルは `episode` ではなく `work` を中心に再設計予定
+
+次のセッションではまず [docs/RENEWAL_PLAN.md](docs/RENEWAL_PLAN.md) を参照してから着手すること。
+
 ## Tech Stack
 
 | Layer | Technology |

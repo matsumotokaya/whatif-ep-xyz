@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminAccess } from "@/lib/admin/access";
+import { deleteEpisodeWork, syncEpisodeWork } from "@/lib/admin/work-sync";
 import { deleteR2Object, isR2Configured, uploadR2Object } from "@/lib/r2";
 
 export interface EditEpisodeState {
@@ -217,6 +218,19 @@ export async function updateEpisodeAction(
         message: `更新に失敗しました: ${error.message}`,
       };
     }
+
+    await syncEpisodeWork(supabase, {
+      id: existingEpisode.id,
+      number,
+      title,
+      category,
+      product_url: productUrl,
+      released_on: releasedOn,
+      original_storage_key: originalStorageKey,
+      thumbnail_storage_key: thumbnailStorageKey,
+      is_published: isPublished,
+      published_at: nextPublishedAt,
+    });
   } catch (error) {
     return {
       message:
@@ -229,6 +243,9 @@ export async function updateEpisodeAction(
   revalidatePath("/episodes");
   revalidatePath(`/episodes/${number}`);
   revalidatePath(`/episodes/${number}/edit`);
+  revalidatePath("/works");
+  revalidatePath("/works/episode");
+  revalidatePath(`/works/episode/${number}`);
   redirect(`/episodes/${number}`);
 }
 
@@ -294,6 +311,8 @@ export async function deleteEpisodeAction(
       await deleteR2Object({ key: existingEpisode.thumbnail_storage_key });
     }
 
+    await deleteEpisodeWork(supabase, existingEpisode.id);
+
     const { error } = await supabase
       .from("episodes")
       .delete()
@@ -314,5 +333,8 @@ export async function deleteEpisodeAction(
   }
 
   revalidatePath("/episodes");
+  revalidatePath("/works");
+  revalidatePath("/works/episode");
+  revalidatePath(`/works/episode/${number}`);
   redirect("/episodes");
 }
