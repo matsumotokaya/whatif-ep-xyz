@@ -91,6 +91,9 @@ export default async function WorkDetailPage({
     currentVariant.originalStorageKey
   )}`;
   const downloadUrl = `/api/works/${work.seriesSlug}/${work.displayCode}/download?variant=${currentVariant.variantNumber}&filename=${encodeURIComponent(downloadFilename)}`;
+  const wallpaperHref = `/works/${work.seriesSlug}/${work.displayCode}/wallpaper${
+    currentVariant.variantNumber > 1 ? `?variant=${currentVariant.variantNumber}` : ""
+  }`;
 
   const dates = [
     releasedOn && { label: "Released", value: releasedOn },
@@ -195,12 +198,12 @@ export default async function WorkDetailPage({
         </div>
 
         <aside className="hidden flex-col border-t border-border bg-background/95 backdrop-blur-sm lg:flex lg:border-l lg:border-t-0">
-          <div className="flex min-h-0 flex-1 flex-col px-6 py-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <GallerySeriesSelect series={seriesOptions} selectedSlug={work.seriesSlug} />
             </div>
 
-            <div className="mt-5 flex-1">
+            <div className="mt-5">
               <p className="font-mono text-lg text-muted">#{work.displayCode}</p>
               <h1 className="mt-1 text-xl font-bold sm:text-2xl">{work.title}</h1>
               {work.themeCategory && (
@@ -274,19 +277,6 @@ export default async function WorkDetailPage({
                 Download
               </EpisodeDownloadButton>
 
-              {wallpaperPack ? (
-                <Link
-                  href={`/works/${work.seriesSlug}/${work.displayCode}/wallpaper${currentVariant.variantNumber > 1 ? `?variant=${currentVariant.variantNumber}` : ""}`}
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-                >
-                  Wallpaper
-                </Link>
-              ) : (
-                <span className="inline-flex items-center justify-center rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
-                  Wallpaper: Preparing
-                </span>
-              )}
-
               {resolveOfferUrl(imagineOffer?.targetUrl) ? (
                 <a
                   href={resolveOfferUrl(imagineOffer?.targetUrl)!}
@@ -313,6 +303,45 @@ export default async function WorkDetailPage({
                 </a>
               )}
             </div>
+
+            {wallpaperPack?.cover && (
+              <div className="mt-6 border-t border-border pt-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                  Wallpaper available
+                </p>
+                <Link
+                  href={wallpaperHref}
+                  className="mt-3 block overflow-hidden rounded-xl border border-border transition-transform hover:scale-[1.01]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={wallpaperPack.cover.publicUrl}
+                    alt={`${work.title} wallpaper`}
+                    className="aspect-square w-full object-cover"
+                  />
+                </Link>
+                <dl className="mt-4 space-y-3">
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">
+                      Mobile
+                    </dt>
+                    <dd className="mt-1 space-y-0.5 text-[11px] text-muted">
+                      <p>FULL HD [1080px / 1920px]</p>
+                      <p>2K / QUAD HD [1440px / 2560px]</p>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">
+                      Desktop
+                    </dt>
+                    <dd className="mt-1 space-y-0.5 text-[11px] text-muted">
+                      <p>FULL HD [1920px / 1080px]</p>
+                      <p>2K / QUAD HD [2560px / 1440px]</p>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-border px-6 py-3">

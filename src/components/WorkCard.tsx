@@ -21,7 +21,12 @@ function WorkPlaceholder({ code }: { code: string }) {
 }
 
 export function WorkCard({ work, style }: WorkCardProps) {
-  const candidates = getWorkPrimaryImageCandidates(work);
+  // Prefer the Content Factory feed image; fall back to the variant image
+  // (also used as the on-error fallback chain) when no feed exists.
+  const fallbackCandidates = getWorkPrimaryImageCandidates(work);
+  const candidates = work.feedImageUrl
+    ? [work.feedImageUrl, ...fallbackCandidates]
+    : fallbackCandidates;
   const [index, setIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,7 +44,7 @@ export function WorkCard({ work, style }: WorkCardProps) {
       className="hover-lift group relative block overflow-hidden rounded-xl border border-border bg-surface"
       style={style}
     >
-      <div className="relative aspect-square overflow-hidden bg-surface">
+      <div className="relative aspect-[4/5] overflow-hidden bg-surface">
         {isLoading && src && <div className="shimmer absolute inset-0" />}
         {src ? (
           <Image

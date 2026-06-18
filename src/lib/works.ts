@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getSeriesFeedImageMap } from "@/lib/wallpaper";
 import type {
   GallerySeries,
   Work,
@@ -213,7 +214,7 @@ async function loadVisibleWorksBySeries(seriesSlug: string): Promise<Work[]> {
   const workIds = workRows.map((row) => row.id);
   const workIdChunks = chunkArray(workIds, CHUNK_SIZE);
 
-  const [variantChunks, offerChunks] = await Promise.all([
+  const [variantChunks, offerChunks, feedImageMap] = await Promise.all([
     Promise.all(
       workIdChunks.map(async (chunk) => {
         const { data, error } = await supabase
@@ -246,6 +247,7 @@ async function loadVisibleWorksBySeries(seriesSlug: string): Promise<Work[]> {
         return (data ?? []) as unknown as WorkOfferRow[];
       })
     ),
+    getSeriesFeedImageMap(seriesSlug),
   ]);
 
   const variantRows = variantChunks.flat();
@@ -274,14 +276,20 @@ async function loadVisibleWorksBySeries(seriesSlug: string): Promise<Work[]> {
     variantsByWorkId.set(row.work_id, bucket);
   }
 
-  return workRows.map((row) =>
-    mapWork(
+  return workRows.map((row) => {
+    const work = mapWork(
       row,
       series,
       variantsByWorkId.get(row.id) ?? [],
       offersByWorkId.get(row.id) ?? []
-    )
-  );
+    );
+    work.feedImageUrl = work.primaryVariant
+      ? feedImageMap.get(
+          `${work.displayCode}:${work.primaryVariant.variantNumber}`
+        ) ?? null
+      : null;
+    return work;
+  });
 }
 
 const getVisibleWorksBySeries = cache(loadVisibleWorksBySeries);

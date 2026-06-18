@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "pub-9339dc326a024891a297479881e66962.r2.dev",
       },
+      {
+        // Content Factory feed/wallpaper images served from Supabase Storage.
+        protocol: "https",
+        hostname: "rgqduwojvylkulhyodqg.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
       // Add custom domain when configured
       // { protocol: "https", hostname: "assets.whatif-ep.com" },
     ],

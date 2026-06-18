@@ -120,6 +120,9 @@ export interface Work {
   variants: WorkVariant[];
   offers: WorkOffer[];
   primaryVariant: WorkVariant | null;
+  // Content Factory feed image (instagram_feed output) used for gallery cards.
+  // Null when no published feed exists; cards then fall back to the variant image.
+  feedImageUrl?: string | null;
 }
 
 export interface WorkSeriesRow {

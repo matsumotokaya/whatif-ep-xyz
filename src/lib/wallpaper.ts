@@ -66,6 +66,59 @@ function buildPublicUrl(bucket: string, storagePath: string): string {
   return `${baseUrl}/storage/v1/object/public/${bucket}/${storagePath.replace(/^\/+/, "")}`;
 }
 
+// Map of "displayCode:variantNumber" -> public feed image URL for a series.
+// Built from published production projects' ready instagram_feed outputs.
+// Used by the gallery to show Content Factory feed images on work cards.
+export async function getSeriesFeedImageMap(
+  seriesSlug: string
+): Promise<Map<string, string>> {
+  const supabase = createAdminClient();
+  if (!supabase) return new Map();
+
+  const { data: projectsData } = await supabase
+    .from("production_projects")
+    .select("id, work_display_code, variant_number")
+    .eq("work_series_slug", seriesSlug)
+    .eq("status", "published");
+
+  const projects = (projectsData ?? []) as unknown as {
+    id: string;
+    work_display_code: string;
+    variant_number: number;
+  }[];
+  if (projects.length === 0) return new Map();
+
+  const { data: outputsData } = await supabase
+    .from("production_outputs")
+    .select("project_id, storage_bucket, storage_path")
+    .in(
+      "project_id",
+      projects.map((project) => project.id)
+    )
+    .eq("role", "instagram_feed")
+    .eq("status", "ready");
+
+  const outputs = (outputsData ?? []) as unknown as {
+    project_id: string;
+    storage_bucket: string | null;
+    storage_path: string | null;
+  }[];
+
+  const projectById = new Map(projects.map((project) => [project.id, project]));
+  const map = new Map<string, string>();
+
+  for (const output of outputs) {
+    const project = projectById.get(output.project_id);
+    if (!project || !output.storage_bucket || !output.storage_path) continue;
+    map.set(
+      `${project.work_display_code}:${project.variant_number}`,
+      buildPublicUrl(output.storage_bucket, output.storage_path)
+    );
+  }
+
+  return map;
+}
+
 export async function getPublishedWallpaperPack(
   seriesSlug: string,
   displayCode: string,
