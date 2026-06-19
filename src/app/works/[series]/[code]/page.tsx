@@ -116,6 +116,60 @@ export default async function WorkDetailPage({
         <div className="relative min-h-0 bg-surface/30">
           <EpisodeDetailImage candidates={imageCandidates} alt={work.title} />
 
+          {/* Top navigation bar overlaid on the image (desktop + mobile) */}
+          <div className="absolute inset-x-0 top-0 z-10">
+            <div className="flex items-center justify-between gap-2 bg-gradient-to-b from-background/80 via-background/40 to-transparent px-3 py-2.5 sm:px-4 sm:py-3">
+              {adjacent.prev ? (
+                <Link
+                  href={`/works/${work.seriesSlug}/${adjacent.prev.displayCode}`}
+                  className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-surface-hover"
+                >
+                  <svg
+                    className="h-4 w-4 transition-transform group-hover:-translate-x-0.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  #{adjacent.prev.displayCode}
+                </Link>
+              ) : (
+                <span className="inline-flex items-center rounded-full border border-border/40 px-3 py-1.5 text-xs text-muted/40">
+                  Prev
+                </span>
+              )}
+
+              <Link
+                href={`/works/${work.seriesSlug}`}
+                className="btn-press inline-flex items-center justify-center rounded-full border border-border bg-background/70 px-4 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-foreground backdrop-blur-sm transition-colors hover:bg-surface-hover"
+              >
+                Gallery
+              </Link>
+
+              {adjacent.next ? (
+                <Link
+                  href={`/works/${work.seriesSlug}/${adjacent.next.displayCode}`}
+                  className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-surface-hover"
+                >
+                  #{adjacent.next.displayCode}
+                  <svg
+                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              ) : (
+                <span className="inline-flex items-center rounded-full border border-border/40 px-3 py-1.5 text-xs text-muted/40">
+                  Next
+                </span>
+              )}
+            </div>
+          </div>
+
           <div className="absolute inset-x-0 bottom-0 lg:hidden">
             <div className="mx-3 mb-3 rounded-2xl border border-border bg-background/90 shadow-lg backdrop-blur-lg">
               <div className="px-3 py-2.5">
@@ -145,60 +199,13 @@ export default async function WorkDetailPage({
                     />
                   </div>
                 </div>
-
-                <div className="mt-2 flex items-center justify-between gap-3 text-xs">
-                  {adjacent.prev ? (
-                    <Link
-                      href={`/works/${work.seriesSlug}/${adjacent.prev.displayCode}`}
-                      className="group inline-flex items-center gap-1 text-muted transition-colors hover:text-foreground"
-                    >
-                      <svg
-                        className="h-4 w-4 transition-transform group-hover:-translate-x-0.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                      #{adjacent.prev.displayCode}
-                    </Link>
-                  ) : (
-                    <span className="text-muted/30">Prev</span>
-                  )}
-
-                  <Link
-                    href={`/works/${work.seriesSlug}`}
-                    className="btn-press rounded-full border border-border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.15em] text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
-                  >
-                    Gallery
-                  </Link>
-
-                  {adjacent.next ? (
-                    <Link
-                      href={`/works/${work.seriesSlug}/${adjacent.next.displayCode}`}
-                      className="group inline-flex items-center gap-1 text-muted transition-colors hover:text-foreground"
-                    >
-                      #{adjacent.next.displayCode}
-                      <svg
-                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </Link>
-                  ) : (
-                    <span className="text-muted/30">Next</span>
-                  )}
-                </div>
               </div>
             </div>
           </div>
         </div>
 
         <aside className="hidden flex-col border-t border-border bg-background/95 backdrop-blur-sm lg:flex lg:border-l lg:border-t-0">
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
             <div className="flex items-center justify-between gap-3">
               <GallerySeriesSelect series={seriesOptions} selectedSlug={work.seriesSlug} />
             </div>
@@ -236,16 +243,16 @@ export default async function WorkDetailPage({
                 </div>
               )}
 
-              <dl className="mt-6 grid gap-4 text-xs sm:grid-cols-2">
+              <dl className="mt-4 space-y-1.5 text-xs">
                 {dates.map(({ label, value }) => (
-                  <div key={label}>
-                    <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">{label}</dt>
-                    <dd className="mt-1 text-foreground">{value}</dd>
+                  <div key={label} className="flex items-center justify-between gap-3">
+                    <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">{label}</dt>
+                    <dd className="font-mono text-foreground">{value}</dd>
                   </div>
                 ))}
-                <div>
-                  <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">Status</dt>
-                  <dd className="mt-1 text-foreground">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">Status</dt>
+                  <dd>
                     <span
                       className={`inline-flex items-center gap-1.5 ${work.status === "published" ? "text-foreground" : "text-muted"}`}
                     >
@@ -259,11 +266,11 @@ export default async function WorkDetailPage({
               </dl>
             </div>
 
-            <div className="mt-6 flex flex-col gap-2.5">
+            <div className="mt-5 flex flex-col gap-2">
               {adminAccess.isAdmin && work.legacyEpisodeId && (
                 <Link
                   href={`/episodes/${work.displayCode}/edit`}
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   Edit
                 </Link>
@@ -272,7 +279,7 @@ export default async function WorkDetailPage({
               <EpisodeDownloadButton
                 url={downloadUrl}
                 filename={downloadFilename}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-80"
               >
                 Download
               </EpisodeDownloadButton>
@@ -282,12 +289,12 @@ export default async function WorkDetailPage({
                   href={resolveOfferUrl(imagineOffer?.targetUrl)!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   Edit in IMAGINE
                 </a>
               ) : (
-                <span className="inline-flex items-center justify-center rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
+                <span className="inline-flex items-center justify-center rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted">
                   IMAGINE: Preparing
                 </span>
               )}
@@ -297,7 +304,7 @@ export default async function WorkDetailPage({
                   href={resolveOfferUrl(storeOffer?.targetUrl)!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   Store Item
                 </a>
@@ -305,93 +312,37 @@ export default async function WorkDetailPage({
             </div>
 
             {wallpaperPack?.cover && (
-              <div className="mt-6 border-t border-border pt-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Wallpaper available
+              <div className="mt-5 border-t border-border pt-5">
+                <p className="text-xs font-medium text-foreground">
+                  ノンクレジット版壁紙ダウンロードはこちらから
                 </p>
                 <Link
                   href={wallpaperHref}
-                  className="mt-3 block overflow-hidden rounded-xl border border-border transition-transform hover:scale-[1.01]"
+                  className="mt-3 flex items-center gap-3 transition-opacity hover:opacity-90"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={wallpaperPack.cover.publicUrl}
-                    alt={`${work.title} wallpaper`}
-                    className="aspect-square w-full object-cover"
-                  />
+                  <span className="block shrink-0 overflow-hidden rounded-lg border border-border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={wallpaperPack.cover.publicUrl}
+                      alt={`${work.title} wallpaper`}
+                      className="h-20 w-20 object-cover"
+                    />
+                  </span>
+                  <dl className="min-w-0 flex-1 space-y-1.5">
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">Mobile</dt>
+                      <dd className="text-[11px] text-muted">FULL HD · QHD（1080–1440px幅）</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">Desktop</dt>
+                      <dd className="text-[11px] text-muted">FULL HD · QHD（1920–2560px幅）</dd>
+                    </div>
+                  </dl>
                 </Link>
-                <dl className="mt-4 space-y-3">
-                  <div>
-                    <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">
-                      Mobile
-                    </dt>
-                    <dd className="mt-1 space-y-0.5 text-[11px] text-muted">
-                      <p>FULL HD [1080px / 1920px]</p>
-                      <p>2K / QUAD HD [1440px / 2560px]</p>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">
-                      Desktop
-                    </dt>
-                    <dd className="mt-1 space-y-0.5 text-[11px] text-muted">
-                      <p>FULL HD [1920px / 1080px]</p>
-                      <p>2K / QUAD HD [2560px / 1440px]</p>
-                    </dd>
-                  </div>
-                </dl>
               </div>
             )}
           </div>
 
-          <div className="border-t border-border px-6 py-3">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              {adjacent.prev ? (
-                <Link
-                  href={`/works/${work.seriesSlug}/${adjacent.prev.displayCode}`}
-                  className="group inline-flex items-center gap-2 text-muted transition-colors hover:text-foreground"
-                >
-                  <svg
-                    className="h-4 w-4 transition-transform group-hover:-translate-x-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  #{adjacent.prev.displayCode}
-                </Link>
-              ) : (
-                <span className="text-muted/30">Prev</span>
-              )}
-
-              <Link
-                href={`/works/${work.seriesSlug}`}
-                className="btn-press inline-flex items-center justify-center rounded-full border border-border px-4 py-1.5 text-xs font-medium uppercase tracking-[0.15em] text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
-              >
-                Gallery
-              </Link>
-
-              {adjacent.next ? (
-                <Link
-                  href={`/works/${work.seriesSlug}/${adjacent.next.displayCode}`}
-                  className="group inline-flex items-center gap-2 text-muted transition-colors hover:text-foreground"
-                >
-                  #{adjacent.next.displayCode}
-                  <svg
-                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              ) : (
-                <span className="text-muted/30">Next</span>
-              )}
-            </div>
-          </div>
         </aside>
       </div>
     </div>
