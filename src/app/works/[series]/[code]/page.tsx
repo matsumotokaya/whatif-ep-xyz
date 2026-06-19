@@ -117,7 +117,7 @@ export default async function WorkDetailPage({
 
           {/* Top navigation bar overlaid on the image (desktop + mobile) */}
           <div className="absolute inset-x-0 top-0 z-10">
-            <div className="flex items-center justify-between gap-2 bg-gradient-to-b from-background/80 via-background/40 to-transparent px-3 py-2.5 sm:px-4 sm:py-3">
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3">
               {adjacent.prev ? (
                 <Link
                   href={`/works/${work.seriesSlug}/${adjacent.prev.displayCode}`}

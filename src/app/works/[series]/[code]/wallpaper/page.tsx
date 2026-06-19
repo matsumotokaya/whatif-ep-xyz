@@ -282,7 +282,7 @@ export default async function WallpaperPage({
               {copy.heroPoints.map((point) => (
                 <li key={point} className="flex items-start gap-2.5 text-sm text-foreground/90">
                   <svg
-                    className="mt-0.5 h-4 w-4 shrink-0 text-[#00f0ff]"
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/50"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -290,7 +290,7 @@ export default async function WallpaperPage({
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={2}
+                      strokeWidth={1.5}
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
