@@ -8,6 +8,8 @@ import {
 } from "@/lib/wallpaper";
 import { getWorkBySeriesAndCode } from "@/lib/works";
 
+const IMAGINE_PLANS_BASE_URL = "https://app.whatif-ep.xyz/plans";
+
 interface WallpaperPageProps {
   params: Promise<{ series: string; code: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -65,6 +67,10 @@ export default async function WallpaperPage({
 
   const variantQuery = variantNumber > 1 ? `?variant=${variantNumber}` : "";
   const downloadUrl = `/api/works/${series}/${code}/wallpaper/download?variant=${variantNumber}`;
+  const galleryOrigin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || "https://whatif-ep.xyz";
+  const returnTo = `${galleryOrigin}/works/${series}/${code}/wallpaper${variantQuery}`;
+  const imaginePlansUrl = `${IMAGINE_PLANS_BASE_URL}?source=gallery&return_to=${encodeURIComponent(returnTo)}`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background text-foreground">
@@ -127,10 +133,10 @@ export default async function WallpaperPage({
             </a>
           ) : (
             <Link
-              href="/the-club"
+              href={imaginePlansUrl}
               className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
             >
-              Join The Club to download
+              View Premium Plans in Imagine
             </Link>
           )}
         </div>
