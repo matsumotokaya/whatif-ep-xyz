@@ -96,6 +96,7 @@ export interface WorkVariant {
   isPrimary: boolean;
   createdAt: string;
   updatedAt: string;
+  feedImageUrl?: string | null;
   offers: WorkOffer[];
 }
 

@@ -10,8 +10,17 @@ function sanitizeFilename(filename: string) {
   return cleaned.length > 0 ? cleaned : "whatif.png";
 }
 
-function resolveExtension(storageKey: string): "png" | "jpg" | "webp" {
-  const lower = storageKey.toLowerCase();
+function resolveExtension(storageKeyOrUrl: string): "png" | "jpg" | "webp" {
+  let target = storageKeyOrUrl;
+  try {
+    if (/^https?:\/\//i.test(storageKeyOrUrl)) {
+      target = new URL(storageKeyOrUrl).pathname;
+    }
+  } catch {
+    target = storageKeyOrUrl;
+  }
+
+  const lower = target.toLowerCase();
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "jpg";
   if (lower.endsWith(".webp")) return "webp";
   return "png";

@@ -6,7 +6,7 @@ import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 import { EpisodeDownloadButton } from "@/components/EpisodeDownloadButton";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { WorkMobileInfo } from "@/components/WorkMobileInfo";
-import { getVariantOriginalUrl } from "@/lib/work-images";
+import { getVariantDisplayImageCandidates } from "@/lib/work-images";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
 import { getAdjacentWorks, getGallerySeries, getWorkBySeriesAndCode } from "@/lib/works";
 
@@ -83,7 +83,7 @@ export default async function WorkDetailPage({
     ),
   ]);
 
-  const imageUrl = getVariantOriginalUrl(currentVariant);
+  const imageCandidates = getVariantDisplayImageCandidates(currentVariant);
   const releasedOn = formatDate(work.releasedOn ?? work.createdAt);
   const updatedOn = formatDate(work.updatedAt);
   const publishedOn = formatDate(work.publishedAt);
@@ -114,7 +114,7 @@ export default async function WorkDetailPage({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-1">
         <div className="relative min-h-0 bg-surface/30">
-          <EpisodeDetailImage src={imageUrl} alt={work.title} />
+          <EpisodeDetailImage candidates={imageCandidates} alt={work.title} />
 
           <div className="absolute inset-x-0 bottom-0 lg:hidden">
             <div className="mx-3 mb-3 rounded-2xl border border-border bg-background/90 shadow-lg backdrop-blur-lg">

@@ -118,7 +118,10 @@ function mapOffer(row: WorkOfferRow): WorkOffer {
   };
 }
 
-function mapVariant(row: WorkVariantRow, offers: WorkOffer[]): WorkVariant {
+function mapVariant(
+  row: WorkVariantRow,
+  offers: WorkOffer[]
+): WorkVariant {
   return {
     id: row.id,
     workId: row.work_id,
@@ -136,6 +139,7 @@ function mapVariant(row: WorkVariantRow, offers: WorkOffer[]): WorkVariant {
     isPrimary: row.is_primary,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    feedImageUrl: null,
     offers,
   };
 }
@@ -283,11 +287,11 @@ async function loadVisibleWorksBySeries(seriesSlug: string): Promise<Work[]> {
       variantsByWorkId.get(row.id) ?? [],
       offersByWorkId.get(row.id) ?? []
     );
-    work.feedImageUrl = work.primaryVariant
-      ? feedImageMap.get(
-          `${work.displayCode}:${work.primaryVariant.variantNumber}`
-        ) ?? null
-      : null;
+    work.variants.forEach((variant) => {
+      variant.feedImageUrl =
+        feedImageMap.get(`${work.displayCode}:${variant.variantNumber}`) ?? null;
+    });
+    work.feedImageUrl = work.primaryVariant?.feedImageUrl ?? null;
     return work;
   });
 }
