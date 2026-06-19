@@ -7,6 +7,7 @@ import { getSeriesFeedImageMap } from "@/lib/wallpaper";
 import type {
   GallerySeries,
   Work,
+  WorkListItem,
   WorkOffer,
   WorkOfferRow,
   WorkRow,
@@ -14,6 +15,7 @@ import type {
   WorkVariant,
   WorkVariantRow,
 } from "./types";
+import { getWorkPrimaryImageCandidates } from "./work-images";
 
 const SERIES_COLUMNS = [
   "id",
@@ -427,4 +429,39 @@ export async function getPrimarySeriesSlug(): Promise<string> {
 export async function getSeriesDisplayName(seriesSlug: string): Promise<string> {
   const series = await getSeriesBySlug(seriesSlug);
   return series?.name ?? seriesSlug;
+}
+
+// ─── Lightweight card DTO list ────────────────────────────────────────────────
+// Returns one ordered list of WorkListItem (newest-first by default).
+// Payload is ~85 % smaller than the full Work per item because variants/offers
+// are collapsed to two booleans and a pre-built image-candidate array.
+export async function getWorkCardsBySeries(
+  seriesSlug: string,
+  sort: "newest" | "oldest" = "newest"
+): Promise<WorkListItem[]> {
+  const works = await getVisibleWorksBySeries(seriesSlug);
+  const ordered = sort === "newest" ? [...works].reverse() : works;
+
+  return ordered.map((work): WorkListItem => {
+    const fallbackCandidates = getWorkPrimaryImageCandidates(work);
+    const imageCandidates = work.feedImageUrl
+      ? [work.feedImageUrl, ...fallbackCandidates]
+      : fallbackCandidates;
+
+    const primaryOffers = work.primaryVariant?.offers ?? [];
+    const hasWallpaperOffer = primaryOffers.some((o) => o.offerType === "wallpaper");
+    const hasStarterOffer = primaryOffers.some((o) => o.offerType === "imagine_starter");
+
+    return {
+      id: work.id,
+      seriesSlug: work.seriesSlug,
+      displayCode: work.displayCode,
+      title: work.title,
+      themeCategory: work.themeCategory,
+      sequenceNumber: work.sequenceNumber,
+      imageCandidates,
+      hasWallpaperOffer,
+      hasStarterOffer,
+    };
+  });
 }

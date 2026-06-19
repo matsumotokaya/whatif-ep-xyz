@@ -126,6 +126,22 @@ export interface Work {
   feedImageUrl?: string | null;
 }
 
+// ─── Lightweight DTO for gallery list cards ───────────────────────────────────
+// Derived server-side from a full Work; sent in the RSC payload instead of the
+// full nested Work so we avoid shipping variants/offers to every card.
+export interface WorkListItem {
+  id: string;
+  seriesSlug: string;
+  displayCode: string;
+  title: string;
+  themeCategory: string;
+  sequenceNumber: number;
+  /** Pre-computed image fallback chain (feedImageUrl first if present). */
+  imageCandidates: string[];
+  hasWallpaperOffer: boolean;
+  hasStarterOffer: boolean;
+}
+
 export interface WorkSeriesRow {
   id: string;
   slug: string;

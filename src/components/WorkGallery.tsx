@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { Work } from "@/lib/types";
+import type { WorkListItem } from "@/lib/types";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { WorkCard } from "./WorkCard";
 
 const ITEMS_PER_PAGE = 20;
 
 interface WorkGalleryProps {
-  initialWorks: Work[];
-  allWorks: Work[];
+  initialWorks: WorkListItem[];
+  allWorks: WorkListItem[];
   total: number;
 }
 
 export function WorkGallery({ initialWorks, allWorks, total }: WorkGalleryProps) {
-  const [works, setWorks] = useState<Work[]>(initialWorks);
+  const [works, setWorks] = useState<WorkListItem[]>(initialWorks);
   const [isLoading, setIsLoading] = useState(false);
   const hasMore = works.length < allWorks.length;
 

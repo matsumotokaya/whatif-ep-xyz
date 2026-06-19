@@ -5,7 +5,7 @@ import {
   getGallerySeries,
   getSeriesDisplayName,
   getWorkCountBySeries,
-  getWorksBySeries,
+  getWorkCardsBySeries,
 } from "@/lib/works";
 import { WorksPageClient } from "./WorksPageClient";
 import Link from "next/link";
@@ -27,10 +27,9 @@ export async function generateMetadata({
 
 export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) {
   const { series } = await params;
-  const [seriesOptions, newestFirst, oldestFirst, total, adminAccess] = await Promise.all([
+  const [seriesOptions, works, total, adminAccess] = await Promise.all([
     getGallerySeries(),
-    getWorksBySeries(series, "newest"),
-    getWorksBySeries(series, "oldest"),
+    getWorkCardsBySeries(series, "newest"),
     getWorkCountBySeries(series),
     getAdminAccess(),
   ]);
@@ -63,8 +62,7 @@ export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) 
       <WorksPageClient
         series={seriesOptions}
         selectedSeriesSlug={series}
-        newestFirst={newestFirst}
-        oldestFirst={oldestFirst}
+        works={works}
         total={total}
       />
     </div>

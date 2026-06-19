@@ -3,11 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import type { Work } from "@/lib/types";
-import { getWorkPrimaryImageCandidates } from "@/lib/work-images";
+import type { WorkListItem } from "@/lib/types";
 
 interface WorkCardProps {
-  work: Work;
+  work: WorkListItem;
   style?: React.CSSProperties;
 }
 
@@ -21,22 +20,12 @@ function WorkPlaceholder({ code }: { code: string }) {
 }
 
 export function WorkCard({ work, style }: WorkCardProps) {
-  // Prefer the Content Factory feed image; fall back to the variant image
-  // (also used as the on-error fallback chain) when no feed exists.
-  const fallbackCandidates = getWorkPrimaryImageCandidates(work);
-  const candidates = work.feedImageUrl
-    ? [work.feedImageUrl, ...fallbackCandidates]
-    : fallbackCandidates;
+  // imageCandidates is pre-computed server-side (feedImageUrl first if present).
+  const { imageCandidates, hasWallpaperOffer, hasStarterOffer } = work;
   const [index, setIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const src = candidates[index] ?? null;
-  const wallpaperOffer = work.primaryVariant?.offers.find(
-    (offer) => offer.offerType === "wallpaper"
-  );
-  const starterOffer = work.primaryVariant?.offers.find(
-    (offer) => offer.offerType === "imagine_starter"
-  );
+  const src = imageCandidates[index] ?? null;
 
   return (
     <Link
@@ -65,12 +54,12 @@ export function WorkCard({ work, style }: WorkCardProps) {
         )}
 
         <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
-          {wallpaperOffer && (
+          {hasWallpaperOffer && (
             <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground backdrop-blur-sm">
               Wallpaper
             </span>
           )}
-          {starterOffer && (
+          {hasStarterOffer && (
             <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground backdrop-blur-sm">
               Edit
             </span>

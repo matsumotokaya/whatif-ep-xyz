@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { GallerySeries, Work } from "@/lib/types";
+import type { GallerySeries, WorkListItem } from "@/lib/types";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { SortToggle } from "@/components/SortToggle";
 import { WorkGallery } from "@/components/WorkGallery";
@@ -18,12 +18,12 @@ type WorkRange = {
 interface WorksPageClientProps {
   series: GallerySeries[];
   selectedSeriesSlug: string;
-  newestFirst: Work[];
-  oldestFirst: Work[];
+  /** Works in newest-first order. The client reverses for "oldest" sort. */
+  works: WorkListItem[];
   total: number;
 }
 
-function buildWorkRanges(works: Work[]): WorkRange[] {
+function buildWorkRanges(works: WorkListItem[]): WorkRange[] {
   let max = 0;
   for (const work of works) {
     if (work.sequenceNumber > max) max = work.sequenceNumber;
@@ -45,8 +45,7 @@ function buildWorkRanges(works: Work[]): WorkRange[] {
 export function WorksPageClient({
   series,
   selectedSeriesSlug,
-  newestFirst,
-  oldestFirst,
+  works,
   total,
 }: WorksPageClientProps) {
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
@@ -54,8 +53,9 @@ export function WorksPageClient({
   const [selectedRange, setSelectedRange] = useState<WorkRange | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const ranges = buildWorkRanges(newestFirst);
-  const sortedWorks = sort === "newest" ? newestFirst : oldestFirst;
+  const ranges = buildWorkRanges(works);
+  // works arrives newest-first; reverse a copy for oldest sort (no extra server fetch).
+  const sortedWorks = sort === "newest" ? works : [...works].reverse();
   const filteredWorks = selectedRange
     ? sortedWorks.filter(
         (work) =>
