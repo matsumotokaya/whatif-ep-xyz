@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminAccess } from "@/lib/admin/access";
@@ -240,6 +240,8 @@ export async function updateEpisodeAction(
     };
   }
 
+  revalidateTag("works", "max");
+  revalidateTag("production", "max");
   revalidatePath("/episodes");
   revalidatePath(`/episodes/${number}`);
   revalidatePath(`/episodes/${number}/edit`);
@@ -332,6 +334,8 @@ export async function deleteEpisodeAction(
     };
   }
 
+  revalidateTag("works", "max");
+  revalidateTag("production", "max");
   revalidatePath("/episodes");
   revalidatePath("/works");
   revalidatePath("/works/episode");

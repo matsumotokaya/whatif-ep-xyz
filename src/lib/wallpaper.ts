@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Roles that make up a wallpaper pack (excludes instagram_feed and zip).
@@ -66,118 +67,150 @@ function buildPublicUrl(bucket: string, storagePath: string): string {
   return `${baseUrl}/storage/v1/object/public/${bucket}/${storagePath.replace(/^\/+/, "")}`;
 }
 
+// ─── Cached: feed image map for a series ─────────────────────────────────────
+// Tags: ['production', 'production:<seriesSlug>']  revalidate: 3600s
+//
+// unstable_cache serializes via JSON.stringify, so Map is not safe to return.
+// The cached helper returns a plain Record<string, string>; the public export
+// wraps it in a Map so callers do not change.
+//
+// Uses createAdminClient (service-role, cookie-free) — required because
+// production_* tables are not accessible to anon (admin-only per RLS).
+const _cachedFeedImageRecord = unstable_cache(
+  async (seriesSlug: string): Promise<Record<string, string>> => {
+    const supabase = createAdminClient();
+    if (!supabase) return {};
+
+    const { data: projectsData } = await supabase
+      .from("production_projects")
+      .select("id, work_display_code, variant_number")
+      .eq("work_series_slug", seriesSlug)
+      .eq("status", "published");
+
+    const projects = (projectsData ?? []) as unknown as {
+      id: string;
+      work_display_code: string;
+      variant_number: number;
+    }[];
+    if (projects.length === 0) return {};
+
+    const { data: outputsData } = await supabase
+      .from("production_outputs")
+      .select("project_id, storage_bucket, storage_path")
+      .in(
+        "project_id",
+        projects.map((project) => project.id)
+      )
+      .eq("role", "instagram_feed")
+      .eq("status", "ready");
+
+    const outputs = (outputsData ?? []) as unknown as {
+      project_id: string;
+      storage_bucket: string | null;
+      storage_path: string | null;
+    }[];
+
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const record: Record<string, string> = {};
+
+    for (const output of outputs) {
+      const project = projectById.get(output.project_id);
+      if (!project || !output.storage_bucket || !output.storage_path) continue;
+      record[`${project.work_display_code}:${project.variant_number}`] =
+        buildPublicUrl(output.storage_bucket, output.storage_path);
+    }
+
+    return record;
+  },
+  // keyParts prefix — actual cache key includes the seriesSlug argument
+  ["production:feed-image-map"],
+  { tags: ["production"], revalidate: 3600 }
+);
+
 // Map of "displayCode:variantNumber" -> public feed image URL for a series.
 // Built from published production projects' ready instagram_feed outputs.
 // Used by the gallery to show Content Factory feed images on work cards.
 export async function getSeriesFeedImageMap(
   seriesSlug: string
 ): Promise<Map<string, string>> {
-  const supabase = createAdminClient();
-  if (!supabase) return new Map();
-
-  const { data: projectsData } = await supabase
-    .from("production_projects")
-    .select("id, work_display_code, variant_number")
-    .eq("work_series_slug", seriesSlug)
-    .eq("status", "published");
-
-  const projects = (projectsData ?? []) as unknown as {
-    id: string;
-    work_display_code: string;
-    variant_number: number;
-  }[];
-  if (projects.length === 0) return new Map();
-
-  const { data: outputsData } = await supabase
-    .from("production_outputs")
-    .select("project_id, storage_bucket, storage_path")
-    .in(
-      "project_id",
-      projects.map((project) => project.id)
-    )
-    .eq("role", "instagram_feed")
-    .eq("status", "ready");
-
-  const outputs = (outputsData ?? []) as unknown as {
-    project_id: string;
-    storage_bucket: string | null;
-    storage_path: string | null;
-  }[];
-
-  const projectById = new Map(projects.map((project) => [project.id, project]));
-  const map = new Map<string, string>();
-
-  for (const output of outputs) {
-    const project = projectById.get(output.project_id);
-    if (!project || !output.storage_bucket || !output.storage_path) continue;
-    map.set(
-      `${project.work_display_code}:${project.variant_number}`,
-      buildPublicUrl(output.storage_bucket, output.storage_path)
-    );
-  }
-
-  return map;
+  const record = await _cachedFeedImageRecord(seriesSlug);
+  return new Map(Object.entries(record));
 }
+
+// ─── Cached: wallpaper pack for a specific work variant ──────────────────────
+// Tags: ['production', 'production:<seriesSlug>']  revalidate: 3600s
+const _cachedWallpaperPack = unstable_cache(
+  async (
+    seriesSlug: string,
+    displayCode: string,
+    variantNumber: number
+  ): Promise<WallpaperPack | null> => {
+    const supabase = createAdminClient();
+    if (!supabase) return null;
+
+    // Resolve the published production project for this work + variant.
+    const { data: projectData } = await supabase
+      .from("production_projects")
+      .select("id")
+      .eq("work_series_slug", seriesSlug)
+      .eq("work_display_code", displayCode)
+      .eq("variant_number", variantNumber)
+      .eq("status", "published")
+      .maybeSingle();
+
+    const project = projectData as ProductionProjectRow | null;
+    if (!project) return null;
+
+    // Load all ready outputs for the project.
+    const { data: outputsData } = await supabase
+      .from("production_outputs")
+      .select(
+        "id, role, storage_bucket, storage_path, mime_type, width, height, status"
+      )
+      .eq("project_id", project.id)
+      .eq("status", "ready");
+
+    const outputs = (outputsData ?? []) as unknown as ProductionOutputRow[];
+
+    const toOutput = (row: ProductionOutputRow): WallpaperOutput | null => {
+      if (!row.storage_bucket || !row.storage_path) return null;
+      return {
+        id: row.id,
+        role: row.role as WallpaperOutputRole,
+        publicUrl: buildPublicUrl(row.storage_bucket, row.storage_path),
+        width: row.width,
+        height: row.height,
+        mimeType: row.mime_type,
+      };
+    };
+
+    const coverRow = outputs.find((row) => row.role === "package_cover");
+    const cover = coverRow ? toOutput(coverRow) : null;
+
+    // Keep only the four wallpaper sizes, ordered as defined above.
+    const wallpapers = WALLPAPER_ROLE_ORDER.map((role) => {
+      const row = outputs.find((item) => item.role === role);
+      return row ? toOutput(row) : null;
+    }).filter((output): output is WallpaperOutput => output !== null);
+
+    return {
+      projectId: project.id,
+      seriesSlug,
+      displayCode,
+      variantNumber,
+      cover,
+      wallpapers,
+    };
+  },
+  // keyParts prefix — actual cache key includes seriesSlug, displayCode, variantNumber args
+  ["production:wallpaper-pack"],
+  { tags: ["production"], revalidate: 3600 }
+);
 
 export async function getPublishedWallpaperPack(
   seriesSlug: string,
   displayCode: string,
   variantNumber = 1
 ): Promise<WallpaperPack | null> {
-  const supabase = createAdminClient();
-  if (!supabase) return null;
-
-  // Resolve the published production project for this work + variant.
-  const { data: projectData } = await supabase
-    .from("production_projects")
-    .select("id")
-    .eq("work_series_slug", seriesSlug)
-    .eq("work_display_code", displayCode)
-    .eq("variant_number", variantNumber)
-    .eq("status", "published")
-    .maybeSingle();
-
-  const project = projectData as ProductionProjectRow | null;
-  if (!project) return null;
-
-  // Load all ready outputs for the project.
-  const { data: outputsData } = await supabase
-    .from("production_outputs")
-    .select(
-      "id, role, storage_bucket, storage_path, mime_type, width, height, status"
-    )
-    .eq("project_id", project.id)
-    .eq("status", "ready");
-
-  const outputs = (outputsData ?? []) as unknown as ProductionOutputRow[];
-
-  const toOutput = (row: ProductionOutputRow): WallpaperOutput | null => {
-    if (!row.storage_bucket || !row.storage_path) return null;
-    return {
-      id: row.id,
-      role: row.role as WallpaperOutputRole,
-      publicUrl: buildPublicUrl(row.storage_bucket, row.storage_path),
-      width: row.width,
-      height: row.height,
-      mimeType: row.mime_type,
-    };
-  };
-
-  const coverRow = outputs.find((row) => row.role === "package_cover");
-  const cover = coverRow ? toOutput(coverRow) : null;
-
-  // Keep only the four wallpaper sizes, ordered as defined above.
-  const wallpapers = WALLPAPER_ROLE_ORDER.map((role) => {
-    const row = outputs.find((item) => item.role === role);
-    return row ? toOutput(row) : null;
-  }).filter((output): output is WallpaperOutput => output !== null);
-
-  return {
-    projectId: project.id,
-    seriesSlug,
-    displayCode,
-    variantNumber,
-    cover,
-    wallpapers,
-  };
+  return _cachedWallpaperPack(seriesSlug, displayCode, variantNumber);
 }
