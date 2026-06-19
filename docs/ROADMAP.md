@@ -1,6 +1,6 @@
 # WHATIF Gallery Roadmap
 
-最終更新: 2026-06-18
+最終更新: 2026-06-20
 
 この文書は「いま何ができていて、この先に何が必要か」を簡潔に追うための作業計画。
 背景・思想は [RENEWAL_PLAN.md](./RENEWAL_PLAN.md) と [WALLPAPER_PIPELINE_PLAN.md](./WALLPAPER_PIPELINE_PLAN.md) を参照。
@@ -10,8 +10,9 @@
 - `series-aware` ギャラリー（`/works/:series`）が稼働。episode カタログが公開済み。
 - DB は最終形スキーマ（`works` / `work_variants` / `work_offers` / `production_*`）が投入済み。
 - Content Factory（IMAGINE）が出力した **壁紙パックの受け入れが完成**:
-  - `/works/:series/:code/wallpaper` でカバー＋4サイズを表示し、premium 限定で zip ダウンロード。
-  - 作品詳細 aside に `Wallpaper available` コーナー（カバーサムネイル導線＋スペック表記）。
+  - `/works/:series/:code/wallpaper` は壁紙のセールス LP（カバー＋サイズ別の透かしプレビュー＋スペック＋プレミアム訴求）。premium は zip ダウンロード、非 premium は IMAGINE プランへの加入訴求。本体画像は直接表示せずサンプル透かしで保護。
+  - 作品詳細パネルに「ノンクレジット版壁紙ダウンロードはこちらから」導線（カバーサムネ＋スペック）。モバイルは縦スクロールで壁紙導線まで表示。
+  - 作品詳細は prev / Gallery / next ナビを画像ペイン最上部に集約。
   - 公開判定は published な `production_projects` の実在から導出（Gallery への手動同期は不要）。
 - ギャラリーカード画像は Content Factory の **feed 画像（`instagram_feed`）優先**、無い作品は従来画像にフォールバック。
 - **データ実績**: 全 464 works に対し published パックは `episode 0439-1` の 1 件のみ。残りは feed もパックも未出力。
@@ -22,9 +23,9 @@
 
 ### 1. プレミアム動線（収益化）— 最優先で設計が必要
 
-現状、壁紙ダウンロードは The Club（premium）ログインで gating しているだけで、**加入・課金そのものへの導線が未整備**。
+壁紙ダウンロードは The Club（premium）ログインで gating。壁紙 LP に加入訴求は実装済みだが、**課金そのものへの接続（Stripe）が未整備**。
 
-- 非 premium が壁紙ページに来たときの加入訴求（現状は `/the-club` への素朴な CTA のみ）。
+- ✅ 非 premium が壁紙ページに来たときの加入訴求は実装済み（壁紙 LP に「月 $3 で全壁紙＋IMAGINE テンプレ解放」訴求＋ IMAGINE プランへの CTA、本体画像はサンプル透かしで保護）。文言は日本語のみ（多言語化は未）。
 - 単品購入（$1 / pack）とサブスク（ダウンロードし放題）の出し分け。`production_delivery_packages` には `price_usd` / `is_subscription_included` の枠だけある。
 - 壁紙パックに対する Stripe 課金フローは未接続（既存の The Club サブスク基盤との接続方法を決める）。
 - The Club ↔ 壁紙パックの関係整理（The Club カタログと `work_offers` の wallpaper をどう一本化するか）。
@@ -49,6 +50,7 @@
 
 - 一覧カードの壁紙バッジ（`WorkCard` の `wallpaperOffer` バッジは `work_offers` 依存で現状非表示）。一覧で「壁紙あり」を出すなら `work_offers` の wallpaper インデックス化を検討。
 - 作品詳細の IMAGINE / Store ボタンの扱い整理。
+- 壁紙 LP の多言語化（現状 日本語のみ。文言は `wallpaper/page.tsx` の `copy` に集約済み。EN/JA 切替に合わせる）。
 - 複数 variant を持つ作品の variant picker と、variant 単位の壁紙オファー運用。
 - 他シリーズ（`reel` / `experiment` / `remix`）のデータ投入は episode 運用が固まってから。
 

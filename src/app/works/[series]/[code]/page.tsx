@@ -5,7 +5,6 @@ import { getAdminAccess } from "@/lib/admin/access";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 import { EpisodeDownloadButton } from "@/components/EpisodeDownloadButton";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
-import { WorkMobileInfo } from "@/components/WorkMobileInfo";
 import { getVariantDisplayImageCandidates } from "@/lib/work-images";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
 import { getAdjacentWorks, getGallerySeries, getWorkBySeriesAndCode } from "@/lib/works";
@@ -111,9 +110,9 @@ export default async function WorkDetailPage({
     null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-1">
-        <div className="relative min-h-0 bg-surface/30">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background lg:overflow-hidden">
+      <div className="flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="relative h-[58vh] shrink-0 bg-surface/30 lg:h-auto lg:min-h-0">
           <EpisodeDetailImage candidates={imageCandidates} alt={work.title} />
 
           {/* Top navigation bar overlaid on the image (desktop + mobile) */}
@@ -170,42 +169,10 @@ export default async function WorkDetailPage({
             </div>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 lg:hidden">
-            <div className="mx-3 mb-3 rounded-2xl border border-border bg-background/90 shadow-lg backdrop-blur-lg">
-              <div className="px-3 py-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-mono text-[11px] text-muted">
-                      #{work.displayCode}
-                      {work.variants.length > 1 ? ` / ${currentVariant.variantNumber}` : ""}
-                    </p>
-                    <p className="truncate text-sm font-semibold text-foreground">{work.title}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <EpisodeDownloadButton
-                      url={downloadUrl}
-                      filename={downloadFilename}
-                      className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-surface-hover"
-                    >
-                      Download
-                    </EpisodeDownloadButton>
-                    <WorkMobileInfo
-                      work={work}
-                      variant={currentVariant}
-                      dates={dates}
-                      isAdmin={adminAccess.isAdmin}
-                      downloadUrl={downloadUrl}
-                      downloadFilename={downloadFilename}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <aside className="hidden flex-col border-t border-border bg-background/95 backdrop-blur-sm lg:flex lg:border-l lg:border-t-0">
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
+        <aside className="flex flex-col border-t border-border bg-background/95 backdrop-blur-sm lg:border-l lg:border-t-0">
+          <div className="flex min-h-0 flex-1 flex-col px-6 py-5 lg:overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
               <GallerySeriesSelect series={seriesOptions} selectedSlug={work.seriesSlug} />
             </div>
