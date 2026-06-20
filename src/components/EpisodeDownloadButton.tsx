@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLanguage, type Language } from "@/context/LanguageContext";
 
 type DownloadMethod = "share-files" | "blob-download" | "direct-download-fallback";
 
@@ -19,10 +20,42 @@ interface EpisodeDownloadButtonProps {
 
 const IN_APP_BROWSER_PATTERN = /(Instagram|FBAN|FBAV|Line|MicroMessenger|wv)/i;
 
-const IOS_SAVE_GUIDE_MESSAGE =
-  "iPhoneでは共有メニューから「画像を保存」を選ぶとカメラロールに保存できます。";
-const IN_APP_BROWSER_GUIDE_MESSAGE =
-  "アプリ内ブラウザで保存できない場合は、Safariで開いて再度お試しください。";
+const DOWNLOAD_COPY: Record<
+  Language,
+  { downloading: string; iosGuide: string; inAppGuide: string }
+> = {
+  en: {
+    downloading: "Downloading...",
+    iosGuide:
+      'On iPhone, choose "Save Image" from the share menu to save it to your camera roll.',
+    inAppGuide:
+      "If saving fails in the in-app browser, open the page in Safari and try again.",
+  },
+  ja: {
+    downloading: "ダウンロード中...",
+    iosGuide:
+      "iPhoneでは共有メニューから「画像を保存」を選ぶとカメラロールに保存できます。",
+    inAppGuide:
+      "アプリ内ブラウザで保存できない場合は、Safariで開いて再度お試しください。",
+  },
+  "zh-CN": {
+    downloading: "下载中...",
+    iosGuide: "在 iPhone 上，从分享菜单选择「存储图像」即可保存到相册。",
+    inAppGuide: "如果在内置浏览器中无法保存，请在 Safari 中打开后重试。",
+  },
+  "zh-TW": {
+    downloading: "下載中...",
+    iosGuide: "在 iPhone 上，從分享選單選擇「儲存影像」即可保存到相簿。",
+    inAppGuide: "如果在內建瀏覽器中無法儲存，請在 Safari 中開啟後重試。",
+  },
+  ko: {
+    downloading: "다운로드 중...",
+    iosGuide:
+      "iPhone에서는 공유 메뉴에서 「이미지 저장」을 선택하면 카메라 롤에 저장할 수 있습니다.",
+    inAppGuide:
+      "인앱 브라우저에서 저장이 안 되는 경우, Safari에서 열어 다시 시도해 주세요.",
+  },
+};
 
 function isIOSDevice() {
   const ua = window.navigator.userAgent;
@@ -67,12 +100,15 @@ function triggerDownload(href: string, filename: string) {
   }
 }
 
-function showGuide(result: DownloadResult) {
+function showGuide(
+  result: DownloadResult,
+  copy: { iosGuide: string; inAppGuide: string }
+) {
   if (result.isIOS && result.method !== "share-files") {
-    window.alert(IOS_SAVE_GUIDE_MESSAGE);
+    window.alert(copy.iosGuide);
   }
   if (result.inAppBrowser) {
-    window.alert(IN_APP_BROWSER_GUIDE_MESSAGE);
+    window.alert(copy.inAppGuide);
   }
 }
 
@@ -82,6 +118,8 @@ export function EpisodeDownloadButton({
   className,
   children,
 }: EpisodeDownloadButtonProps) {
+  const { lang } = useLanguage();
+  const copy = DOWNLOAD_COPY[lang];
   const [isLoading, setIsLoading] = useState(false);
 
   const handleDownload = async () => {
@@ -134,7 +172,7 @@ export function EpisodeDownloadButton({
       if (preferShareFirst) {
         const shared = await tryShareFile();
         if (shared) {
-          showGuide({ method: "share-files", inAppBrowser, isIOS });
+          showGuide({ method: "share-files", inAppBrowser, isIOS }, copy);
           return;
         }
       }
@@ -144,21 +182,21 @@ export function EpisodeDownloadButton({
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 
       if (blobDownloadTriggered) {
-        showGuide({ method: "blob-download", inAppBrowser, isIOS });
+        showGuide({ method: "blob-download", inAppBrowser, isIOS }, copy);
         return;
       }
 
       if (!preferShareFirst && (isAndroid || inAppBrowser || !isDesktopLike)) {
         const shared = await tryShareFile();
         if (shared) {
-          showGuide({ method: "share-files", inAppBrowser, isIOS });
+          showGuide({ method: "share-files", inAppBrowser, isIOS }, copy);
           return;
         }
       }
 
       const directFallbackTriggered = triggerDownload(url, safeFilename);
       if (directFallbackTriggered) {
-        showGuide({ method: "direct-download-fallback", inAppBrowser, isIOS });
+        showGuide({ method: "direct-download-fallback", inAppBrowser, isIOS }, copy);
         return;
       }
 
@@ -189,7 +227,7 @@ export function EpisodeDownloadButton({
         </span>
       )}
       <span className={`inline-flex items-center gap-2 transition-opacity ${isLoading ? "opacity-60" : ""}`}>
-        {isLoading ? "Downloading..." : children}
+        {isLoading ? copy.downloading : children}
       </span>
     </button>
   );

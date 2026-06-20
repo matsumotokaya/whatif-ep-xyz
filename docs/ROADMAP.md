@@ -48,6 +48,11 @@
 - [ ] パック publish → Gallery 反映の `production_delivery_packages.gallery_offer_ref` は未使用。
 - [ ] 全作品を Content Factory 化する過程の管理（feed / pack の出力率を上げ、フォールバックを段階的に解消）。
 
+### 0. サイト多言語化（i18n）— 次セッションで着手
+
+サイト本体を5言語（en/ja/zh-CN/zh-TW/ko、デフォルトEN）へ多言語化。言語セレクタはハンバーガー左に配置。現状は正式なi18n基盤が無く、EN/JAの場当たり切替のみ。詳細・決定事項は [I18N_PLAN.md](./I18N_PLAN.md) を参照。
+（壁紙ZIPのREADME 5言語化は別件・完了済み。混同しないこと。）
+
 ### 4. 仕上げ・運用タスク（小粒）
 
 - 一覧カードの壁紙バッジ（`WorkCard` の `wallpaperOffer` バッジは `work_offers` 依存で現状非表示）。一覧で「壁紙あり」を出すなら `work_offers` の wallpaper インデックス化を検討。

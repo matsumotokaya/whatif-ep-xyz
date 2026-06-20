@@ -3,7 +3,98 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import type { Work, WorkVariant, WorkOffer } from "@/lib/types";
+import { useLanguage, type Language } from "@/context/LanguageContext";
 import { EpisodeDownloadButton } from "./EpisodeDownloadButton";
+
+// Localized labels for the mobile info sheet actions and status chips.
+const INFO_COPY: Record<
+  Language,
+  {
+    info: string;
+    closePanel: string;
+    status: string;
+    published: string;
+    draft: string;
+    editIllustration: string;
+    editIllustrationPending: string;
+    download: string;
+    wallpaperDownload: string;
+    wallpaperDownloadPending: string;
+    storeItem: string;
+    edit: string;
+  }
+> = {
+  en: {
+    info: "Info",
+    closePanel: "Close info panel",
+    status: "Status",
+    published: "Published",
+    draft: "Draft",
+    editIllustration: "Edit illustration",
+    editIllustrationPending: "Edit illustration: coming soon",
+    download: "Download",
+    wallpaperDownload: "Wallpaper download",
+    wallpaperDownloadPending: "Wallpaper download: coming soon",
+    storeItem: "Store Item",
+    edit: "Edit",
+  },
+  ja: {
+    info: "情報",
+    closePanel: "情報パネルを閉じる",
+    status: "ステータス",
+    published: "公開中",
+    draft: "下書き",
+    editIllustration: "イラストを編集",
+    editIllustrationPending: "イラストを編集: 準備中",
+    download: "ダウンロード",
+    wallpaperDownload: "壁紙ダウンロード",
+    wallpaperDownloadPending: "壁紙ダウンロード: 準備中",
+    storeItem: "ストアアイテム",
+    edit: "編集",
+  },
+  "zh-CN": {
+    info: "信息",
+    closePanel: "关闭信息面板",
+    status: "状态",
+    published: "已发布",
+    draft: "草稿",
+    editIllustration: "编辑插画",
+    editIllustrationPending: "编辑插画：准备中",
+    download: "下载",
+    wallpaperDownload: "壁纸下载",
+    wallpaperDownloadPending: "壁纸下载：准备中",
+    storeItem: "商店商品",
+    edit: "编辑",
+  },
+  "zh-TW": {
+    info: "資訊",
+    closePanel: "關閉資訊面板",
+    status: "狀態",
+    published: "已發布",
+    draft: "草稿",
+    editIllustration: "編輯插畫",
+    editIllustrationPending: "編輯插畫：準備中",
+    download: "下載",
+    wallpaperDownload: "桌布下載",
+    wallpaperDownloadPending: "桌布下載：準備中",
+    storeItem: "商店商品",
+    edit: "編輯",
+  },
+  ko: {
+    info: "정보",
+    closePanel: "정보 패널 닫기",
+    status: "상태",
+    published: "공개",
+    draft: "초안",
+    editIllustration: "일러스트 편집",
+    editIllustrationPending: "일러스트 편집: 준비 중",
+    download: "다운로드",
+    wallpaperDownload: "배경화면 다운로드",
+    wallpaperDownloadPending: "배경화면 다운로드: 준비 중",
+    storeItem: "스토어 아이템",
+    edit: "편집",
+  },
+};
 
 interface WorkMobileInfoProps {
   work: Work;
@@ -70,6 +161,8 @@ export function WorkMobileInfo({
   downloadUrl,
   downloadFilename,
 }: WorkMobileInfoProps) {
+  const { lang } = useLanguage();
+  const t = INFO_COPY[lang];
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [dragOffsetY, setDragOffsetY] = useState(0);
@@ -129,7 +222,7 @@ export function WorkMobileInfo({
         onClick={() => setOpen(true)}
         className="btn-press inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-[11px] font-medium text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
       >
-        Info
+        {t.info}
       </button>
 
       {open && (
@@ -177,7 +270,7 @@ export function WorkMobileInfo({
                     type="button"
                     onClick={close}
                     className="btn-press inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
-                    aria-label="Close info panel"
+                    aria-label={t.closePanel}
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6l12 12M18 6L6 18" />
@@ -194,7 +287,7 @@ export function WorkMobileInfo({
                   </div>
                 ))}
                 <div>
-                  <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">Status</dt>
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">{t.status}</dt>
                   <dd className="mt-1">
                     <span
                       className={`inline-flex items-center gap-1.5 text-xs ${work.status === "published" ? "text-foreground" : "text-muted"}`}
@@ -202,7 +295,7 @@ export function WorkMobileInfo({
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${work.status === "published" ? "bg-foreground" : "bg-muted/50"}`}
                       />
-                      {work.status === "published" ? "Published" : "Draft"}
+                      {work.status === "published" ? t.published : t.draft}
                     </span>
                   </dd>
                 </div>
@@ -214,16 +307,16 @@ export function WorkMobileInfo({
                     href={imagineOffer!.targetUrl!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="イラストを編集"
+                    aria-label={t.editIllustration}
                     className="btn-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-600"
                   >
                     <SparklesIcon className="h-4 w-4" />
-                    イラストを編集
+                    {t.editIllustration}
                   </a>
                 ) : (
                   <span className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
                     <SparklesIcon className="h-4 w-4" />
-                    イラストを編集: 準備中
+                    {t.editIllustrationPending}
                   </span>
                 )}
 
@@ -233,7 +326,7 @@ export function WorkMobileInfo({
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   <DownloadIcon className="h-4 w-4" />
-                  Download
+                  {t.download}
                 </EpisodeDownloadButton>
 
                 {isOfferReady(wallpaperOffer) ? (
@@ -241,16 +334,16 @@ export function WorkMobileInfo({
                     href={wallpaperOffer!.targetUrl!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="壁紙ダウンロード"
+                    aria-label={t.wallpaperDownload}
                     className="btn-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
                   >
                     <DownloadIcon className="h-4 w-4" />
-                    壁紙ダウンロード
+                    {t.wallpaperDownload}
                   </a>
                 ) : (
                   <span className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
                     <DownloadIcon className="h-4 w-4" />
-                    壁紙ダウンロード: 準備中
+                    {t.wallpaperDownloadPending}
                   </span>
                 )}
 
@@ -261,7 +354,7 @@ export function WorkMobileInfo({
                     rel="noopener noreferrer"
                     className="btn-press inline-flex w-full items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                   >
-                    Store Item
+                    {t.storeItem}
                   </a>
                 )}
 
@@ -271,7 +364,7 @@ export function WorkMobileInfo({
                     className="btn-press inline-flex w-full items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                     onClick={close}
                   >
-                    Edit
+                    {t.edit}
                   </Link>
                 )}
               </div>

@@ -3,7 +3,74 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import type { Episode } from "@/lib/types";
+import { useLanguage, type Language } from "@/context/LanguageContext";
 import { EpisodeDownloadButton } from "./EpisodeDownloadButton";
+
+// Localized labels for the episode mobile info sheet.
+const INFO_COPY: Record<
+  Language,
+  {
+    info: string;
+    closePanel: string;
+    status: string;
+    published: string;
+    draft: string;
+    download: string;
+    edit: string;
+    buyWallpaper: string;
+  }
+> = {
+  en: {
+    info: "Info",
+    closePanel: "Close info panel",
+    status: "Status",
+    published: "Published",
+    draft: "Draft",
+    download: "Download",
+    edit: "Edit",
+    buyWallpaper: "Buy Wallpaper",
+  },
+  ja: {
+    info: "情報",
+    closePanel: "情報パネルを閉じる",
+    status: "ステータス",
+    published: "公開中",
+    draft: "下書き",
+    download: "ダウンロード",
+    edit: "編集",
+    buyWallpaper: "壁紙を購入",
+  },
+  "zh-CN": {
+    info: "信息",
+    closePanel: "关闭信息面板",
+    status: "状态",
+    published: "已发布",
+    draft: "草稿",
+    download: "下载",
+    edit: "编辑",
+    buyWallpaper: "购买壁纸",
+  },
+  "zh-TW": {
+    info: "資訊",
+    closePanel: "關閉資訊面板",
+    status: "狀態",
+    published: "已發布",
+    draft: "草稿",
+    download: "下載",
+    edit: "編輯",
+    buyWallpaper: "購買桌布",
+  },
+  ko: {
+    info: "정보",
+    closePanel: "정보 패널 닫기",
+    status: "상태",
+    published: "공개",
+    draft: "초안",
+    download: "다운로드",
+    edit: "편집",
+    buyWallpaper: "배경화면 구매",
+  },
+};
 
 interface EpisodeMobileInfoProps {
   episode: Episode;
@@ -20,6 +87,8 @@ export function EpisodeMobileInfo({
   downloadUrl,
   downloadFilename,
 }: EpisodeMobileInfoProps) {
+  const { lang } = useLanguage();
+  const t = INFO_COPY[lang];
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [dragOffsetY, setDragOffsetY] = useState(0);
@@ -83,7 +152,7 @@ export function EpisodeMobileInfo({
         onClick={() => setOpen(true)}
         className="btn-press inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-[11px] font-medium text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
       >
-        Info
+        {t.info}
       </button>
 
       {open && (
@@ -136,7 +205,7 @@ export function EpisodeMobileInfo({
                     type="button"
                     onClick={close}
                     className="btn-press inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
-                    aria-label="Close info panel"
+                    aria-label={t.closePanel}
                   >
                     <svg
                       className="h-4 w-4"
@@ -167,7 +236,7 @@ export function EpisodeMobileInfo({
                 ))}
                 <div>
                   <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">
-                    Status
+                    {t.status}
                   </dt>
                   <dd className="mt-1">
                     <span
@@ -176,7 +245,7 @@ export function EpisodeMobileInfo({
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${episode.isPublished ? "bg-foreground" : "bg-muted/50"}`}
                       />
-                      {episode.isPublished ? "Published" : "Draft"}
+                      {episode.isPublished ? t.published : t.draft}
                     </span>
                   </dd>
                 </div>
@@ -189,7 +258,7 @@ export function EpisodeMobileInfo({
                   filename={downloadFilename}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
                 >
-                  Download
+                  {t.download}
                 </EpisodeDownloadButton>
                 {isAdmin && (
                   <Link
@@ -197,7 +266,7 @@ export function EpisodeMobileInfo({
                     className="btn-press inline-flex w-full items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                     onClick={close}
                   >
-                    Edit
+                    {t.edit}
                   </Link>
                 )}
                 {episode.productUrl && (
@@ -207,7 +276,7 @@ export function EpisodeMobileInfo({
                     rel="noopener noreferrer"
                     className="btn-press inline-flex w-full items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                   >
-                    Buy Wallpaper
+                    {t.buyWallpaper}
                   </a>
                 )}
               </div>

@@ -5,8 +5,9 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage, type Language } from "@/context/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
-type MenuLocale = "en" | "ja";
 type NavItemKey = "episodes" | "imagine" | "club" | "store";
 
 const navItems = [
@@ -16,8 +17,20 @@ const navItems = [
   { key: "store" as NavItemKey, href: "https://whatif.stores.jp", external: true },
 ];
 
+// Localized labels for the header chrome (menu heading, auth actions).
+const chromeCopy: Record<
+  Language,
+  { menu: string; login: string; logout: string }
+> = {
+  en: { menu: "Menu", login: "Log in", logout: "Log out" },
+  ja: { menu: "メニュー", login: "ログイン", logout: "ログアウト" },
+  "zh-CN": { menu: "菜单", login: "登录", logout: "退出登录" },
+  "zh-TW": { menu: "選單", login: "登入", logout: "登出" },
+  ko: { menu: "메뉴", login: "로그인", logout: "로그아웃" },
+};
+
 const menuCopy: Record<
-  MenuLocale,
+  Language,
   Record<NavItemKey, { label: string; description: string }>
 > = {
   en: {
@@ -64,6 +77,72 @@ const menuCopy: Record<
         "WHATIFアートワークを使ったTシャツやスウェットなどのファッションアイテムに加え、壁紙や電子書籍などのダウンロード商品も購入できます。",
     },
   },
+  "zh-CN": {
+    episodes: {
+      label: "EPISODES",
+      description:
+        "在 Instagram 与 Threads 上发布的 WHATIF 作品画廊。部分图片可供下载。",
+    },
+    imagine: {
+      label: "/IMAGINE",
+      description:
+        "可从 99% 完成的设计套件自由创作插画的免费设计网站。使用 WHATIF 作品素材打造原创设计。",
+    },
+    club: {
+      label: "THE CLUB",
+      description:
+        "面向 Instagram 订阅会员的会员制壁纸下载服务。账号现已与 Imagine 互通，Imagine 付费用户可无限下载壁纸。",
+    },
+    store: {
+      label: "STORE",
+      description:
+        "选购采用 WHATIF 作品的 T 恤、卫衣等时尚单品，以及壁纸、电子书等可下载商品。",
+    },
+  },
+  "zh-TW": {
+    episodes: {
+      label: "EPISODES",
+      description:
+        "在 Instagram 與 Threads 上發布的 WHATIF 作品藝廊。部分圖片可供下載。",
+    },
+    imagine: {
+      label: "/IMAGINE",
+      description:
+        "可從 99% 完成的設計套件自由創作插畫的免費設計網站。使用 WHATIF 作品素材打造原創設計。",
+    },
+    club: {
+      label: "THE CLUB",
+      description:
+        "面向 Instagram 訂閱會員的會員制桌布下載服務。帳號現已與 Imagine 互通，Imagine 付費使用者可無限下載桌布。",
+    },
+    store: {
+      label: "STORE",
+      description:
+        "選購採用 WHATIF 作品的 T 恤、衛衣等時尚單品，以及桌布、電子書等可下載商品。",
+    },
+  },
+  ko: {
+    episodes: {
+      label: "EPISODES",
+      description:
+        "Instagram과 Threads에 공개한 WHATIF 아트워크 갤러리입니다. 일부 이미지는 다운로드할 수 있습니다.",
+    },
+    imagine: {
+      label: "/IMAGINE",
+      description:
+        "99% 완성된 디자인 키트로 자유롭게 일러스트를 만들 수 있는 무료 디자인 사이트입니다. WHATIF 아트워크 소재로 오리지널 디자인을 제작하세요.",
+    },
+    club: {
+      label: "THE CLUB",
+      description:
+        "Instagram 구독 회원을 위한 회원제 배경화면 다운로드 서비스입니다. 이제 Imagine과 계정을 공유하며, Imagine 유료 회원은 배경화면을 무제한으로 다운로드할 수 있습니다.",
+    },
+    store: {
+      label: "STORE",
+      description:
+        "WHATIF 아트워크를 활용한 티셔츠, 스웨트셔츠 등 패션 아이템과 배경화면, 전자책 등 다운로드 상품을 구매할 수 있습니다.",
+    },
+  },
 };
 
 const socialLinks = [
@@ -89,6 +168,7 @@ const socialLinks = [
 
 function UserMenu() {
   const { user, profile, signOut } = useAuth();
+  const { lang } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -167,7 +247,7 @@ function UserMenu() {
             onClick={handleSignOut}
             className="w-full px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
           >
-            Log out
+            {chromeCopy[lang].logout}
           </button>
         </div>
       )}
@@ -179,13 +259,9 @@ export function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
   const { user, loading } = useAuth();
+  const { lang } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
-  const [menuLocale, setMenuLocale] = useState<MenuLocale>(() => {
-    if (typeof window === "undefined") return "en";
-    const savedLocale = window.localStorage.getItem("whatif_menu_locale");
-    return savedLocale === "ja" ? "ja" : "en";
-  });
 
   const loginHref =
     pathname && pathname.startsWith("/") && !pathname.startsWith("//")
@@ -224,7 +300,7 @@ export function Header() {
                 href={loginHref}
                 className="btn-press rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
               >
-                Log in
+                {chromeCopy[lang].login}
               </Link>
             ))}
         </div>
@@ -236,8 +312,9 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Right: hamburger with morphing animation */}
-        <div className="flex items-center justify-end">
+        {/* Right: language switcher + hamburger with morphing animation */}
+        <div className="flex items-center justify-end gap-2">
+          <LanguageSwitcher />
           <button
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -282,41 +359,9 @@ export function Header() {
               {/* Top bar */}
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-[0.4em] text-muted">
-                  {menuLocale === "en" ? "Menu" : "メニュー"}
+                  {chromeCopy[lang].menu}
                 </span>
                 <div className="flex items-center gap-2">
-                  <div className="rounded-full border border-border bg-surface p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuLocale("en");
-                        window.localStorage.setItem("whatif_menu_locale", "en");
-                      }}
-                      className={`btn-press rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        menuLocale === "en"
-                          ? "bg-foreground text-background"
-                          : "text-muted hover:text-foreground"
-                      }`}
-                      aria-label="Switch menu language to English"
-                    >
-                      EN
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuLocale("ja");
-                        window.localStorage.setItem("whatif_menu_locale", "ja");
-                      }}
-                      className={`btn-press rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        menuLocale === "ja"
-                          ? "bg-foreground text-background"
-                          : "text-muted hover:text-foreground"
-                      }`}
-                      aria-label="Switch menu language to Japanese"
-                    >
-                      JA
-                    </button>
-                  </div>
                   <button
                     type="button"
                     aria-label="Close menu"
@@ -343,7 +388,7 @@ export function Header() {
               {/* Nav items with staggered slide-in */}
               <nav className="mt-12 flex flex-col">
                 {navItems.map((item, i) => {
-                  const copy = menuCopy[menuLocale][item.key];
+                  const copy = menuCopy[lang][item.key];
                   const isActive = !item.external && pathname?.startsWith(item.href);
                   const delay = `${80 + i * 60}ms`;
 

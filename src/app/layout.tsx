@@ -4,6 +4,7 @@ import { Header } from "@/components/Header";
 import { ConditionalFooter } from "@/components/ConditionalFooter";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { AuthProvider } from "@/context/AuthContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,16 +37,18 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="ja"
+      lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <GoogleAnalytics />
-        <AuthProvider>
-          <Header />
-          <main className="flex-1 flex min-h-0 flex-col pt-14">{children}</main>
-          <ConditionalFooter />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <Header />
+            <main className="flex-1 flex min-h-0 flex-col pt-14">{children}</main>
+            <ConditionalFooter />
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

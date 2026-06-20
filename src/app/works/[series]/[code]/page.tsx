@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAdminAccess } from "@/lib/admin/access";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
-import { EpisodeDownloadButton } from "@/components/EpisodeDownloadButton";
+import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { getVariantDisplayImageCandidates } from "@/lib/work-images";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
@@ -42,37 +42,6 @@ function resolveReadyOfferUrl(
   targetUrl: string | null | undefined
 ) {
   return status === "ready" ? resolveOfferUrl(targetUrl) : null;
-}
-
-// AI sparkles icon (filled), used on the primary "Edit illustration" button.
-function SparklesIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 2l1.6 4.8L18.4 8.4 13.6 10 12 14.8 10.4 10 5.6 8.4 10.4 6.8z" />
-      <path d="M18.5 13.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" />
-      <path d="M5 14l.7 2 2 .7-2 .7L5 19.4l-.7-2-2-.7 2-.7z" />
-    </svg>
-  );
-}
-
-// Download icon (down arrow into a tray).
-function DownloadIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
-      />
-    </svg>
-  );
 }
 
 export async function generateMetadata({
@@ -272,93 +241,24 @@ export default async function WorkDetailPage({
               </dl>
             </div>
 
-            <div className="mt-5 flex flex-col gap-2">
-              {adminAccess.isAdmin && work.legacyEpisodeId && (
-                <Link
-                  href={`/episodes/${work.displayCode}/edit`}
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-                >
-                  Edit
-                </Link>
+            <WorkDetailActions
+              isAdmin={adminAccess.isAdmin}
+              editHref={
+                work.legacyEpisodeId
+                  ? `/episodes/${work.displayCode}/edit`
+                  : null
+              }
+              imagineUrl={resolveReadyOfferUrl(
+                imagineOffer?.status,
+                imagineOffer?.targetUrl
               )}
-
-              {resolveReadyOfferUrl(imagineOffer?.status, imagineOffer?.targetUrl) ? (
-                <a
-                  href={resolveReadyOfferUrl(imagineOffer?.status, imagineOffer?.targetUrl)!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="イラストを編集"
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-600"
-                >
-                  <SparklesIcon className="h-4 w-4" />
-                  イラストを編集
-                </a>
-              ) : (
-                <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
-                  <SparklesIcon className="h-4 w-4" />
-                  イラストを編集: 準備中
-                </span>
-              )}
-
-              <EpisodeDownloadButton
-                url={downloadUrl}
-                filename={downloadFilename}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-              >
-                <DownloadIcon className="h-4 w-4" />
-                Download
-              </EpisodeDownloadButton>
-
-              {resolveOfferUrl(storeOffer?.targetUrl) && (
-                <a
-                  href={resolveOfferUrl(storeOffer?.targetUrl)!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-                >
-                  Store Item
-                </a>
-              )}
-            </div>
-
-            {wallpaperPack?.cover && (
-              <div className="mt-5 border-t border-border pt-5">
-                <p className="text-xs font-medium text-foreground">
-                  ノンクレジット版壁紙ダウンロードはこちらから
-                </p>
-                <Link
-                  href={wallpaperHref}
-                  className="mt-3 flex items-center gap-3 transition-opacity hover:opacity-90"
-                >
-                  <span className="block shrink-0 overflow-hidden rounded-lg border border-border">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={wallpaperPack.cover.publicUrl}
-                      alt={`${work.title} wallpaper`}
-                      className="h-20 w-20 object-cover"
-                    />
-                  </span>
-                  <dl className="min-w-0 flex-1 space-y-1.5">
-                    <div>
-                      <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">Mobile</dt>
-                      <dd className="text-[11px] text-muted">FULL HD · QHD（1080–1440px幅）</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">Desktop</dt>
-                      <dd className="text-[11px] text-muted">FULL HD · QHD（1920–2560px幅）</dd>
-                    </div>
-                  </dl>
-                </Link>
-                <Link
-                  href={wallpaperHref}
-                  aria-label="壁紙ダウンロード"
-                  className="btn-press mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
-                >
-                  <DownloadIcon className="h-4 w-4" />
-                  壁紙ダウンロード
-                </Link>
-              </div>
-            )}
+              downloadUrl={downloadUrl}
+              downloadFilename={downloadFilename}
+              storeUrl={resolveOfferUrl(storeOffer?.targetUrl)}
+              wallpaperHref={wallpaperHref}
+              wallpaperCoverUrl={wallpaperPack?.cover?.publicUrl ?? null}
+              workTitle={work.title}
+            />
           </div>
 
         </aside>
