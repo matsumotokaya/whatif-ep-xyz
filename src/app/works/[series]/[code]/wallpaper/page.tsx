@@ -7,10 +7,14 @@ import {
   type WallpaperPack,
   getPublishedWallpaperPack,
 } from "@/lib/wallpaper";
+import {
+  hasPurchasedWallpaper,
+  verifyAndRecordCheckoutSession,
+} from "@/lib/wallpaper-purchases";
 import { getWorkBySeriesAndCode } from "@/lib/works";
+import BuyWallpaperButton from "./BuyWallpaperButton";
 
 const IMAGINE_PLANS_BASE_URL = "https://app.whatif-ep.xyz/plans";
-const PREMIUM_PRICE_LABEL = "$3 / month";
 
 // ---------------------------------------------------------------------------
 // Copy (Japanese first; extract to i18n later)
@@ -30,19 +34,27 @@ const copy = {
   lineupNote: "プレビューはサンプルです。実際の配布データに透かしは入りません。",
   sample: "SAMPLE",
   included: "収録",
-  premiumPitchTitle: "すべての壁紙を、ダウンロードし放題。",
-  premiumPitchBody: [
-    `IMAGINE プレミアムなら、月額 ${PREMIUM_PRICE_LABEL} で WHATIF のすべての壁紙にアクセスし放題。`,
-    "さらにデザインツール IMAGINE の WHATIF デザインテンプレートもすべてアンロック。あなたの作品づくりがそのまま始められます。",
-  ],
-  premiumCta: "IMAGINE プレミアムに登録する →",
-  premiumPrice: PREMIUM_PRICE_LABEL,
+  // Plan A: buy just this wallpaper once.
+  oneTimeEyebrow: "この壁紙だけ",
+  oneTimePrice: "$1",
+  oneTimePriceUnit: "買い切り（一回払い）",
+  oneTimeDesc:
+    "この壁紙パック（全4サイズ）だけを $1 でダウンロード。サブスクに登録しなくても、気に入った1枚をそのまま買えます。",
+  // Plan B: subscribe for all wallpapers.
+  subEyebrow: "すべての壁紙",
+  subPrice: "$3",
+  subPriceUnit: "/ 月",
+  subDesc:
+    "IMAGINE プレミアムなら、WHATIF の壁紙がすべてダウンロードし放題。デザインツール IMAGINE のテンプレートも解放されます。",
+  premiumCta: "プレミアムに登録する →",
   alreadyMember: "すでにプレミアム会員ですか？",
   login: "ログイン",
   downloadReady: "壁紙パックをダウンロード（.zip）",
   downloadReadyNote: "4サイズすべてを1つの zip にまとめてお届けします。",
-  downloadLocked: "ダウンロードはプレミアム限定",
-  downloadLockedNote: "下のプランに登録すると、このパックをすぐにダウンロードできます。",
+  purchasedBadge: "ご購入済み",
+  purchasedNote: "ご購入いただいた壁紙パックです。いつでもダウンロードできます。",
+  purchaseThanks: "ご購入ありがとうございます。",
+  buyLine: "1枚だけなら $1 で購入できます",
   spec: {
     mobile: "スマートフォン（縦型）",
     desktop: "デスクトップ（横型）",
@@ -227,6 +239,40 @@ export default async function WallpaperPage({
   const access = await getClubAccess();
   const isPremium = canAccessClub(access);
 
+  // Non-premium signed-in users may own this specific wallpaper via one-time
+  // purchase. Resolve ownership and, on the Stripe success redirect, fall back
+  // to verifying the session directly in case the webhook is delayed.
+  let hasPurchased = false;
+  if (!isPremium && access.user) {
+    hasPurchased = await hasPurchasedWallpaper(access.user.id, pack.projectId);
+
+    const purchasedFlag = resolvedSearchParams.purchased;
+    const purchasedValue = Array.isArray(purchasedFlag)
+      ? purchasedFlag[0]
+      : purchasedFlag;
+    const sessionRaw = resolvedSearchParams.session_id;
+    const sessionId = Array.isArray(sessionRaw) ? sessionRaw[0] : sessionRaw;
+
+    if (purchasedValue === "1" && sessionId && !hasPurchased) {
+      try {
+        await verifyAndRecordCheckoutSession(sessionId);
+        hasPurchased = await hasPurchasedWallpaper(
+          access.user.id,
+          pack.projectId
+        );
+      } catch {
+        // Best-effort; webhook will reconcile if this fails.
+      }
+    }
+  }
+
+  const purchasedFlagRaw = resolvedSearchParams.purchased;
+  const justPurchased =
+    (Array.isArray(purchasedFlagRaw) ? purchasedFlagRaw[0] : purchasedFlagRaw) ===
+    "1";
+
+  const entitled = isPremium || hasPurchased;
+
   const variantQuery = variantNumber > 1 ? `?variant=${variantNumber}` : "";
   const downloadUrl = `/api/works/${series}/${code}/wallpaper/download?variant=${variantNumber}`;
   const galleryOrigin =
@@ -318,10 +364,20 @@ export default async function WallpaperPage({
           </div>
         </section>
 
-        {/* Download / Upsell ------------------------------------------------- */}
+        {/* Download / Purchase ----------------------------------------------- */}
         <section className="mt-12">
-          {isPremium ? (
+          {entitled ? (
             <div className="rounded-2xl border border-border bg-surface/30 p-6 text-center sm:p-8">
+              {justPurchased ? (
+                <p className="mb-4 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground">
+                  {copy.purchaseThanks}
+                </p>
+              ) : null}
+              {hasPurchased && !isPremium ? (
+                <span className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+                  {copy.purchasedBadge}
+                </span>
+              ) : null}
               <a
                 href={downloadUrl}
                 className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-8 py-4 text-base font-semibold text-background transition-opacity hover:opacity-80"
@@ -341,63 +397,75 @@ export default async function WallpaperPage({
                 </svg>
                 {copy.downloadReady}
               </a>
-              <p className="mt-3 text-xs text-muted">{copy.downloadReadyNote}</p>
+              <p className="mt-3 text-xs text-muted">
+                {hasPurchased && !isPremium
+                  ? copy.purchasedNote
+                  : copy.downloadReadyNote}
+              </p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-[#00f0ff]/30 bg-gradient-to-b from-surface/60 to-surface/20">
-              <div className="border-b border-border/60 p-6 text-center sm:p-8">
-                <span className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-border bg-surface px-8 py-4 text-base font-semibold text-muted">
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
-                  {copy.downloadLocked}
-                </span>
-                <p className="mt-3 text-xs text-muted">{copy.downloadLockedNote}</p>
-              </div>
-
-              <div className="p-6 sm:p-8">
-                <div className="flex items-baseline gap-2">
-                  <h3 className="text-xl font-bold sm:text-2xl">
-                    <span className="neon-text-magenta">{copy.premiumPitchTitle}</span>
-                  </h3>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {copy.premiumPitchBody.map((line) => (
-                    <p key={line} className="text-sm leading-relaxed text-foreground/85">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-
-                <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-                  <Link
-                    href={imaginePlansUrl}
-                    className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff00e5] px-7 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-85"
-                  >
-                    {copy.premiumCta}
-                  </Link>
-                  <p className="text-sm text-muted">
-                    <span className="text-lg font-bold text-foreground">{copy.premiumPrice}</span>
+            <div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Plan A — buy this single wallpaper for $1 */}
+                <div className="flex flex-col rounded-2xl border border-border bg-surface/40 p-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                    {copy.oneTimeEyebrow}
                   </p>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground">
+                      {copy.oneTimePrice}
+                    </span>
+                    <span className="text-sm text-muted">
+                      {copy.oneTimePriceUnit}
+                    </span>
+                  </div>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-foreground/80">
+                    {copy.oneTimeDesc}
+                  </p>
+                  <div className="mt-5">
+                    <BuyWallpaperButton
+                      series={series}
+                      code={code}
+                      variant={variantNumber}
+                      loginUrl={loginUrl}
+                    />
+                  </div>
                 </div>
 
-                <p className="mt-5 text-xs text-muted">
-                  {copy.alreadyMember}{" "}
-                  <Link href={loginUrl} className="text-foreground underline-offset-2 hover:underline">
-                    {copy.login}
-                  </Link>
-                </p>
+                {/* Plan B — subscription unlocks every wallpaper */}
+                <div className="flex flex-col rounded-2xl border border-border bg-surface/40 p-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                    {copy.subEyebrow}
+                  </p>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground">
+                      {copy.subPrice}
+                    </span>
+                    <span className="text-sm text-muted">{copy.subPriceUnit}</span>
+                  </div>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-foreground/80">
+                    {copy.subDesc}
+                  </p>
+                  <div className="mt-5">
+                    <Link
+                      href={imaginePlansUrl}
+                      className="btn-press inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-hover"
+                    >
+                      {copy.premiumCta}
+                    </Link>
+                  </div>
+                </div>
               </div>
+
+              <p className="mt-5 text-center text-xs text-muted">
+                {copy.alreadyMember}{" "}
+                <Link
+                  href={loginUrl}
+                  className="text-foreground underline-offset-2 hover:underline"
+                >
+                  {copy.login}
+                </Link>
+              </p>
             </div>
           )}
         </section>

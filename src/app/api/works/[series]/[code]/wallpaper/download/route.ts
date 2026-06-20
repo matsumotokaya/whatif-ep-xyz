@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
 import { canAccessClub, getClubAccess } from "@/lib/club/access";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
+import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,14 +31,10 @@ export async function GET(
 
   const access = await getClubAccess();
 
-  if (access.status === "anonymous") {
+  if (access.status === "anonymous" || !access.user) {
     return NextResponse.redirect(
       new URL(`/auth/login?next=/works/${series}/${code}/wallpaper`, origin)
     );
-  }
-
-  if (!canAccessClub(access)) {
-    return NextResponse.redirect(new URL("/the-club", origin));
   }
 
   const pack = await getPublishedWallpaperPack(series, code, variantNumber);
@@ -45,6 +42,21 @@ export async function GET(
     return NextResponse.json(
       { error: "Wallpaper pack not found." },
       { status: 404 }
+    );
+  }
+
+  // Authorize: premium members get all packs; otherwise the user must have
+  // purchased this specific wallpaper.
+  const entitled =
+    canAccessClub(access) ||
+    (await hasPurchasedWallpaper(access.user.id, pack.projectId));
+
+  if (!entitled) {
+    return NextResponse.redirect(
+      new URL(
+        `/works/${series}/${code}/wallpaper?variant=${variantNumber}`,
+        origin
+      )
     );
   }
 
