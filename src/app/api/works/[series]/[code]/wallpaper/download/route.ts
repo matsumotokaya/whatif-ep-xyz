@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
 import { canAccessClub, getClubAccess } from "@/lib/club/access";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
+import {
+  MANUAL_LOCALES,
+  buildWallpaperReadme,
+  manualFilename,
+} from "@/lib/wallpaper-manual";
 import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
+import { getWorkBySeriesAndCode } from "@/lib/works";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,6 +67,20 @@ export async function GET(
   }
 
   const zip = new JSZip();
+
+  // Bundle the README ("取扱説明書") in every supported language so buyers get
+  // setup steps and terms of use alongside the images. The manual is an extra,
+  // so all locales ship as separate files (README_EN.txt, ...) rather than
+  // requiring language detection on the gallery side.
+  const work = await getWorkBySeriesAndCode(series, code);
+  const manualContext = {
+    displayCode: work?.displayCode ?? code,
+    title: work?.title ?? "",
+    variantNumber,
+  };
+  for (const locale of MANUAL_LOCALES) {
+    zip.file(manualFilename(locale), buildWallpaperReadme(locale, manualContext));
+  }
 
   // Collect the wallpaper sizes plus the cover (if present).
   const files = [...pack.wallpapers];
