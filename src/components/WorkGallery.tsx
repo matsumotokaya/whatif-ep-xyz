@@ -11,9 +11,16 @@ interface WorkGalleryProps {
   initialWorks: WorkListItem[];
   allWorks: WorkListItem[];
   total: number;
+  /** Display codes the signed-in user has purchased (one-time wallpaper buys). */
+  purchasedCodes?: Set<string>;
 }
 
-export function WorkGallery({ initialWorks, allWorks, total }: WorkGalleryProps) {
+export function WorkGallery({
+  initialWorks,
+  allWorks,
+  total,
+  purchasedCodes,
+}: WorkGalleryProps) {
   const [works, setWorks] = useState<WorkListItem[]>(initialWorks);
   const [isLoading, setIsLoading] = useState(false);
   const hasMore = works.length < allWorks.length;
@@ -85,7 +92,10 @@ export function WorkGallery({ initialWorks, allWorks, total }: WorkGalleryProps)
             className="opacity-0"
             style={{ animationDelay: `${(index % ITEMS_PER_PAGE) * 30}ms` }}
           >
-            <WorkCard work={work} />
+            <WorkCard
+              work={work}
+              purchased={purchasedCodes?.has(work.displayCode) ?? false}
+            />
           </div>
         ))}
       </div>

@@ -7,6 +7,8 @@ import {
   getWorkCountBySeries,
   getWorkCardsBySeries,
 } from "@/lib/works";
+import { getPurchasedDisplayCodes } from "@/lib/wallpaper-purchases";
+import { getSavedWorkIds } from "@/lib/work-saves";
 import { WorksPageClient } from "./WorksPageClient";
 import Link from "next/link";
 
@@ -27,12 +29,15 @@ export async function generateMetadata({
 
 export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) {
   const { series } = await params;
-  const [seriesOptions, works, total, adminAccess] = await Promise.all([
-    getGallerySeries(),
-    getWorkCardsBySeries(series, "newest"),
-    getWorkCountBySeries(series),
-    getAdminAccess(),
-  ]);
+  const [seriesOptions, works, total, adminAccess, purchasedCodes, savedWorkIds] =
+    await Promise.all([
+      getGallerySeries(),
+      getWorkCardsBySeries(series, "newest"),
+      getWorkCountBySeries(series),
+      getAdminAccess(),
+      getPurchasedDisplayCodes(series),
+      getSavedWorkIds(series),
+    ]);
 
   const selectedSeries = seriesOptions.find((item) => item.slug === series);
   if (!selectedSeries) notFound();
@@ -64,6 +69,8 @@ export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) 
         selectedSeriesSlug={series}
         works={works}
         total={total}
+        purchasedCodes={purchasedCodes}
+        savedWorkIds={savedWorkIds}
       />
     </div>
   );

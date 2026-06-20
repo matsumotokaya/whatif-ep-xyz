@@ -166,6 +166,28 @@ const socialLinks = [
   },
 ];
 
+// Crown icon (filled), used to mark premium accounts.
+function CrownIcon({
+  className,
+  "aria-label": ariaLabel,
+}: {
+  className?: string;
+  "aria-label"?: string;
+}) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+      aria-hidden={ariaLabel ? undefined : true}
+    >
+      <path d="M3 7l4 4 5-7 5 7 4-4-1.6 11H4.6L3 7zm1.8 13h14.4v1.2a.8.8 0 01-.8.8H5.6a.8.8 0 01-.8-.8V20z" />
+    </svg>
+  );
+}
+
 function UserMenu() {
   const { user, profile, signOut } = useAuth();
   const { lang } = useLanguage();
@@ -194,6 +216,7 @@ function UserMenu() {
     profile?.full_name || user?.email?.split("@")[0] || "User";
   const avatarUrl = profile?.avatar_url;
   const initial = displayName.charAt(0).toUpperCase();
+  const isPremium = profile?.subscription_tier === "premium";
 
   return (
     <div className="relative" ref={menuRef}>
@@ -218,6 +241,12 @@ function UserMenu() {
         <span className="hidden text-sm text-foreground sm:block">
           {displayName}
         </span>
+        {isPremium && (
+          <CrownIcon
+            className="h-4 w-4 shrink-0 text-amber-400"
+            aria-label="Premium"
+          />
+        )}
         <svg
           className={`h-3 w-3 text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
           fill="none"
@@ -237,8 +266,9 @@ function UserMenu() {
         <div className="dropdown-enter absolute left-0 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
           <div className="border-b border-border px-4 py-3">
             <p className="truncate text-xs text-muted">{user?.email}</p>
-            {profile?.subscription_tier === "premium" && (
-              <span className="mt-0.5 inline-block text-[11px] font-medium text-foreground">
+            {isPremium && (
+              <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-500">
+                <CrownIcon className="h-3 w-3" />
                 Premium
               </span>
             )}

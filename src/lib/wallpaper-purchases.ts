@@ -47,6 +47,42 @@ export async function hasPurchasedWallpaper(
   return Boolean((data as Pick<WallpaperPurchaseRow, "id"> | null)?.id);
 }
 
+// Returns the set of display codes the user has purchased (status = 'paid')
+// within a series, used to flag "purchased" works in the gallery list. Uses the
+// user-scoped client so RLS limits the read to the user's own rows. Premium
+// users are intentionally not handled here: their access comes from the
+// subscription, not a purchase, so they should not see a "purchased" badge.
+export async function getPurchasedDisplayCodes(
+  seriesSlug: string
+): Promise<string[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("wallpaper_purchases")
+    .select("display_code")
+    .eq("user_id", user.id)
+    .eq("series_slug", seriesSlug)
+    .eq("status", "paid");
+
+  if (error) {
+    console.error("getPurchasedDisplayCodes query failed:", error.message);
+    return [];
+  }
+
+  const codes = (data as { display_code: string | null }[] | null) ?? [];
+  return [
+    ...new Set(
+      codes
+        .map((row) => row.display_code)
+        .filter((code): code is string => Boolean(code))
+    ),
+  ];
+}
+
 // Idempotent upsert keyed on the Stripe Checkout Session id. Uses the
 // service-role client because the webhook / success fallback runs without a
 // user session and RLS would otherwise block the write.

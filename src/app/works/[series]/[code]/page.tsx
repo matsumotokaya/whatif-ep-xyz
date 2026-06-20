@@ -7,6 +7,11 @@ import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { getVariantDisplayImageCandidates } from "@/lib/work-images";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
+import { getClubAccess } from "@/lib/club/access";
+import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
+import { getSavedWorkIds } from "@/lib/work-saves";
+import { SavedWorksProvider } from "@/context/SavedWorksContext";
+import { SaveButton } from "@/components/SaveButton";
 import { getAdjacentWorks, getGallerySeries, getWorkBySeriesAndCode } from "@/lib/works";
 
 interface WorkDetailPageProps {
@@ -79,16 +84,35 @@ export default async function WorkDetailPage({
 
   if (!currentVariant || !currentVariant.originalStorageKey) notFound();
 
-  const [seriesOptions, adjacent, adminAccess, wallpaperPack] = await Promise.all([
-    getGallerySeries(),
-    getAdjacentWorks(series, work.id),
-    getAdminAccess(),
-    getPublishedWallpaperPack(
-      work.seriesSlug,
-      work.displayCode,
-      currentVariant.variantNumber
-    ),
-  ]);
+  const [seriesOptions, adjacent, adminAccess, wallpaperPack, savedWorkIds] =
+    await Promise.all([
+      getGallerySeries(),
+      getAdjacentWorks(series, work.id),
+      getAdminAccess(),
+      getPublishedWallpaperPack(
+        work.seriesSlug,
+        work.displayCode,
+        currentVariant.variantNumber
+      ),
+      getSavedWorkIds(work.seriesSlug),
+    ]);
+
+  // Seed the provider only with this work's saved state (single-work scope).
+  const initialSavedIds = savedWorkIds.includes(work.id) ? [work.id] : [];
+
+  // Flag the current variant's wallpaper as purchased for non-premium buyers.
+  // Premium users get access via subscription (shown via the crown), so they
+  // are intentionally excluded from the "purchased" badge.
+  let wallpaperPurchased = false;
+  if (wallpaperPack) {
+    const access = await getClubAccess();
+    if (access.user && access.status !== "premium") {
+      wallpaperPurchased = await hasPurchasedWallpaper(
+        access.user.id,
+        wallpaperPack.projectId
+      );
+    }
+  }
 
   const imageCandidates = getVariantDisplayImageCandidates(currentVariant);
   const releasedOn = formatDate(work.releasedOn ?? work.createdAt);
@@ -118,10 +142,16 @@ export default async function WorkDetailPage({
     null;
 
   return (
+    <SavedWorksProvider initialSavedIds={initialSavedIds}>
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background lg:overflow-hidden">
       <div className="flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative h-[58vh] shrink-0 bg-surface/30 lg:h-auto lg:min-h-0">
           <EpisodeDetailImage candidates={imageCandidates} alt={work.title} />
+
+          {/* Save button overlaid at the top-right of the image */}
+          <div className="absolute right-3 top-14 z-20 sm:right-4">
+            <SaveButton workId={work.id} size="detail" />
+          </div>
 
           {/* Top navigation bar overlaid on the image (desktop + mobile) */}
           <div className="absolute inset-x-0 top-0 z-10">
@@ -257,6 +287,7 @@ export default async function WorkDetailPage({
               storeUrl={resolveOfferUrl(storeOffer?.targetUrl)}
               wallpaperHref={wallpaperHref}
               wallpaperCoverUrl={wallpaperPack?.cover?.publicUrl ?? null}
+              wallpaperPurchased={wallpaperPurchased}
               workTitle={work.title}
             />
           </div>
@@ -264,5 +295,6 @@ export default async function WorkDetailPage({
         </aside>
       </div>
     </div>
+    </SavedWorksProvider>
   );
 }

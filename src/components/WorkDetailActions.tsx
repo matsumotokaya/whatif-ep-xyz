@@ -15,6 +15,7 @@ const COPY: Record<
     storeItem: string;
     wallpaperPromoTitle: string;
     wallpaperDownload: string;
+    purchased: string;
     mobile: string;
     desktop: string;
     mobileSpec: string;
@@ -29,6 +30,7 @@ const COPY: Record<
     storeItem: "Store Item",
     wallpaperPromoTitle: "Download the non-credit wallpaper here",
     wallpaperDownload: "Wallpaper download",
+    purchased: "Purchased",
     mobile: "Mobile",
     desktop: "Desktop",
     mobileSpec: "FULL HD · QHD (1080–1440px wide)",
@@ -42,6 +44,7 @@ const COPY: Record<
     storeItem: "ストアアイテム",
     wallpaperPromoTitle: "ノンクレジット版壁紙ダウンロードはこちらから",
     wallpaperDownload: "壁紙ダウンロード",
+    purchased: "購入済み",
     mobile: "Mobile",
     desktop: "Desktop",
     mobileSpec: "FULL HD · QHD（1080–1440px幅）",
@@ -55,6 +58,7 @@ const COPY: Record<
     storeItem: "商店商品",
     wallpaperPromoTitle: "无署名版壁纸下载请点这里",
     wallpaperDownload: "壁纸下载",
+    purchased: "已购买",
     mobile: "Mobile",
     desktop: "Desktop",
     mobileSpec: "FULL HD · QHD（1080–1440px 宽）",
@@ -68,6 +72,7 @@ const COPY: Record<
     storeItem: "商店商品",
     wallpaperPromoTitle: "無署名版桌布下載請點這裡",
     wallpaperDownload: "桌布下載",
+    purchased: "已購買",
     mobile: "Mobile",
     desktop: "Desktop",
     mobileSpec: "FULL HD · QHD（1080–1440px 寬）",
@@ -81,6 +86,7 @@ const COPY: Record<
     storeItem: "스토어 아이템",
     wallpaperPromoTitle: "논크레딧 배경화면 다운로드는 여기서",
     wallpaperDownload: "배경화면 다운로드",
+    purchased: "구매 완료",
     mobile: "Mobile",
     desktop: "Desktop",
     mobileSpec: "FULL HD · QHD (1080–1440px 너비)",
@@ -128,6 +134,7 @@ interface WorkDetailActionsProps {
   storeUrl: string | null;
   wallpaperHref: string;
   wallpaperCoverUrl: string | null;
+  wallpaperPurchased?: boolean;
   workTitle: string;
 }
 
@@ -140,6 +147,7 @@ export function WorkDetailActions({
   storeUrl,
   wallpaperHref,
   wallpaperCoverUrl,
+  wallpaperPurchased = false,
   workTitle,
 }: WorkDetailActionsProps) {
   const { lang } = useLanguage();
@@ -198,6 +206,20 @@ export function WorkDetailActions({
 
       {wallpaperCoverUrl && (
         <div className="mt-5 border-t border-border pt-5">
+          {wallpaperPurchased && (
+            <span className="mb-3 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-500">
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              {t.purchased}
+            </span>
+          )}
           <p className="text-xs font-medium text-foreground">
             {t.wallpaperPromoTitle}
           </p>
