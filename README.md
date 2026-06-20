@@ -127,6 +127,46 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 
 ---
 
+## Internationalization (i18n)
+
+姉妹サイト IMAGINE と同じ **5言語**に対応しています。
+
+| code | 表示 | 短縮（スイッチャー） |
+|------|------|------------------|
+| `en` | English | EN |
+| `ja` | 日本語 | JA |
+| `zh-CN` | 简体中文 | CN |
+| `zh-TW` | 繁體中文 | TW |
+| `ko` | 한국어 | KO |
+
+### 仕様
+
+- **デフォルトは英語**。初回アクセス時は `navigator.language` から自動判定（`zh-TW`/`zh-HK`/`zh-Hant`→繁体字、その他 `zh*`→簡体字、`ko*`→韓国語、`ja*`→日本語、それ以外→英語）。
+- 選択した言語は `localStorage` の `whatif_menu_locale` に保存（旧 `en`/`ja` 値とも後方互換）。
+- 言語スイッチャー（🌐 地球儀アイコン + 短縮コード）は **ヘッダーのハンバーガーメニューの左**に常時表示。ドロップダウンはネイティブ表記。
+
+### 実装方式
+
+- **i18next は使わない**。`src/context/LanguageContext.tsx` の `LanguageProvider` + `useLanguage()`（React Context）で言語状態を一元管理し、各コンポーネントは `Record<Language, ...>` 型のコピー辞書を持つ。
+  - 理由: Next.js 16 App Router + SSG を壊さず、URL ロケールルーティングなしで実装するため。
+- **Server Component（壁紙ページ等）のパターン**: コピーを別モジュール（例 `wallpaper/copy.ts` の `WALLPAPER_COPY`）に5言語辞書化し、データ取得はサーバーのまま、描画は `useLanguage()` を使うクライアント分割コンポーネント（例 `WallpaperPageContent.tsx`）に渡す。
+- スイッチャー: `src/components/LanguageSwitcher.tsx`。
+
+### 対応状況
+
+- **5言語化済み**: 言語スイッチャー / Header メニュー / The Club（説明・Access）/ 壁紙販売ページ / 主要 CTA・アクションボタン。
+- **未対応（英/日のまま・今後の段階対応）**: auth ページ（login / legacy-login）、Admin のエピソード作成・編集、`the-club/library` 本文、作品詳細の nav 文言（Gallery / Prev / Next / Status 等）、各種メタデータ系ラベル。
+
+### 壁紙ダウンロードzip内の多言語README（暫定仕様）
+
+壁紙パックの zip には、画像とは別に **取扱説明書（README）を5言語ぶん個別のテキストファイルとして同梱**しています。
+
+- ファイル名: `README_EN.txt` / `README_JA.txt` / `README_ZH-CN.txt` / `README_ZH-TW.txt` / `README_KO.txt`
+- 実装: `src/lib/wallpaper-manual.ts`（文言の正本）を `src/app/api/works/[series]/[code]/wallpaper/download/route.ts` が読み、zip 生成時に全言語ぶん書き出す。
+- **暫定仕様**: 現状はサイト側の言語判定を行わず、全言語を常に同梱している。将来的に「選択言語のみ同梱」へ変更する可能性あり。
+
+---
+
 ## Migration Status（移行状況）
 
 ### 完了
@@ -137,7 +177,7 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 - [x] エピソード管理（Supabase + Admin UI で追加/編集/削除）
 - [x] Google Analytics 統合
 - [x] The Club（premium gating + catalog + download）
-- [x] 多言語表示（EN/JA）対応（ハンバーガーメニュー / The Club 説明・Access）
+- [x] 多言語対応（EN / JA / 簡体字 / 繁体字 / 韓国語の5言語、ブラウザ自動判定 + 言語スイッチャー）→ 詳細は [Internationalization (i18n)](#internationalization-i18n)
 - [x] ドメイン移管（`whatif-ep.xyz` → Vercel）
 - [x] www → non-www 308リダイレクト（Vercel Domains設定）
 - [x] Supabase認証リダイレクトURL設定（`whatif-ep.xyz` 追加）
