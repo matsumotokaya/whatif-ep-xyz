@@ -36,6 +36,45 @@ function resolveOfferUrl(targetUrl: string | null | undefined) {
   return targetUrl && targetUrl.trim().length > 0 ? targetUrl : null;
 }
 
+// An offer is "ready" only when its status is ready AND it has a usable URL.
+function resolveReadyOfferUrl(
+  status: string | null | undefined,
+  targetUrl: string | null | undefined
+) {
+  return status === "ready" ? resolveOfferUrl(targetUrl) : null;
+}
+
+// AI sparkles icon (filled), used on the primary "Edit illustration" button.
+function SparklesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2l1.6 4.8L18.4 8.4 13.6 10 12 14.8 10.4 10 5.6 8.4 10.4 6.8z" />
+      <path d="M18.5 13.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" />
+      <path d="M5 14l.7 2 2 .7-2 .7L5 19.4l-.7-2-2-.7 2-.7z" />
+    </svg>
+  );
+}
+
+// Download icon (down arrow into a tray).
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+      />
+    </svg>
+  );
+}
+
 export async function generateMetadata({
   params,
 }: WorkDetailPageProps): Promise<Metadata> {
@@ -243,28 +282,32 @@ export default async function WorkDetailPage({
                 </Link>
               )}
 
+              {resolveReadyOfferUrl(imagineOffer?.status, imagineOffer?.targetUrl) ? (
+                <a
+                  href={resolveReadyOfferUrl(imagineOffer?.status, imagineOffer?.targetUrl)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="イラストを編集"
+                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-600"
+                >
+                  <SparklesIcon className="h-4 w-4" />
+                  イラストを編集
+                </a>
+              ) : (
+                <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
+                  <SparklesIcon className="h-4 w-4" />
+                  イラストを編集: 準備中
+                </span>
+              )}
+
               <EpisodeDownloadButton
                 url={downloadUrl}
                 filename={downloadFilename}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-80"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
               >
+                <DownloadIcon className="h-4 w-4" />
                 Download
               </EpisodeDownloadButton>
-
-              {resolveOfferUrl(imagineOffer?.targetUrl) ? (
-                <a
-                  href={resolveOfferUrl(imagineOffer?.targetUrl)!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-press inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-                >
-                  Edit in IMAGINE
-                </a>
-              ) : (
-                <span className="inline-flex items-center justify-center rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted">
-                  IMAGINE: Preparing
-                </span>
-              )}
 
               {resolveOfferUrl(storeOffer?.targetUrl) && (
                 <a
@@ -305,6 +348,14 @@ export default async function WorkDetailPage({
                       <dd className="text-[11px] text-muted">FULL HD · QHD（1920–2560px幅）</dd>
                     </div>
                   </dl>
+                </Link>
+                <Link
+                  href={wallpaperHref}
+                  aria-label="壁紙ダウンロード"
+                  className="btn-press mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  壁紙ダウンロード
                 </Link>
               </div>
             )}
