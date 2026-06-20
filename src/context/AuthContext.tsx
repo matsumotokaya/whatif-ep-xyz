@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import { writeSsoCookie, clearSsoCookie } from '@/lib/ssoCookie';
 
 interface Profile {
   id: string;
@@ -59,17 +60,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
+    // Sync the cross-subdomain SSO cookie so app.whatif-ep.xyz (IMAGINE)
+    // can adopt this session. Side-effect only; never calls setSession here.
+    const syncSsoCookie = (event: string, session: Session | null) => {
+      try {
+        if (event === 'SIGNED_OUT' || !session) {
+          clearSsoCookie();
+          return;
+        }
+        if (
+          event === 'SIGNED_IN' ||
+          event === 'TOKEN_REFRESHED' ||
+          event === 'INITIAL_SESSION'
+        ) {
+          if (session.access_token && session.refresh_token) {
+            writeSsoCookie({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            });
+          }
+        }
+      } catch {
+        // Never let SSO cookie sync break auth.
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      syncSsoCookie('INITIAL_SESSION', session);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        syncSsoCookie(event, session);
       }
     );
 
