@@ -35,7 +35,13 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  /* Geist covers Latin only; list per-OS CJK system fonts so Korean (한국어),
+     Simplified (简体中文) and Traditional (繁體中文) render instead of tofu (□). */
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI",
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Apple SD Gothic Neo",
+    "Malgun Gothic", "PingFang SC", "PingFang TC", "Microsoft YaHei",
+    "Microsoft JhengHei", "Noto Sans KR", "Noto Sans JP", "Noto Sans SC",
+    "Noto Sans TC", sans-serif;
 }
 
 /* WHATIF text layer positioning */

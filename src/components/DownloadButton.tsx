@@ -11,7 +11,7 @@ interface DownloadResult {
   isIOS: boolean;
 }
 
-interface EpisodeDownloadButtonProps {
+interface DownloadButtonProps {
   url: string;
   filename: string;
   className?: string;
@@ -112,12 +112,12 @@ function showGuide(
   }
 }
 
-export function EpisodeDownloadButton({
+export function DownloadButton({
   url,
   filename,
   className,
   children,
-}: EpisodeDownloadButtonProps) {
+}: DownloadButtonProps) {
   const { lang } = useLanguage();
   const copy = DOWNLOAD_COPY[lang];
   const [isLoading, setIsLoading] = useState(false);

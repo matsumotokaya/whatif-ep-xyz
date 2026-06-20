@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import type { WallpaperOutput } from "@/lib/wallpaper";
 import BuyWallpaperButton from "./BuyWallpaperButton";
+import WallpaperDownloadButton from "./WallpaperDownloadButton";
 import { WALLPAPER_COPY, type WallpaperCopy } from "./copy";
 
 // Minimal pack shape needed by the presentation layer (kept serializable so it
@@ -281,30 +282,16 @@ export default function WallpaperPageContent({
                   {copy.purchasedBadge}
                 </span>
               ) : null}
-              <a
-                href={downloadUrl}
-                className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-8 py-4 text-base font-semibold text-background transition-opacity hover:opacity-80"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
-                  />
-                </svg>
-                {copy.downloadReady}
-              </a>
-              <p className="mt-3 text-xs text-muted">
-                {hasPurchased && !isPremium
-                  ? copy.purchasedNote
-                  : copy.downloadReadyNote}
-              </p>
+              <WallpaperDownloadButton
+                downloadUrl={downloadUrl}
+                fallbackFilename={`whatif-${code}-${variantNumber}-pack.zip`}
+                idleNote={
+                  hasPurchased && !isPremium
+                    ? copy.purchasedNote
+                    : copy.downloadReadyNote
+                }
+                copy={copy}
+              />
             </div>
           ) : (
             <div>

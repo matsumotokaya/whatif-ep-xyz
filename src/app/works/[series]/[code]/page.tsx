@@ -56,9 +56,37 @@ export async function generateMetadata({
   const work = await getWorkBySeriesAndCode(series, code);
   if (!work) return { title: "Not Found" };
 
+  const canonical = `/works/${work.seriesSlug}/${work.displayCode}`;
+  const descriptionParts = [
+    work.title,
+    work.themeCategory,
+    work.summary,
+  ].filter((part): part is string => Boolean(part && part.trim().length > 0));
+  const description =
+    descriptionParts.join(" - ") || `WHATIF ${work.seriesName} ${work.displayCode}`;
+
+  const ogImage = work.primaryVariant
+    ? getVariantDisplayImageCandidates(work.primaryVariant)[0]
+    : undefined;
+  const images = ogImage ? [ogImage] : undefined;
+
   return {
     title: `${work.seriesName} ${work.displayCode}`,
-    description: `${work.title} - ${work.themeCategory}`,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "article",
+      title: `${work.seriesName} ${work.displayCode} - ${work.title}`,
+      description,
+      url: canonical,
+      ...(images ? { images } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${work.seriesName} ${work.displayCode} - ${work.title}`,
+      description,
+      ...(images ? { images } : {}),
+    },
   };
 }
 
@@ -84,35 +112,38 @@ export default async function WorkDetailPage({
 
   if (!currentVariant || !currentVariant.originalStorageKey) notFound();
 
-  const [seriesOptions, adjacent, adminAccess, wallpaperPack, savedWorkIds] =
-    await Promise.all([
-      getGallerySeries(),
-      getAdjacentWorks(series, work.id),
-      getAdminAccess(),
-      getPublishedWallpaperPack(
-        work.seriesSlug,
-        work.displayCode,
-        currentVariant.variantNumber
-      ),
-      getSavedWorkIds(work.seriesSlug),
-    ]);
+  // Catalog data (cached) — fast, forms the static shell.
+  const [seriesOptions, adjacent, wallpaperPack] = await Promise.all([
+    getGallerySeries(),
+    getAdjacentWorks(series, work.id),
+    getPublishedWallpaperPack(
+      work.seriesSlug,
+      work.displayCode,
+      currentVariant.variantNumber
+    ),
+  ]);
 
-  // Seed the provider only with this work's saved state (single-work scope).
-  const initialSavedIds = savedWorkIds.includes(work.id) ? [work.id] : [];
+  // User-specific data makes Supabase auth round-trips. Start the work but do
+  // NOT await: stream the resulting flags into the client tree so the page
+  // (image, nav, title, CTAs) paints immediately.
+  const isAdminPromise = getAdminAccess().then((access) => access.isAdmin);
+
+  // Saved-state for this single work, streamed as a list the provider merges in.
+  const initialSavedIdsPromise = getSavedWorkIds(work.seriesSlug).then((ids) =>
+    ids.includes(work.id) ? [work.id] : []
+  );
 
   // Flag the current variant's wallpaper as purchased for non-premium buyers.
   // Premium users get access via subscription (shown via the crown), so they
   // are intentionally excluded from the "purchased" badge.
-  let wallpaperPurchased = false;
-  if (wallpaperPack) {
-    const access = await getClubAccess();
-    if (access.user && access.status !== "premium") {
-      wallpaperPurchased = await hasPurchasedWallpaper(
-        access.user.id,
-        wallpaperPack.projectId
-      );
-    }
-  }
+  const wallpaperPurchasedPromise: Promise<boolean> = wallpaperPack
+    ? getClubAccess().then(async (access) => {
+        if (access.user && access.status !== "premium") {
+          return hasPurchasedWallpaper(access.user.id, wallpaperPack.projectId);
+        }
+        return false;
+      })
+    : Promise.resolve(false);
 
   const imageCandidates = getVariantDisplayImageCandidates(currentVariant);
   const releasedOn = formatDate(work.releasedOn ?? work.createdAt);
@@ -141,12 +172,38 @@ export default async function WorkDetailPage({
     work.offers.find((offer) => offer.offerType === "store_product") ??
     null;
 
+  // Shared IMAGINE destination: drives both the violet CTA and the clickable
+  // artwork shortcut. Null when no ready starter offer exists.
+  const imagineUrl = resolveReadyOfferUrl(
+    imagineOffer?.status,
+    imagineOffer?.targetUrl
+  );
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    name: work.title,
+    headline: `${work.seriesName} ${work.displayCode}`,
+    ...(work.themeCategory ? { genre: work.themeCategory } : {}),
+    ...(imageCandidates.length > 0 ? { image: imageCandidates } : {}),
+    ...(work.publishedAt ? { datePublished: work.publishedAt } : {}),
+    ...(work.updatedAt ? { dateModified: work.updatedAt } : {}),
+  };
+
   return (
-    <SavedWorksProvider initialSavedIds={initialSavedIds}>
+    <SavedWorksProvider initialSavedIdsPromise={initialSavedIdsPromise}>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background lg:overflow-hidden">
       <div className="flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative h-[58vh] shrink-0 bg-surface/30 lg:h-auto lg:min-h-0">
-          <EpisodeDetailImage candidates={imageCandidates} alt={work.title} />
+          <EpisodeDetailImage
+            candidates={imageCandidates}
+            alt={work.title}
+            imagineUrl={imagineUrl}
+          />
 
           {/* Save button overlaid at the top-right of the image */}
           <div className="absolute right-3 top-14 z-20 sm:right-4">
@@ -272,22 +329,19 @@ export default async function WorkDetailPage({
             </div>
 
             <WorkDetailActions
-              isAdmin={adminAccess.isAdmin}
+              isAdminPromise={isAdminPromise}
               editHref={
                 work.legacyEpisodeId
                   ? `/episodes/${work.displayCode}/edit`
                   : null
               }
-              imagineUrl={resolveReadyOfferUrl(
-                imagineOffer?.status,
-                imagineOffer?.targetUrl
-              )}
+              imagineUrl={imagineUrl}
               downloadUrl={downloadUrl}
               downloadFilename={downloadFilename}
               storeUrl={resolveOfferUrl(storeOffer?.targetUrl)}
               wallpaperHref={wallpaperHref}
               wallpaperCoverUrl={wallpaperPack?.cover?.publicUrl ?? null}
-              wallpaperPurchased={wallpaperPurchased}
+              wallpaperPurchasedPromise={wallpaperPurchasedPromise}
               workTitle={work.title}
             />
           </div>

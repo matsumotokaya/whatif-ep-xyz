@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useLanguage, type Language } from "@/context/LanguageContext";
-import { EpisodeDownloadButton } from "./EpisodeDownloadButton";
+import { useResolvedFlag } from "@/hooks/useResolvedFlag";
+import { DownloadButton } from "./DownloadButton";
 
 // Localized labels for the work detail aside CTA cluster.
 const COPY: Record<
@@ -126,7 +127,8 @@ function DownloadIcon({ className }: { className?: string }) {
 }
 
 interface WorkDetailActionsProps {
-  isAdmin: boolean;
+  /** Streamed user flag — admin edit button appears once it resolves true. */
+  isAdminPromise: Promise<boolean>;
   editHref: string | null;
   imagineUrl: string | null;
   downloadUrl: string;
@@ -134,12 +136,15 @@ interface WorkDetailActionsProps {
   storeUrl: string | null;
   wallpaperHref: string;
   wallpaperCoverUrl: string | null;
-  wallpaperPurchased?: boolean;
+  /** Streamed user flag — purchased badge appears once it resolves true. */
+  wallpaperPurchasedPromise?: Promise<boolean>;
   workTitle: string;
 }
 
+const FALSE_PROMISE = Promise.resolve(false);
+
 export function WorkDetailActions({
-  isAdmin,
+  isAdminPromise,
   editHref,
   imagineUrl,
   downloadUrl,
@@ -147,11 +152,15 @@ export function WorkDetailActions({
   storeUrl,
   wallpaperHref,
   wallpaperCoverUrl,
-  wallpaperPurchased = false,
+  wallpaperPurchasedPromise,
   workTitle,
 }: WorkDetailActionsProps) {
   const { lang } = useLanguage();
   const t = COPY[lang];
+  const isAdmin = useResolvedFlag(isAdminPromise);
+  const wallpaperPurchased = useResolvedFlag(
+    wallpaperPurchasedPromise ?? FALSE_PROMISE
+  );
 
   return (
     <>
@@ -183,14 +192,14 @@ export function WorkDetailActions({
           </span>
         )}
 
-        <EpisodeDownloadButton
+        <DownloadButton
           url={downloadUrl}
           filename={downloadFilename}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
         >
           <DownloadIcon className="h-4 w-4" />
           {t.download}
-        </EpisodeDownloadButton>
+        </DownloadButton>
 
         {storeUrl && (
           <a

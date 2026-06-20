@@ -24,6 +24,24 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/webp", "image/avif"],
   },
+  async redirects() {
+    return [
+      // Legacy gallery index → new works route.
+      {
+        source: "/episodes",
+        destination: "/works/episode",
+        permanent: true,
+      },
+      // Legacy episode detail → new works detail.
+      // The `(\\d{1,})` constraint matches numeric codes ONLY, so admin routes
+      // /episodes/new and /episodes/:number/edit are never captured here.
+      {
+        source: "/episodes/:number(\\d{1,})",
+        destination: "/works/episode/:number",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

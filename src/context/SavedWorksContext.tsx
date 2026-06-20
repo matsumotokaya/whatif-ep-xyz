@@ -4,10 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { useResolvedList } from "@/hooks/useResolvedList";
 
 interface SavedWorksContextValue {
   // True when the given work id is in the saved set.
@@ -22,17 +25,45 @@ const SavedWorksContext = createContext<SavedWorksContextValue | undefined>(
   undefined
 );
 
+const EMPTY_IDS: string[] = [];
+
 export function SavedWorksProvider({
-  initialSavedIds,
+  initialSavedIds = EMPTY_IDS,
+  initialSavedIdsPromise,
   children,
 }: {
-  initialSavedIds: string[];
+  /** Resolved saved ids (used when known synchronously). */
+  initialSavedIds?: string[];
+  /**
+   * Streamed saved ids. When provided, ids are resolved on the client without
+   * blocking render and merged into the set once available.
+   */
+  initialSavedIdsPromise?: Promise<string[]>;
   children: React.ReactNode;
 }) {
   const { user } = useAuth();
+  const streamedIds = useResolvedList(initialSavedIdsPromise);
+  const resolvedInitial = initialSavedIdsPromise ? streamedIds : initialSavedIds;
   const [savedIds, setSavedIds] = useState<Set<string>>(
     () => new Set(initialSavedIds)
   );
+
+  // resolvedInitial may arrive after first render when streamed from the server
+  // (gallery list / detail pages). Merge late-arriving server ids into the set
+  // so saved highlights fill in, without dropping any optimistic client toggles.
+  const mergedKey = resolvedInitial.join(",");
+  const prevKeyRef = useRef(mergedKey);
+  useEffect(() => {
+    if (prevKeyRef.current === mergedKey) return;
+    prevKeyRef.current = mergedKey;
+    if (resolvedInitial.length === 0) return;
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of resolvedInitial) next.add(id);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergedKey]);
 
   const isSaved = useCallback(
     (workId: string) => savedIds.has(workId),

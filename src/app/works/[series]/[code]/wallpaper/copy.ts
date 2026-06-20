@@ -32,6 +32,11 @@ export interface WallpaperCopy {
   login: string;
   downloadReady: string;
   downloadReadyNote: string;
+  downloadPreparing: string;
+  downloadPreparingNote: string;
+  downloadProgress: (percent: number) => string;
+  downloadStarted: string;
+  downloadError: string;
   purchasedBadge: string;
   purchasedNote: string;
   purchaseThanks: string;
@@ -83,6 +88,12 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     login: "Log in",
     downloadReady: "Download wallpaper pack (.zip)",
     downloadReadyNote: "All four sizes are bundled in a single zip.",
+    downloadPreparing: "Preparing your wallpaper pack…",
+    downloadPreparingNote:
+      "We're bundling the files into a zip. This can take a few seconds — please keep this page open.",
+    downloadProgress: (percent: number) => `Downloading… ${percent}%`,
+    downloadStarted: "Download started",
+    downloadError: "Download failed. Please try again.",
     purchasedBadge: "Purchased",
     purchasedNote: "This is your purchased wallpaper pack. Download it anytime.",
     purchaseThanks: "Thank you for your purchase.",
@@ -132,6 +143,12 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     login: "ログイン",
     downloadReady: "壁紙パックをダウンロード（.zip）",
     downloadReadyNote: "4サイズすべてを1つの zip にまとめてお届けします。",
+    downloadPreparing: "壁紙パックを準備しています…",
+    downloadPreparingNote:
+      "ファイルを zip にまとめています。数秒かかる場合があります。このページを閉じずにお待ちください。",
+    downloadProgress: (percent: number) => `ダウンロード中… ${percent}%`,
+    downloadStarted: "ダウンロードを開始しました",
+    downloadError: "ダウンロードに失敗しました。もう一度お試しください。",
     purchasedBadge: "ご購入済み",
     purchasedNote: "ご購入いただいた壁紙パックです。いつでもダウンロードできます。",
     purchaseThanks: "ご購入ありがとうございます。",
@@ -181,6 +198,12 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     login: "登录",
     downloadReady: "下载壁纸套装（.zip）",
     downloadReadyNote: "4 种尺寸全部打包在一个 zip 中提供。",
+    downloadPreparing: "正在准备壁纸套装…",
+    downloadPreparingNote:
+      "正在将文件打包为 zip，可能需要几秒钟，请勿关闭此页面。",
+    downloadProgress: (percent: number) => `下载中… ${percent}%`,
+    downloadStarted: "已开始下载",
+    downloadError: "下载失败，请重试。",
     purchasedBadge: "已购买",
     purchasedNote: "这是您已购买的壁纸套装，可随时下载。",
     purchaseThanks: "感谢您的购买。",
@@ -230,6 +253,12 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     login: "登入",
     downloadReady: "下載桌布套組（.zip）",
     downloadReadyNote: "4 種尺寸全部打包在一個 zip 中提供。",
+    downloadPreparing: "正在準備桌布套組…",
+    downloadPreparingNote:
+      "正在將檔案打包為 zip，可能需要幾秒鐘，請勿關閉此頁面。",
+    downloadProgress: (percent: number) => `下載中… ${percent}%`,
+    downloadStarted: "已開始下載",
+    downloadError: "下載失敗，請重試。",
     purchasedBadge: "已購買",
     purchasedNote: "這是您已購買的桌布套組，可隨時下載。",
     purchaseThanks: "感謝您的購買。",
@@ -279,6 +308,12 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     login: "로그인",
     downloadReady: "배경화면 팩 다운로드(.zip)",
     downloadReadyNote: "4가지 사이즈를 하나의 zip으로 묶어 제공합니다.",
+    downloadPreparing: "배경화면 팩을 준비하고 있습니다…",
+    downloadPreparingNote:
+      "파일을 zip으로 묶고 있습니다. 몇 초 정도 걸릴 수 있으니 이 페이지를 닫지 말고 기다려 주세요.",
+    downloadProgress: (percent: number) => `다운로드 중… ${percent}%`,
+    downloadStarted: "다운로드를 시작했습니다",
+    downloadError: "다운로드에 실패했습니다. 다시 시도해 주세요.",
     purchasedBadge: "구매 완료",
     purchasedNote: "구매하신 배경화면 팩입니다. 언제든지 다운로드하실 수 있습니다.",
     purchaseThanks: "구매해 주셔서 감사합니다.",

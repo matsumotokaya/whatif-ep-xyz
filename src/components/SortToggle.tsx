@@ -1,6 +1,15 @@
 "use client";
 
 import { useRef, useState, useLayoutEffect } from "react";
+import { useLanguage, type Language } from "@/context/LanguageContext";
+
+const COPY: Record<Language, { newest: string; oldest: string }> = {
+  en: { newest: "Newest", oldest: "Oldest" },
+  ja: { newest: "新しい順", oldest: "古い順" },
+  "zh-CN": { newest: "最新", oldest: "最早" },
+  "zh-TW": { newest: "最新", oldest: "最早" },
+  ko: { newest: "최신순", oldest: "오래된순" },
+};
 
 interface SortToggleProps {
   sort: "newest" | "oldest";
@@ -8,6 +17,8 @@ interface SortToggleProps {
 }
 
 export function SortToggle({ sort, onSortChange }: SortToggleProps) {
+  const { lang } = useLanguage();
+  const t = COPY[lang];
   const containerRef = useRef<HTMLDivElement>(null);
   const newestRef = useRef<HTMLButtonElement>(null);
   const oldestRef = useRef<HTMLButtonElement>(null);
@@ -47,7 +58,7 @@ export function SortToggle({ sort, onSortChange }: SortToggleProps) {
           sort === "newest" ? "text-foreground" : "text-muted hover:text-foreground"
         }`}
       >
-        Newest
+        {t.newest}
       </button>
       <button
         ref={oldestRef}
@@ -56,7 +67,7 @@ export function SortToggle({ sort, onSortChange }: SortToggleProps) {
           sort === "oldest" ? "text-foreground" : "text-muted hover:text-foreground"
         }`}
       >
-        Oldest
+        {t.oldest}
       </button>
     </div>
   );

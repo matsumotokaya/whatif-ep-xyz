@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GallerySeries, WorkListItem } from "@/lib/types";
+import { useResolvedList } from "@/hooks/useResolvedList";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { SortToggle } from "@/components/SortToggle";
 import { WorkGallery } from "@/components/WorkGallery";
@@ -58,10 +59,16 @@ interface WorksPageClientProps {
   /** Works in newest-first order. The client reverses for "oldest" sort. */
   works: WorkListItem[];
   total: number;
-  /** Display codes the signed-in user has purchased (one-time wallpaper buys). */
-  purchasedCodes: string[];
-  /** Work ids the signed-in user has saved (across all series). */
-  savedWorkIds: string[];
+  /**
+   * Display codes the signed-in user has purchased (one-time wallpaper buys).
+   * Streamed as a promise so it does not block the catalog render.
+   */
+  purchasedCodesPromise: Promise<string[]>;
+  /**
+   * Work ids the signed-in user has saved (across all series).
+   * Streamed as a promise so it does not block the catalog render.
+   */
+  savedWorkIdsPromise: Promise<string[]>;
 }
 
 function buildWorkRanges(works: WorkListItem[]): WorkRange[] {
@@ -90,7 +97,13 @@ function WorksPageInner({
   works,
   total,
   purchasedCodes,
-}: Omit<WorksPageClientProps, "savedWorkIds">) {
+}: {
+  series: GallerySeries[];
+  selectedSeriesSlug: string;
+  works: WorkListItem[];
+  total: number;
+  purchasedCodes: string[];
+}) {
   const { lang } = useLanguage();
   const t = COPY[lang];
   const { isSaved } = useSavedWorks();
@@ -283,12 +296,18 @@ function WorksPageInner({
 }
 
 export function WorksPageClient({
-  savedWorkIds,
+  savedWorkIdsPromise,
+  purchasedCodesPromise,
   ...rest
 }: WorksPageClientProps) {
+  // Resolve the streamed user-specific lists on the client without suspending,
+  // so the catalog grid renders immediately and these fill in once available.
+  const savedWorkIds = useResolvedList(savedWorkIdsPromise);
+  const purchasedCodes = useResolvedList(purchasedCodesPromise);
+
   return (
     <SavedWorksProvider initialSavedIds={savedWorkIds}>
-      <WorksPageInner {...rest} />
+      <WorksPageInner {...rest} purchasedCodes={purchasedCodes} />
     </SavedWorksProvider>
   );
 }

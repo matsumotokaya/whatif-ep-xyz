@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import type { Work, WorkVariant, WorkOffer } from "@/lib/types";
 import { useLanguage, type Language } from "@/context/LanguageContext";
-import { EpisodeDownloadButton } from "./EpisodeDownloadButton";
+import { DownloadButton } from "./DownloadButton";
 
 // Localized labels for the mobile info sheet actions and status chips.
 const INFO_COPY: Record<
@@ -320,14 +320,14 @@ export function WorkMobileInfo({
                   </span>
                 )}
 
-                <EpisodeDownloadButton
+                <DownloadButton
                   url={downloadUrl}
                   filename={downloadFilename}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   <DownloadIcon className="h-4 w-4" />
                   {t.download}
-                </EpisodeDownloadButton>
+                </DownloadButton>
 
                 {isOfferReady(wallpaperOffer) ? (
                   <a
