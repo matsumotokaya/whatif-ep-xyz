@@ -38,13 +38,15 @@
 - [WALLPAPER_PIPELINE_PLAN.md](./WALLPAPER_PIPELINE_PLAN.md) の Phase 2 以降（recipe による派生生成・cover 自動生成・zip 自動化）はこれから。
 - 量産運用の確立（誰がいつ `production_projects` を `published` にするか、レビュー基準）。
 
-### 3. IMAGINE ↔ Gallery のつなぎ込み — まだこれから
+### 3. IMAGINE ↔ Gallery のつなぎ込み — `Edit in IMAGINE` 実装済み
 
-現状は同一 Supabase を共有し、Gallery が `production_*` を読むだけ。双方向の連携・自動反映はまだ。
+同一 Supabase を共有。publish 1操作で「テンプレ昇格 → Gallery offer 投入」まで自動で走るところまで実装済み（`episode 0461` で実証）。
 
-- `Edit in IMAGINE` 導線（`imagine_starter`）が未実装。詳細ページは `IMAGINE: Preparing` のまま（`imagine_starter` の ready は 0 件）。
-- パック publish → Gallery 反映が暗黙（手動）。`production_delivery_packages.gallery_offer_ref` は未使用。
-- 全作品を Content Factory 化する過程の管理（feed / pack の出力率を上げ、フォールバックを段階的に解消）。
+- [x] `Edit in IMAGINE`（`imagine_starter`）実装済み。Content Factory の publish 時に instagram_feed バナーを IMAGINE の premium テンプレへ昇格（冪等キー `templates.production_project_id`）し、`work_offers` に `imagine_starter`(ready) を自動投入。作品詳細の「イラストを編集」ボタンから `app.whatif-ep.xyz/banner?template=<id>` を直接開く（未ログインはログイン誘導、free は UpgradeModal、premium は編集）。
+- [x] ドメインまたぎ SSO（方式2）実装済み。`.whatif-ep.xyz` 共有 Cookie で whatif-ep.xyz のログインを app.whatif-ep.xyz が引き継ぐ。Vercel env `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` / `VITE_SSO_COOKIE_DOMAIN` = `.whatif-ep.xyz` で有効化。簡易実装のため、改善（リファクタ）観点は IMAGINE README の "Gallery Integration" 節を参照。
+- [ ] 昇格対象は現状 instagram_feed のみ。壁紙テンプレ（portrait/landscape master）の昇格は次段。
+- [ ] パック publish → Gallery 反映の `production_delivery_packages.gallery_offer_ref` は未使用。
+- [ ] 全作品を Content Factory 化する過程の管理（feed / pack の出力率を上げ、フォールバックを段階的に解消）。
 
 ### 4. 仕上げ・運用タスク（小粒）
 

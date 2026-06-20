@@ -142,6 +142,7 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 - [x] www → non-www 308リダイレクト（Vercel Domains設定）
 - [x] Supabase認証リダイレクトURL設定（`whatif-ep.xyz` 追加）
 - [x] 旧The Clubの導線切替（新サイトに統合済み）
+- [x] IMAGINE 連携（作品詳細「イラストを編集」→ `app.whatif-ep.xyz/banner?template=<id>` ダイレクトオープン / Content Factory publish 時のテンプレ昇格＋`imagine_starter` offer 自動投入 / ドメインまたぎ SSO）
 
 ### The Club account model
 
