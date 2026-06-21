@@ -35,12 +35,31 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  /* Geist covers Latin only; list per-OS CJK system fonts so Korean (한국어),
-     Simplified (简体中文) and Traditional (繁體中文) render instead of tofu (□). */
+  /* Default (en): Geist for Latin, then a Japanese-leaning CJK fallback for the
+     occasional non-Latin work title. Per-language fonts are set below. */
   font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI",
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Apple SD Gothic Neo",
-    "Malgun Gothic", "PingFang SC", "PingFang TC", "Microsoft YaHei",
-    "Microsoft JhengHei", "Noto Sans KR", "Noto Sans JP", "Noto Sans SC",
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+
+/* Per-language fonts. LanguageContext keeps <html lang> in sync, so each script
+   gets its own font and never falls back to a wrong-language font (which renders
+   tofu □ or mismatched glyph shapes — e.g. a Korean/Japanese font swallowing
+   Simplified-only characters like 关/图/书). Geist stays first for ASCII/digits.
+   System fonts only — no web fonts, so there is no performance cost. */
+html[lang="ja"] body {
+  font-family: var(--font-sans), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", "Noto Sans JP", sans-serif;
+}
+html[lang="ko"] body {
+  font-family: var(--font-sans), "Apple SD Gothic Neo", "Malgun Gothic",
+    "Noto Sans KR", sans-serif;
+}
+html[lang="zh-CN"] body {
+  font-family: var(--font-sans), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+html[lang="zh-TW"] body {
+  font-family: var(--font-sans), "PingFang TC", "Microsoft JhengHei",
     "Noto Sans TC", sans-serif;
 }
 
