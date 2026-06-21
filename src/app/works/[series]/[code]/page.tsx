@@ -12,7 +12,13 @@ import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
 import { getSavedWorkIds } from "@/lib/work-saves";
 import { SavedWorksProvider } from "@/context/SavedWorksContext";
 import { SaveButton } from "@/components/SaveButton";
-import { getAdjacentWorks, getGallerySeries, getWorkBySeriesAndCode } from "@/lib/works";
+import { OtherWallpapers } from "@/components/OtherWallpapers";
+import {
+  getAdjacentWorks,
+  getGallerySeries,
+  getNearbyWallpapers,
+  getWorkBySeriesAndCode,
+} from "@/lib/works";
 
 interface WorkDetailPageProps {
   params: Promise<{ series: string; code: string }>;
@@ -113,7 +119,7 @@ export default async function WorkDetailPage({
   if (!currentVariant || !currentVariant.originalStorageKey) notFound();
 
   // Catalog data (cached) — fast, forms the static shell.
-  const [seriesOptions, adjacent, wallpaperPack] = await Promise.all([
+  const [seriesOptions, adjacent, wallpaperPack, nearbyWallpapers] = await Promise.all([
     getGallerySeries(),
     getAdjacentWorks(series, work.id),
     getPublishedWallpaperPack(
@@ -121,6 +127,7 @@ export default async function WorkDetailPage({
       work.displayCode,
       currentVariant.variantNumber
     ),
+    getNearbyWallpapers(work.seriesSlug, work.id, 9),
   ]);
 
   // User-specific data makes Supabase auth round-trips. Start the work but do
@@ -344,6 +351,8 @@ export default async function WorkDetailPage({
               wallpaperPurchasedPromise={wallpaperPurchasedPromise}
               workTitle={work.title}
             />
+
+            <OtherWallpapers items={nearbyWallpapers} />
           </div>
 
         </aside>

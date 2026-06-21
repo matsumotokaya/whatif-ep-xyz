@@ -137,6 +137,71 @@ export async function getSeriesFeedImageMap(
   return new Map(Object.entries(record));
 }
 
+// ─── Cached: wallpaper cover map for a series ────────────────────────────────
+// Tags: ['production', 'production:<seriesSlug>']  revalidate: 3600s
+//
+// Same shape as the feed-image map, but keyed to the package_cover output —
+// the image shown on the wallpaper sales page. Used by the detail page's
+// "other wallpapers" strip to promote nearby packs by their cover.
+const _cachedWallpaperCoverRecord = unstable_cache(
+  async (seriesSlug: string): Promise<Record<string, string>> => {
+    const supabase = createAdminClient();
+    if (!supabase) return {};
+
+    const { data: projectsData } = await supabase
+      .from("production_projects")
+      .select("id, work_display_code, variant_number")
+      .eq("work_series_slug", seriesSlug)
+      .eq("status", "published");
+
+    const projects = (projectsData ?? []) as unknown as {
+      id: string;
+      work_display_code: string;
+      variant_number: number;
+    }[];
+    if (projects.length === 0) return {};
+
+    const { data: outputsData } = await supabase
+      .from("production_outputs")
+      .select("project_id, storage_bucket, storage_path")
+      .in(
+        "project_id",
+        projects.map((project) => project.id)
+      )
+      .eq("role", "package_cover")
+      .eq("status", "ready");
+
+    const outputs = (outputsData ?? []) as unknown as {
+      project_id: string;
+      storage_bucket: string | null;
+      storage_path: string | null;
+    }[];
+
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const record: Record<string, string> = {};
+
+    for (const output of outputs) {
+      const project = projectById.get(output.project_id);
+      if (!project || !output.storage_bucket || !output.storage_path) continue;
+      record[`${project.work_display_code}:${project.variant_number}`] =
+        buildPublicUrl(output.storage_bucket, output.storage_path);
+    }
+
+    return record;
+  },
+  // keyParts prefix — actual cache key includes the seriesSlug argument
+  ["production:wallpaper-cover-map"],
+  { tags: ["production"], revalidate: 3600 }
+);
+
+// Map of "displayCode:variantNumber" -> public package_cover URL for a series.
+export async function getSeriesWallpaperCoverMap(
+  seriesSlug: string
+): Promise<Map<string, string>> {
+  const record = await _cachedWallpaperCoverRecord(seriesSlug);
+  return new Map(Object.entries(record));
+}
+
 // ─── Cached: wallpaper pack for a specific work variant ──────────────────────
 // Tags: ['production', 'production:<seriesSlug>']  revalidate: 3600s
 const _cachedWallpaperPack = unstable_cache(

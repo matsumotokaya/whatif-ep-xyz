@@ -3,9 +3,10 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { getSeriesFeedImageMap } from "@/lib/wallpaper";
+import { getSeriesFeedImageMap, getSeriesWallpaperCoverMap } from "@/lib/wallpaper";
 import type {
   GallerySeries,
+  WallpaperCoverItem,
   Work,
   WorkListItem,
   WorkOffer,
@@ -431,6 +432,32 @@ export async function getSeriesDisplayName(seriesSlug: string): Promise<string> 
   return series?.name ?? seriesSlug;
 }
 
+// Collapse a full Work into the lightweight card DTO (image candidates +
+// boolean offer flags). Shared by the gallery list and the "other wallpapers"
+// strip on the detail page.
+function toWorkListItem(work: Work): WorkListItem {
+  const fallbackCandidates = getWorkPrimaryImageCandidates(work);
+  const imageCandidates = work.feedImageUrl
+    ? [work.feedImageUrl, ...fallbackCandidates]
+    : fallbackCandidates;
+
+  const primaryOffers = work.primaryVariant?.offers ?? [];
+  const hasWallpaperOffer = primaryOffers.some((o) => o.offerType === "wallpaper");
+  const hasStarterOffer = primaryOffers.some((o) => o.offerType === "imagine_starter");
+
+  return {
+    id: work.id,
+    seriesSlug: work.seriesSlug,
+    displayCode: work.displayCode,
+    title: work.title,
+    themeCategory: work.themeCategory,
+    sequenceNumber: work.sequenceNumber,
+    imageCandidates,
+    hasWallpaperOffer,
+    hasStarterOffer,
+  };
+}
+
 // ─── Lightweight card DTO list ────────────────────────────────────────────────
 // Returns one ordered list of WorkListItem (newest-first by default).
 // Payload is ~85 % smaller than the full Work per item because variants/offers
@@ -441,27 +468,49 @@ export async function getWorkCardsBySeries(
 ): Promise<WorkListItem[]> {
   const works = await getVisibleWorksBySeries(seriesSlug);
   const ordered = sort === "newest" ? [...works].reverse() : works;
+  return ordered.map(toWorkListItem);
+}
 
-  return ordered.map((work): WorkListItem => {
-    const fallbackCandidates = getWorkPrimaryImageCandidates(work);
-    const imageCandidates = work.feedImageUrl
-      ? [work.feedImageUrl, ...fallbackCandidates]
-      : fallbackCandidates;
+// ─── Nearby wallpapers (detail-page "other wallpapers" strip) ─────────────────
+// Returns up to `count` published wallpaper packs near the given work in the
+// series order, excluding the work itself. Only works whose primary variant has
+// a published pack (with a package_cover) qualify, so each tile shows the actual
+// wallpaper cover and links to that pack's sales page. Candidates are picked by
+// proximity to the current work, then restored to series order for display.
+// Until categories/tags exist, "nearby in the series" is the relatedness rule.
+export async function getNearbyWallpapers(
+  seriesSlug: string,
+  workId: string,
+  count = 9
+): Promise<WallpaperCoverItem[]> {
+  const [works, coverMap] = await Promise.all([
+    getVisibleWorksBySeries(seriesSlug),
+    getSeriesWallpaperCoverMap(seriesSlug),
+  ]);
 
-    const primaryOffers = work.primaryVariant?.offers ?? [];
-    const hasWallpaperOffer = primaryOffers.some((o) => o.offerType === "wallpaper");
-    const hasStarterOffer = primaryOffers.some((o) => o.offerType === "imagine_starter");
+  const index = works.findIndex((work) => work.id === workId);
+  if (index === -1) return [];
 
-    return {
+  const candidates = works
+    .map((work, position) => {
+      if (work.id === workId) return null;
+      const variantNumber = work.primaryVariant?.variantNumber ?? 1;
+      const coverUrl = coverMap.get(`${work.displayCode}:${variantNumber}`);
+      if (!coverUrl) return null;
+      return { work, position, variantNumber, coverUrl };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  return candidates
+    .sort((a, b) => Math.abs(a.position - index) - Math.abs(b.position - index))
+    .slice(0, count)
+    .sort((a, b) => a.position - b.position)
+    .map(({ work, variantNumber, coverUrl }) => ({
       id: work.id,
       seriesSlug: work.seriesSlug,
       displayCode: work.displayCode,
       title: work.title,
-      themeCategory: work.themeCategory,
-      sequenceNumber: work.sequenceNumber,
-      imageCandidates,
-      hasWallpaperOffer,
-      hasStarterOffer,
-    };
-  });
+      variantNumber,
+      coverUrl,
+    }));
 }

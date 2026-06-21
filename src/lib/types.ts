@@ -142,6 +142,17 @@ export interface WorkListItem {
   hasStarterOffer: boolean;
 }
 
+// Minimal DTO for the detail-page "other wallpapers" strip: a published
+// wallpaper pack's cover image plus the info needed to link to its page.
+export interface WallpaperCoverItem {
+  id: string;
+  seriesSlug: string;
+  displayCode: string;
+  title: string;
+  variantNumber: number;
+  coverUrl: string;
+}
+
 export interface WorkSeriesRow {
   id: string;
   slug: string;
