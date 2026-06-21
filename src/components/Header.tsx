@@ -8,13 +8,14 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
-type NavItemKey = "episodes" | "imagine" | "club" | "store";
+type NavItemKey = "episodes" | "imagine" | "club" | "store" | "about";
 
 const navItems = [
   { key: "episodes" as NavItemKey, href: "/works/episode" },
   { key: "imagine" as NavItemKey, href: "https://app.whatif-ep.xyz/", external: true },
   { key: "club" as NavItemKey, href: "/the-club" },
   { key: "store" as NavItemKey, href: "https://whatif.stores.jp", external: true },
+  { key: "about" as NavItemKey, href: "/about" },
 ];
 
 // Localized labels for the header chrome (menu heading, auth actions).
@@ -54,6 +55,11 @@ const menuCopy: Record<
       description:
         "Shop fashion items like T-shirts and sweatshirts featuring WHATIF artwork, plus downloadable items such as wallpapers and digital books.",
     },
+    about: {
+      label: "ABOUT",
+      description:
+        "The story behind WHATIF — an AI-driven art project. Learn who we are and what we make.",
+    },
   },
   ja: {
     episodes: {
@@ -75,6 +81,11 @@ const menuCopy: Record<
       label: "ストア",
       description:
         "WHATIFアートワークを使ったTシャツやスウェットなどのファッションアイテムに加え、壁紙や電子書籍などのダウンロード商品も購入できます。",
+    },
+    about: {
+      label: "ABOUT",
+      description:
+        "WHATIF について。AIを活用したアートプロジェクトの背景や、私たちが作っているものを紹介します。",
     },
   },
   "zh-CN": {
@@ -98,6 +109,11 @@ const menuCopy: Record<
       description:
         "选购采用 WHATIF 作品的 T 恤、卫衣等时尚单品，以及壁纸、电子书等可下载商品。",
     },
+    about: {
+      label: "ABOUT",
+      description:
+        "关于 WHATIF。介绍这个由 AI 驱动的艺术项目的背景，以及我们所创作的内容。",
+    },
   },
   "zh-TW": {
     episodes: {
@@ -120,6 +136,11 @@ const menuCopy: Record<
       description:
         "選購採用 WHATIF 作品的 T 恤、衛衣等時尚單品，以及桌布、電子書等可下載商品。",
     },
+    about: {
+      label: "ABOUT",
+      description:
+        "關於 WHATIF。介紹這個由 AI 驅動的藝術專案的背景，以及我們所創作的內容。",
+    },
   },
   ko: {
     episodes: {
@@ -141,6 +162,11 @@ const menuCopy: Record<
       label: "STORE",
       description:
         "WHATIF 아트워크를 활용한 티셔츠, 스웨트셔츠 등 패션 아이템과 배경화면, 전자책 등 다운로드 상품을 구매할 수 있습니다.",
+    },
+    about: {
+      label: "ABOUT",
+      description:
+        "WHATIF 소개. AI를 활용한 아트 프로젝트의 배경과 우리가 만드는 것을 소개합니다.",
     },
   },
 };
@@ -287,7 +313,9 @@ function UserMenu() {
 
 export function Header() {
   const pathname = usePathname();
-  const isHome = pathname === "/";
+  // Transparent header over the full-screen hero. The root redirects to the
+  // gallery, but the hero page now lives at /about.
+  const isHome = pathname === "/" || pathname === "/about";
   const { user, loading } = useAuth();
   const { lang } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);

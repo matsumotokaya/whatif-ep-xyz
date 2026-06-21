@@ -34,30 +34,44 @@ WHATIF EP - Digital Art Gallery
 ```
 src/
 ├── app/
-│   ├── page.tsx                    # Top page
-│   ├── episodes/
-│   │   ├── page.tsx                # Gallery with infinite scroll
-│   │   ├── new/                    # Admin create
-│   │   └── [number]/               # Episode detail/edit
-│   │       ├── page.tsx            # Individual episode (SSG)
-│   │       └── edit/               # Admin edit/delete
-│   ├── auth/
-│   │   └── legacy-login/           # Legacy The Club ID login
-│   └── the-club/page.tsx           # The Club member area entry
+│   ├── page.tsx                      # Domain root → redirects to /works/episode
+│   ├── about/page.tsx                # Hero / About Us (the former top page)
+│   ├── works/
+│   │   ├── page.tsx                  # → redirects to /works/episode
+│   │   └── [series]/
+│   │       ├── page.tsx              # Series gallery (server) + WorksPageClient
+│   │       ├── WorksPageClient.tsx
+│   │       └── [code]/
+│   │           ├── page.tsx          # Work detail (artwork is a clickable IMAGINE shortcut)
+│   │           └── wallpaper/        # Wallpaper sales page + zip download UI
+│   ├── episodes/                     # Admin only: new/ and [number]/edit/
+│   ├── auth/                         # login / legacy-login / callback
+│   ├── the-club/                     # The Club area (intro / library / [slug])
+│   ├── api/                          # works & episode downloads, wallpaper zip/checkout, stripe webhook
+│   ├── sitemap.ts                    # Dynamic sitemap (all published works)
+│   └── robots.ts
 ├── components/
-│   ├── Header.tsx
-│   ├── Footer.tsx
-│   ├── EpisodeCard.tsx
-│   ├── EpisodeGallery.tsx
-│   ├── SortToggle.tsx
-│   └── GoogleAnalytics.tsx
+│   ├── Header.tsx                    # Hamburger menu: EPISODES/IMAGINE/CLUB/STORE/ABOUT
+│   ├── LanguageSwitcher.tsx
+│   ├── WorkCard.tsx / WorkGallery.tsx
+│   ├── WorkDetailActions.tsx / WorkMobileInfo.tsx
+│   ├── EpisodeDetailImage.tsx        # Detail artwork: hover→edit overlay, tap→confirm modal
+│   ├── DownloadButton.tsx            # Shared single-image download (share/blob, multi-UA)
+│   ├── SaveButton.tsx / GallerySeriesSelect.tsx / SortToggle.tsx
+│   ├── HomeHeroWithBanner.tsx / ParallaxHero.tsx / ImagineBanner.tsx
+│   └── Footer.tsx / ConditionalFooter.tsx / GoogleAnalytics.tsx
+├── context/
+│   ├── LanguageContext.tsx           # i18n state (5 languages, no i18next)
+│   ├── AuthContext.tsx
+│   └── SavedWorksContext.tsx
 ├── hooks/
-│   └── useInfiniteScroll.ts
+│   ├── useInfiniteScroll.ts
+│   └── useResolvedList.ts / useResolvedFlag.ts  # resolve server-streamed promises client-side
 └── lib/
-    ├── admin/                      # Admin access helpers
-    ├── episodes.ts                 # Data access
-    ├── images.ts                   # R2 URL helpers
-    ├── r2.ts                       # R2 upload/delete helpers
+    ├── works.ts / work-images.ts / work-saves.ts   # works data access (source of truth)
+    ├── wallpaper.ts / wallpaper-manual.ts / wallpaper-purchases.ts
+    ├── club/ · admin/ · supabase/ · stripe.ts · ssoCookie.ts
+    ├── episodes.ts / images.ts / r2.ts             # legacy episode helpers
     └── types.ts
 src/data/
 └── episodes.json                   # Seed source for Supabase
@@ -151,10 +165,11 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
   - 理由: Next.js 16 App Router + SSG を壊さず、URL ロケールルーティングなしで実装するため。
 - **Server Component（壁紙ページ等）のパターン**: コピーを別モジュール（例 `wallpaper/copy.ts` の `WALLPAPER_COPY`）に5言語辞書化し、データ取得はサーバーのまま、描画は `useLanguage()` を使うクライアント分割コンポーネント（例 `WallpaperPageContent.tsx`）に渡す。
 - スイッチャー: `src/components/LanguageSwitcher.tsx`。
+- **CJKフォント**: 本文フォント Geist はラテン専用のため、`src/app/globals.css` の `body` font-family に各OSのCJKシステムフォント（Apple SD Gothic Neo / Hiragino / PingFang / Malgun / Microsoft YaHei / Noto Sans CJK 等）をフォールバックとして明示している。これがないと韓国語(한국어)・中国語が豆腐(□)化する。Webフォントは追加していないのでパフォーマンスへの影響はない。
 
 ### 対応状況
 
-- **5言語化済み**: 言語スイッチャー / Header メニュー / The Club（説明・Access）/ 壁紙販売ページ / 主要 CTA・アクションボタン。
+- **5言語化済み**: 言語スイッチャー / Header メニュー（ABOUT 含む）/ The Club（説明・Access）/ 壁紙販売ページ / 壁紙ダウンロードのフィードバック文言 / 作品詳細のアクションボタン・画像クリック編集導線 / シリーズ切替（`GallerySeriesSelect`）・並び順（`SortToggle`）/ 主要 CTA・アクションボタン。
 - **未対応（英/日のまま・今後の段階対応）**: auth ページ（login / legacy-login）、Admin のエピソード作成・編集、`the-club/library` 本文、作品詳細の nav 文言（Gallery / Prev / Next / Status 等）、各種メタデータ系ラベル。
 
 ### 壁紙ダウンロードzip内の多言語README（暫定仕様）
@@ -183,6 +198,12 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 - [x] Supabase認証リダイレクトURL設定（`whatif-ep.xyz` 追加）
 - [x] 旧The Clubの導線切替（新サイトに統合済み）
 - [x] IMAGINE 連携（作品詳細「イラストを編集」→ `app.whatif-ep.xyz/banner?template=<id>` ダイレクトオープン / Content Factory publish 時のテンプレ昇格＋`imagine_starter` offer 自動投入 / ドメインまたぎ SSO）
+- [x] パフォーマンス最適化（ギャラリー一覧/作品詳細を「カタログ即時描画＋ユーザー固有データ（保存/購入/管理）の Suspense ストリーミング分離」に変更。初回ロードの3秒ブロックを解消）
+- [x] SEO 強化（`sitemap.ts` / `robots.ts` / `/episodes`→`/works/episode` の 301 リダイレクト / metadataBase・keywords・OpenGraph・Twitter Card / canonical / JSON-LD）
+- [x] 多言語フォント対応（CJKシステムフォントのフォールバック明示で韓国語・中国語の文字化けを解消）
+- [x] 壁紙ダウンロードのフィードバックUI（押下→準備中→進捗→完了/失敗、連打防止、5言語対応）
+- [x] 作品詳細のアートワーク自体を IMAGINE 編集導線化（PC: ホバーで編集オーバーレイ→新タブ / モバイル: タップで確認モーダル）
+- [x] トップ導線の変更（ドメインルート `/` を `/works/episode` へリダイレクトしギャラリーを主導線化。旧ヒーローは `/about` に退避し、ハンバーガーメニューの「ABOUT」からリンク。今後ヒーロー下に About Us の本文を追記予定）
 
 ### The Club account model
 

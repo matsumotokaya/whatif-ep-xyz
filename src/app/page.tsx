@@ -1,25 +1,8 @@
-import type { Metadata } from "next";
-import { HomeHeroWithBanner } from "@/components/HomeHeroWithBanner";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "WHATIF Gallery",
-  description:
-    "WHATIF EP - a digital art gallery of original illustrations, wallpapers, and IMAGINE works.",
-  alternates: { canonical: "/" },
-  openGraph: {
-    title: "WHATIF Gallery",
-    description:
-      "WHATIF EP - a digital art gallery of original illustrations, wallpapers, and IMAGINE works.",
-    type: "website",
-    url: "/",
-  },
-};
-
+// The domain root now leads straight into the gallery so visitors reach the
+// artworks immediately. The previous hero page lives at /about, linked from the
+// hamburger menu.
 export default function Home() {
-  return (
-    <>
-      <h1 className="sr-only">WHATIF Gallery - Digital Art Gallery</h1>
-      <HomeHeroWithBanner />
-    </>
-  );
+  redirect("/works/episode");
 }
