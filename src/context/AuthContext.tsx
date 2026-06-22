@@ -64,7 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // can adopt this session. Side-effect only; never calls setSession here.
     const syncSsoCookie = (event: string, session: Session | null) => {
       try {
-        if (event === 'SIGNED_OUT' || !session) {
+        // Only a confirmed sign-out should delete the shared cookie. A null
+        // local session on this subdomain does not prove the sibling app is
+        // also signed out, so clearing here can break cross-subdomain SSO.
+        if (event === 'SIGNED_OUT') {
           clearSsoCookie();
           return;
         }
@@ -73,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           event === 'TOKEN_REFRESHED' ||
           event === 'INITIAL_SESSION'
         ) {
-          if (session.access_token && session.refresh_token) {
+          if (session?.access_token && session?.refresh_token) {
             writeSsoCookie({
               access_token: session.access_token,
               refresh_token: session.refresh_token,
