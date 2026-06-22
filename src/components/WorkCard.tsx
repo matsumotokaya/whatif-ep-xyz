@@ -91,19 +91,6 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
             </span>
           </div>
         )}
-
-        <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
-          {hasWallpaperOffer && (
-            <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground backdrop-blur-sm">
-              {badges.wallpaper}
-            </span>
-          )}
-          {hasStarterOffer && (
-            <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground backdrop-blur-sm">
-              {badges.edit}
-            </span>
-          )}
-        </div>
       </div>
 
       <div className="p-2 sm:p-3">
@@ -111,6 +98,20 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
         <p className="mt-0.5 truncate text-sm text-foreground">{work.title}</p>
         {work.themeCategory && (
           <p className="mt-0.5 text-[11px] text-muted">{work.themeCategory}</p>
+        )}
+        {(hasWallpaperOffer || hasStarterOffer) && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {hasWallpaperOffer && (
+              <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground">
+                {badges.wallpaper}
+              </span>
+            )}
+            {hasStarterOffer && (
+              <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground">
+                {badges.edit}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </Link>

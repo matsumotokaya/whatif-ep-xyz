@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { getAdminAccess } from "@/lib/admin/access";
 import {
   getGallerySeries,
   getSeriesDisplayName,
@@ -11,27 +9,9 @@ import {
 import { getPurchasedDisplayCodes } from "@/lib/wallpaper-purchases";
 import { getSavedWorkIds } from "@/lib/work-saves";
 import { WorksPageClient } from "./WorksPageClient";
-import Link from "next/link";
 
 interface WorksSeriesPageProps {
   params: Promise<{ series: string }>;
-}
-
-// Streams the admin-only "Add episode" button without blocking the catalog.
-// getAdminAccess() makes a Supabase auth round-trip; isolating it here keeps the
-// cached gallery in the static shell so it paints immediately.
-async function AddEpisodeButton({ series }: { series: string }) {
-  if (series !== "episode") return null;
-  const adminAccess = await getAdminAccess();
-  if (!adminAccess.isAdmin) return null;
-  return (
-    <Link
-      href="/episodes/new"
-      className="btn-press inline-flex items-center rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
-    >
-      Add episode
-    </Link>
-  );
 }
 
 export async function generateMetadata({
@@ -67,20 +47,14 @@ export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) 
 
   return (
     <div className="w-full px-3 py-6 sm:px-5 sm:py-8">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Gallery
-          </h1>
-          <h2 className="sr-only">{selectedSeries.name}</h2>
-          <p className="mt-1 text-sm text-muted">
-            {selectedSeries.name} / {total} works
-          </p>
-        </div>
-
-        <Suspense fallback={null}>
-          <AddEpisodeButton series={series} />
-        </Suspense>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          Gallery
+        </h1>
+        <h2 className="sr-only">{selectedSeries.name}</h2>
+        <p className="mt-1 text-sm text-muted">
+          {selectedSeries.name} / {total} works
+        </p>
       </div>
 
       <WorksPageClient

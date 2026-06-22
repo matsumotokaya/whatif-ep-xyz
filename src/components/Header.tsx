@@ -21,13 +21,19 @@ const navItems = [
 // Localized labels for the header chrome (menu heading, auth actions).
 const chromeCopy: Record<
   Language,
-  { menu: string; login: string; logout: string; account: string }
+  {
+    menu: string;
+    login: string;
+    logout: string;
+    account: string;
+    addEpisode: string;
+  }
 > = {
-  en: { menu: "Menu", login: "Log in", logout: "Log out", account: "My account" },
-  ja: { menu: "メニュー", login: "ログイン", logout: "ログアウト", account: "マイアカウント" },
-  "zh-CN": { menu: "菜单", login: "登录", logout: "退出登录", account: "我的账户" },
-  "zh-TW": { menu: "選單", login: "登入", logout: "登出", account: "我的帳戶" },
-  ko: { menu: "메뉴", login: "로그인", logout: "로그아웃", account: "내 계정" },
+  en: { menu: "Menu", login: "Log in", logout: "Log out", account: "My account", addEpisode: "Add episode" },
+  ja: { menu: "メニュー", login: "ログイン", logout: "ログアウト", account: "マイアカウント", addEpisode: "エピソードを追加" },
+  "zh-CN": { menu: "菜单", login: "登录", logout: "退出登录", account: "我的账户", addEpisode: "添加作品" },
+  "zh-TW": { menu: "選單", login: "登入", logout: "登出", account: "我的帳戶", addEpisode: "新增作品" },
+  ko: { menu: "메뉴", login: "로그인", logout: "로그아웃", account: "내 계정", addEpisode: "에피소드 추가" },
 };
 
 const menuCopy: Record<
@@ -243,6 +249,7 @@ function UserMenu() {
   const avatarUrl = profile?.avatar_url;
   const initial = displayName.charAt(0).toUpperCase();
   const isPremium = profile?.subscription_tier === "premium";
+  const isAdmin = profile?.role === "admin";
 
   return (
     <div className="relative" ref={menuRef}>
@@ -306,6 +313,15 @@ function UserMenu() {
           >
             {chromeCopy[lang].account}
           </Link>
+          {isAdmin && (
+            <Link
+              href="/episodes/new"
+              onClick={() => setOpen(false)}
+              className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
+            >
+              {chromeCopy[lang].addEpisode}
+            </Link>
+          )}
           <button
             onClick={handleSignOut}
             className="w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"

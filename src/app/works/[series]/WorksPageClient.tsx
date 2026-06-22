@@ -95,13 +95,11 @@ function WorksPageInner({
   series,
   selectedSeriesSlug,
   works,
-  total,
   purchasedCodes,
 }: {
   series: GallerySeries[];
   selectedSeriesSlug: string;
   works: WorkListItem[];
-  total: number;
   purchasedCodes: string[];
 }) {
   const { lang } = useLanguage();
@@ -153,7 +151,7 @@ function WorksPageInner({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <GallerySeriesSelect series={series} selectedSlug={selectedSeriesSlug} />
           <SortToggle sort={sort} onSortChange={setSort} />
@@ -244,10 +242,6 @@ function WorksPageInner({
             </div>
           )}
         </div>
-        <p className="text-xs tabular-nums text-muted">
-          {filteredTotal} shown
-          {selectedRange || savedOnly ? ` / ${total}` : ""}
-        </p>
       </div>
 
       {selectedRange && (
