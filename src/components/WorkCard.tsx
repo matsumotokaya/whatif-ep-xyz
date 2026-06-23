@@ -36,14 +36,25 @@ function WorkPlaceholder({ code }: { code: string }) {
 }
 
 export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
-  // imageCandidates is pre-computed server-side (feedImageUrl first if present).
-  const { imageCandidates, hasWallpaperOffer, hasStarterOffer } = work;
+  // feedThumbUrl is a pre-sized credited thumbnail served `unoptimized` (bypasses
+  // Vercel Image Optimization). When present it is tried first; on error we fall
+  // back to imageCandidates (feedImageUrl + variant images) rendered via normal
+  // optimized next/image. The full-size feed PNG is NEVER served unoptimized.
+  const { feedThumbUrl, imageCandidates, hasWallpaperOffer, hasStarterOffer } = work;
   const { lang } = useLanguage();
   const badges = BADGE_COPY[lang];
   const [index, setIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const src = imageCandidates[index] ?? null;
+  // Index 0 = the unoptimized feed_thumb (when available); the remaining indices
+  // map into the optimized imageCandidates fallback chain.
+  const sources: { url: string; unoptimized: boolean }[] = [
+    ...(feedThumbUrl ? [{ url: feedThumbUrl, unoptimized: true }] : []),
+    ...imageCandidates.map((url) => ({ url, unoptimized: false })),
+  ];
+
+  const current = sources[index] ?? null;
+  const src = current?.url ?? null;
 
   return (
     <Link
@@ -59,12 +70,13 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
             src={src}
             alt={work.title}
             fill
+            unoptimized={current?.unoptimized ?? false}
             sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
             className={`object-cover transition-all duration-500 ease-out group-hover:scale-[1.03] ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
             loading="lazy"
-            onError={() => setIndex((current) => current + 1)}
+            onError={() => setIndex((prev) => prev + 1)}
             onLoad={() => setIsLoading(false)}
           />
         ) : (

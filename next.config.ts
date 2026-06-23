@@ -22,7 +22,15 @@ const nextConfig: NextConfig = {
       // Add custom domain when configured
       // { protocol: "https", hostname: "assets.whatif-ep.com" },
     ],
-    formats: ["image/webp", "image/avif"],
+    // Single format keeps each (image, width) to one optimized output instead of
+    // doubling across webp + avif. Trades a tiny avif size win for ~half the
+    // Image Optimization transformations.
+    formats: ["image/webp"],
+    // Curated width ladder (default is 8 device + 8 image sizes). Fewer rungs =
+    // fewer distinct transformations per source image, while still covering the
+    // real layouts: small covers, detail hero (1x/2x), and retina.
+    deviceSizes: [640, 1080, 1920, 3840],
+    imageSizes: [128, 256, 384],
   },
   async redirects() {
     return [

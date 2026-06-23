@@ -97,6 +97,9 @@ export interface WorkVariant {
   createdAt: string;
   updatedAt: string;
   feedImageUrl?: string | null;
+  // Lightweight credited feed thumbnail (Content Factory feed_thumb output).
+  // Null when no published feed_thumb exists for this variant.
+  feedThumbUrl?: string | null;
   offers: WorkOffer[];
 }
 
@@ -124,6 +127,9 @@ export interface Work {
   // Content Factory feed image (instagram_feed output) used for gallery cards.
   // Null when no published feed exists; cards then fall back to the variant image.
   feedImageUrl?: string | null;
+  // Lightweight credited feed thumbnail (feed_thumb output) for the list grid.
+  // Null for older works; the grid then uses feedImageUrl/fallbacks (optimized).
+  feedThumbUrl?: string | null;
 }
 
 // ─── Lightweight DTO for gallery list cards ───────────────────────────────────
@@ -136,7 +142,15 @@ export interface WorkListItem {
   title: string;
   themeCategory: string;
   sequenceNumber: number;
-  /** Pre-computed image fallback chain (feedImageUrl first if present). */
+  /**
+   * Pre-sized credited feed thumbnail served `unoptimized` (bypasses Vercel
+   * Image Optimization). Null for older works without a feed_thumb output.
+   */
+  feedThumbUrl: string | null;
+  /**
+   * Optimized fallback chain (feedImageUrl first if present) rendered via
+   * normal next/image. Used when feedThumbUrl is null.
+   */
   imageCandidates: string[];
   hasWallpaperOffer: boolean;
   hasStarterOffer: boolean;

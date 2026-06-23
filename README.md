@@ -141,6 +141,36 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 
 ---
 
+## 画像モデル（表示用＝クレジット入り / 壁紙＝ノンクレジット）
+
+ギャラリーの作品画像は、すべて **Content Factory（IMAGINE 管理機能）** で生成されたものを正本とする。Content Factory の **Publish** は、作品バリアントごとに `production_outputs` を複数生成し、それぞれ `role` を持つ。
+
+| role | 形式 | クレジット | 用途 |
+|------|------|-----------|------|
+| `instagram_feed` | 4:5 PNG（約1080×1350） | **入り** | **ギャラリーの正式表示画像**。一覧カードのサムネと作品詳細のメイン画像の**両方**に使う。 |
+| `mobile_hd` / `mobile_qhd` / `pc_hd` / `pc_qhd` | 各サイズ PNG | **なし（クリーン）** | 有料の壁紙パック。**クレジットが無いこと自体が商品価値**。 |
+| `package_cover` | 1600×1600 | — | 壁紙販売ページ・「他の壁紙」ストリップのカバー。 |
+| `zip` | アーカイブ | — | 壁紙パックの一括ダウンロード。 |
+
+**基本原則**: ギャラリーでは常に**クレジット入りの `instagram_feed`** を表示し、壁紙サイズ（ノンクレジット）は表示しない。クレジットを外すこと＝顧客が対価を払う価値なので、**表示用（クレジット入り）と壁紙（クリーン）は厳密に分離**する。
+
+### 移行前作品のフォールバック（暫定）
+
+この feed ベースのモデルは**今回のアップデートから**始まった。それ以前に作られた作品は `instagram_feed` 出力をまだ持たないため、ギャラリーの体裁を保つために**暫定的にフォールバック**する（旧 R2 サムネ → original PNG）。
+
+- **一覧カード**（`WorkCard` / `getWorkPrimaryImageCandidates`）: `feedImageUrl` → R2 `thumbnails/{number}.jpg` → original PNG
+- **作品詳細メイン**（`getVariantDisplayImageCandidates`）: `feedImageUrl` → original PNG
+
+これらのフォールバックは応急処置であり、**移行前の作品もいずれすべて Content Factory から再生産**する。再生産後はどの作品も正式な `instagram_feed` を持ち、フォールバック経路は不要（削除可能）になる。
+
+### パフォーマンス課題（対応予定）
+
+現状、一覧カードと作品詳細メインは**同じフルサイズの `instagram_feed` PNG** を使っている。約1080px のクレジット入り PNG を小さなグリッドセルに読み込むのは無駄で、Vercel Image Optimization の *Transformations* と転送量を押し上げる（無料枠の transformation 消費が急増した原因）。
+
+**対応方針**: Content Factory が一覧用に**軽量なクレジット入り feed サムネ**を追加で発行する（IMAGINE 側の対応）。これにより一覧は事前リサイズ済みの軽い画像を読み込み、フルサイズ feed 画像は作品詳細専用にする。
+
+---
+
 ## Internationalization (i18n)
 
 姉妹サイト IMAGINE と同じ **5言語**に対応しています。

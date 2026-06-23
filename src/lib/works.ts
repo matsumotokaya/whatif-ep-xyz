@@ -3,7 +3,11 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { getSeriesFeedImageMap, getSeriesWallpaperCoverMap } from "@/lib/wallpaper";
+import {
+  getSeriesFeedImageMap,
+  getSeriesFeedThumbMap,
+  getSeriesWallpaperCoverMap,
+} from "@/lib/wallpaper";
 import type {
   GallerySeries,
   WallpaperCoverItem,
@@ -144,6 +148,7 @@ function mapVariant(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     feedImageUrl: null,
+    feedThumbUrl: null,
     offers,
   };
 }
@@ -253,7 +258,7 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
     const workIds = workRows.map((row) => row.id);
     const workIdChunks = chunkArray(workIds, CHUNK_SIZE);
 
-    const [variantChunks, offerChunks, feedImageMap] = await Promise.all([
+    const [variantChunks, offerChunks, feedImageMap, feedThumbMap] = await Promise.all([
       Promise.all(
         workIdChunks.map(async (chunk) => {
           const { data, error } = await supabase
@@ -288,6 +293,7 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
         })
       ),
       getSeriesFeedImageMap(seriesSlug),
+      getSeriesFeedThumbMap(seriesSlug),
     ]);
 
     const variantRows = variantChunks.flat();
@@ -324,10 +330,12 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
         offersByWorkId.get(row.id) ?? []
       );
       work.variants.forEach((variant) => {
-        variant.feedImageUrl =
-          feedImageMap.get(`${work.displayCode}:${variant.variantNumber}`) ?? null;
+        const key = `${work.displayCode}:${variant.variantNumber}`;
+        variant.feedImageUrl = feedImageMap.get(key) ?? null;
+        variant.feedThumbUrl = feedThumbMap.get(key) ?? null;
       });
       work.feedImageUrl = work.primaryVariant?.feedImageUrl ?? null;
+      work.feedThumbUrl = work.primaryVariant?.feedThumbUrl ?? null;
       return work;
     });
   },
@@ -452,6 +460,7 @@ function toWorkListItem(work: Work): WorkListItem {
     title: work.title,
     themeCategory: work.themeCategory,
     sequenceNumber: work.sequenceNumber,
+    feedThumbUrl: work.feedThumbUrl ?? null,
     imageCandidates,
     hasWallpaperOffer,
     hasStarterOffer,

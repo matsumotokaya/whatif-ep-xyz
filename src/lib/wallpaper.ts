@@ -137,6 +137,74 @@ export async function getSeriesFeedImageMap(
   return new Map(Object.entries(record));
 }
 
+// ─── Cached: feed-thumb map for a series ─────────────────────────────────────
+// Tags: ['production', 'production:<seriesSlug>']  revalidate: 3600s
+//
+// Same shape/keying as the feed-image map, but keyed to the lightweight
+// 'feed_thumb' output (~720px long edge, WebP, credit preserved). The Gallery
+// list grid prefers this and renders it `unoptimized` to bypass Vercel Image
+// Optimization. Older works without a feed_thumb are simply absent from this
+// map and fall back to the full feed image (still optimized via next/image).
+const _cachedFeedThumbRecord = unstable_cache(
+  async (seriesSlug: string): Promise<Record<string, string>> => {
+    const supabase = createAdminClient();
+    if (!supabase) return {};
+
+    const { data: projectsData } = await supabase
+      .from("production_projects")
+      .select("id, work_display_code, variant_number")
+      .eq("work_series_slug", seriesSlug)
+      .eq("status", "published");
+
+    const projects = (projectsData ?? []) as unknown as {
+      id: string;
+      work_display_code: string;
+      variant_number: number;
+    }[];
+    if (projects.length === 0) return {};
+
+    const { data: outputsData } = await supabase
+      .from("production_outputs")
+      .select("project_id, storage_bucket, storage_path")
+      .in(
+        "project_id",
+        projects.map((project) => project.id)
+      )
+      .eq("role", "feed_thumb")
+      .eq("status", "ready");
+
+    const outputs = (outputsData ?? []) as unknown as {
+      project_id: string;
+      storage_bucket: string | null;
+      storage_path: string | null;
+    }[];
+
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const record: Record<string, string> = {};
+
+    for (const output of outputs) {
+      const project = projectById.get(output.project_id);
+      if (!project || !output.storage_bucket || !output.storage_path) continue;
+      record[`${project.work_display_code}:${project.variant_number}`] =
+        buildPublicUrl(output.storage_bucket, output.storage_path);
+    }
+
+    return record;
+  },
+  // keyParts prefix — actual cache key includes the seriesSlug argument
+  ["production:feed-thumb-map"],
+  { tags: ["production"], revalidate: 3600 }
+);
+
+// Map of "displayCode:variantNumber" -> public feed-thumb URL for a series.
+// Built from published production projects' ready feed_thumb outputs.
+export async function getSeriesFeedThumbMap(
+  seriesSlug: string
+): Promise<Map<string, string>> {
+  const record = await _cachedFeedThumbRecord(seriesSlug);
+  return new Map(Object.entries(record));
+}
+
 // ─── Cached: wallpaper cover map for a series ────────────────────────────────
 // Tags: ['production', 'production:<seriesSlug>']  revalidate: 3600s
 //
