@@ -17,6 +17,8 @@ interface EditableEpisode {
   number: string;
   title: string;
   category: string;
+  summary: string | null;
+  workTags: string[];
   productUrl: string | null;
   releasedOn: string | null;
   originalStorageKey: string;
@@ -75,7 +77,7 @@ export function EditEpisodeForm({ episode }: { episode: EditableEpisode }) {
               Episode Info
             </h2>
             <p className="mt-1 text-sm text-muted">
-              番号は変更できません。必要な項目を編集してください。
+              番号は変更できません。ここで編集する canonical work の項目名は Imagine と揃えてあります。
             </p>
           </div>
 
@@ -107,17 +109,6 @@ export function EditEpisodeForm({ episode }: { episode: EditableEpisode }) {
             </div>
 
             <div className="space-y-2">
-              <FieldLabel htmlFor="category">カテゴリー</FieldLabel>
-              <input
-                id="category"
-                name="category"
-                type="text"
-                defaultValue={episode.category}
-                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
-              />
-            </div>
-
-            <div className="space-y-2">
               <FieldLabel htmlFor="releasedOn">公開日</FieldLabel>
               <input
                 id="releasedOn"
@@ -128,6 +119,36 @@ export function EditEpisodeForm({ episode }: { episode: EditableEpisode }) {
               />
             </div>
           </div>
+
+          <div className="space-y-2">
+            <FieldLabel htmlFor="workTags">Work Tags</FieldLabel>
+            <input
+              id="workTags"
+              name="workTags"
+              type="text"
+              defaultValue={episode.workTags.join(", ")}
+              placeholder="dreamscape, monochrome, neon"
+              className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
+            />
+            <p className="text-xs text-muted">カンマ区切りで入力します。</p>
+          </div>
+
+          <div className="space-y-2">
+            <FieldLabel htmlFor="summary">Summary</FieldLabel>
+            <textarea
+              id="summary"
+              name="summary"
+              rows={4}
+              defaultValue={episode.summary ?? ""}
+              placeholder="Gallery detail page summary"
+              className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
+            />
+            <p className="text-xs text-muted">
+              Imagine の Work Metadata にある Summary と同じ項目です。Asset Notes とは別です。
+            </p>
+          </div>
+
+          <input type="hidden" name="category" value={episode.category} />
 
           <div className="space-y-2">
             <FieldLabel htmlFor="productUrl">STORES.jp URL</FieldLabel>

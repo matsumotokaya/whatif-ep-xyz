@@ -79,6 +79,13 @@ export interface WorkOffer {
   updatedAt: string;
 }
 
+export interface WorkTag {
+  id: string;
+  slug: string;
+  label: string;
+  tagType: string;
+}
+
 export interface WorkVariant {
   id: string;
   workId: string;
@@ -123,6 +130,7 @@ export interface Work {
   updatedAt: string;
   variants: WorkVariant[];
   offers: WorkOffer[];
+  tags: WorkTag[];
   primaryVariant: WorkVariant | null;
   // Content Factory feed image (instagram_feed output) used for gallery cards.
   // Null when no published feed exists; cards then fall back to the variant image.
@@ -141,6 +149,7 @@ export interface WorkListItem {
   displayCode: string;
   title: string;
   themeCategory: string;
+  tags: WorkTag[];
   sequenceNumber: number;
   /**
    * Pre-sized credited feed thumbnail served `unoptimized` (bypasses Vercel
@@ -193,6 +202,13 @@ export interface WorkRow {
   is_featured: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkTagRow {
+  id: string;
+  slug: string;
+  label: string;
+  tag_type: string;
 }
 
 export interface WorkVariantRow {

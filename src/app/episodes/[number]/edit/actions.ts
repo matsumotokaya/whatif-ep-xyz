@@ -27,6 +27,21 @@ function normalizeOptionalString(rawValue: FormDataEntryValue | null) {
   return value || null;
 }
 
+function normalizeTagList(rawValue: FormDataEntryValue | null) {
+  if (typeof rawValue !== "string") {
+    return [] as string[];
+  }
+
+  return Array.from(
+    new Set(
+      rawValue
+        .split(/[,\n、]+/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function isFileEntry(value: FormDataEntryValue | null): value is File {
   return typeof File !== "undefined" && value instanceof File;
 }
@@ -74,6 +89,8 @@ export async function updateEpisodeAction(
   const number = normalizeNumber(formData.get("number"));
   const title = normalizeString(formData.get("title"));
   const category = normalizeString(formData.get("category"));
+  const summary = normalizeOptionalString(formData.get("summary"));
+  const workTags = normalizeTagList(formData.get("workTags"));
   const productUrl = normalizeOptionalString(formData.get("productUrl"));
   const releasedOn = normalizeOptionalString(formData.get("releasedOn"));
   const isPublished = formData.get("isPublished") === "on";
@@ -224,6 +241,8 @@ export async function updateEpisodeAction(
       number,
       title,
       category,
+      summary,
+      work_tags: workTags,
       product_url: productUrl,
       released_on: releasedOn,
       original_storage_key: originalStorageKey,

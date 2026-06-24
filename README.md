@@ -154,6 +154,15 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 
 **基本原則**: ギャラリーでは常に**クレジット入りの `instagram_feed`** を表示し、壁紙サイズ（ノンクレジット）は表示しない。クレジットを外すこと＝顧客が対価を払う価値なので、**表示用（クレジット入り）と壁紙（クリーン）は厳密に分離**する。
 
+### canonical work metadata
+
+作品そのもののメタデータ正本は Gallery 側の legacy `episodes` ではなく、IMAGINE Content Factory から同期される canonical `works` / `work_variants` である。
+
+- 作品詳細の右カラムとモバイル情報パネルは canonical `Work Tags` と `Summary` を表示する
+- 管理者の `/episodes/[number]/edit` は legacy episode 編集導線を残しつつ、初期値と保存先を canonical work metadata に揃える
+- `category` は legacy 互換の内部項目として残るが、公開UIの主要な分類軸としては扱わない
+- `Asset Tags` / `Asset Notes` は premium library asset (`default_images`) 用であり、work metadata とは別物
+
 ### 移行前作品のフォールバック（暫定）
 
 この feed ベースのモデルは**今回のアップデートから**始まった。それ以前に作られた作品は `instagram_feed` 出力をまだ持たないため、ギャラリーの体裁を保つために**暫定的にフォールバック**する（旧 R2 サムネ → original PNG）。

@@ -262,9 +262,6 @@ export function WorkMobileInfo({
                       {work.variants.length > 1 ? ` / ${variant.variantNumber}` : ""}
                     </p>
                     <h2 className="mt-1 text-lg font-bold text-foreground">{work.title}</h2>
-                    {work.themeCategory && (
-                      <p className="mt-1 text-sm text-muted">{work.themeCategory}</p>
-                    )}
                   </div>
                   <button
                     type="button"
@@ -278,6 +275,39 @@ export function WorkMobileInfo({
                   </button>
                 </div>
               </div>
+
+              {(work.tags.length > 0 || work.summary) && (
+                <div className="mb-5 space-y-4 rounded-2xl border border-border bg-surface/50 p-4">
+                  {work.tags.length > 0 && (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                        Work Tags
+                      </dt>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {work.tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted"
+                          >
+                            {tag.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {work.summary && (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                        Summary
+                      </dt>
+                      <dd className="mt-2 text-sm leading-6 text-muted">
+                        {work.summary}
+                      </dd>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <dl className="grid grid-cols-2 gap-3 text-xs">
                 {dates.map(({ label, value }) => (

@@ -7,12 +7,178 @@ interface EpisodeSyncPayload {
   number: string;
   title: string;
   category: string;
+  summary?: string | null;
+  work_tags?: string[] | null;
   product_url: string | null;
   released_on: string | null;
   original_storage_key: string;
   thumbnail_storage_key: string | null;
   is_published: boolean;
   published_at: string | null;
+}
+
+interface WorkTagRow {
+  id: string;
+  slug: string;
+  label: string;
+  tag_type: string;
+}
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function slugifyTag(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function isMissingWorkTagTableError(error: { message?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    message.includes("Could not find the table 'public.work_tag_map'") ||
+    message.includes("Could not find the table 'public.work_tags'")
+  );
+}
+
+async function syncWorkTags(
+  supabase: SupabaseServerClient,
+  workId: string,
+  tags: string[]
+) {
+  const normalized = Array.from(
+    new Map(
+      tags
+        .map((label) => label.trim())
+        .filter(Boolean)
+        .map((label) => [slugifyTag(label), label] as const)
+        .filter(([slug]) => slug.length > 0)
+    ).entries()
+  ).map(([slug, label]) => ({ slug, label }));
+
+  if (normalized.length === 0) {
+    const { error } = await supabase
+      .from("work_tag_map")
+      .delete()
+      .eq("work_id", workId);
+
+    if (error && !isMissingWorkTagTableError(error)) {
+      throw new Error(`Failed to clear work tags: ${error.message}`);
+    }
+
+    return;
+  }
+
+  const { data: existingTagsData, error: existingTagsError } = await supabase
+    .from("work_tags")
+    .select("id, slug, label, tag_type")
+    .in("slug", normalized.map((tag) => tag.slug));
+
+  if (existingTagsError) {
+    if (isMissingWorkTagTableError(existingTagsError)) {
+      return;
+    }
+
+    throw new Error(`Failed to load work tags: ${existingTagsError.message}`);
+  }
+
+  const existingTags = (existingTagsData ?? []) as WorkTagRow[];
+  const existingBySlug = new Map(existingTags.map((tag) => [tag.slug, tag]));
+  const missingTags = normalized.filter((tag) => !existingBySlug.has(tag.slug));
+
+  if (missingTags.length > 0) {
+    const { error: insertTagsError } = await supabase.from("work_tags").insert(
+      missingTags.map((tag) => ({
+        slug: tag.slug,
+        label: tag.label,
+        tag_type: "general",
+      }))
+    );
+
+    if (insertTagsError) {
+      if (isMissingWorkTagTableError(insertTagsError)) {
+        return;
+      }
+
+      throw new Error(`Failed to create work tags: ${insertTagsError.message}`);
+    }
+  }
+
+  const { data: allTagsData, error: allTagsError } = await supabase
+    .from("work_tags")
+    .select("id, slug, label, tag_type")
+    .in("slug", normalized.map((tag) => tag.slug));
+
+  if (allTagsError) {
+    if (isMissingWorkTagTableError(allTagsError)) {
+      return;
+    }
+
+    throw new Error(`Failed to reload work tags: ${allTagsError.message}`);
+  }
+
+  const tagIds = ((allTagsData ?? []) as WorkTagRow[]).map((tag) => tag.id);
+
+  const { data: existingMapData, error: existingMapError } = await supabase
+    .from("work_tag_map")
+    .select("tag_id")
+    .eq("work_id", workId);
+
+  if (existingMapError) {
+    if (isMissingWorkTagTableError(existingMapError)) {
+      return;
+    }
+
+    throw new Error(`Failed to load work tag map: ${existingMapError.message}`);
+  }
+
+  const existingTagIds = new Set(
+    (existingMapData ?? []).map((row) => row.tag_id as string)
+  );
+  const missingMapRows = tagIds
+    .filter((tagId) => !existingTagIds.has(tagId))
+    .map((tagId) => ({
+      work_id: workId,
+      tag_id: tagId,
+    }));
+
+  if (missingMapRows.length > 0) {
+    const { error: insertMapError } = await supabase
+      .from("work_tag_map")
+      .insert(missingMapRows);
+
+    if (insertMapError) {
+      if (isMissingWorkTagTableError(insertMapError)) {
+        return;
+      }
+
+      throw new Error(`Failed to save work tag map: ${insertMapError.message}`);
+    }
+  }
+
+  const staleTagIds = Array.from(existingTagIds).filter(
+    (tagId) => !tagIds.includes(tagId)
+  );
+
+  if (staleTagIds.length > 0) {
+    const { error: deleteMapError } = await supabase
+      .from("work_tag_map")
+      .delete()
+      .eq("work_id", workId)
+      .in("tag_id", staleTagIds);
+
+    if (deleteMapError) {
+      if (isMissingWorkTagTableError(deleteMapError)) {
+        return;
+      }
+
+      throw new Error(`Failed to prune work tag map: ${deleteMapError.message}`);
+    }
+  }
 }
 
 export async function syncEpisodeWork(
@@ -34,6 +200,12 @@ export async function syncEpisodeWork(
       ? payload.published_at ?? new Date().toISOString()
       : null;
 
+  const { data: existingWork } = await supabase
+    .from("works")
+    .select("id, summary")
+    .eq("legacy_episode_id", payload.id)
+    .maybeSingle();
+
   const { error: workError } = await supabase.from("works").upsert(
     {
       series_id: series.id,
@@ -43,6 +215,10 @@ export async function syncEpisodeWork(
       slug: `episode-${payload.number}`,
       title: payload.title,
       theme_category: payload.category,
+      summary:
+        payload.summary !== undefined
+          ? normalizeOptionalText(payload.summary)
+          : existingWork?.summary ?? null,
       released_on: payload.released_on,
       status: payload.is_published ? "published" : "draft",
       published_at: publishedAt,
@@ -64,6 +240,10 @@ export async function syncEpisodeWork(
 
   if (workFetchError || !work) {
     throw new Error(`Failed to load synced work: ${workFetchError?.message ?? "work missing"}`);
+  }
+
+  if (payload.work_tags !== undefined) {
+    await syncWorkTags(supabase, work.id, payload.work_tags ?? []);
   }
 
   const { error: variantError } = await supabase.from("work_variants").upsert(

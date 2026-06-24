@@ -34,7 +34,7 @@ export function NewEpisodeForm() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Episode Info</h2>
           <p className="mt-1 text-sm text-muted">
-            エピソード番号から `id` と R2 の保存先を自動で決めます。
+            エピソード番号から `id` と R2 の保存先を自動で決めます。canonical work の項目名は Imagine と揃えてあります。
           </p>
         </div>
 
@@ -66,17 +66,6 @@ export function NewEpisodeForm() {
           </div>
 
           <div className="space-y-2">
-            <FieldLabel htmlFor="category">カテゴリー</FieldLabel>
-            <input
-              id="category"
-              name="category"
-              type="text"
-              placeholder="minimal"
-              className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
-            />
-          </div>
-
-          <div className="space-y-2">
             <FieldLabel htmlFor="releasedOn">公開日</FieldLabel>
             <input
               id="releasedOn"
@@ -97,6 +86,34 @@ export function NewEpisodeForm() {
             className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
           />
         </div>
+
+        <div className="space-y-2">
+          <FieldLabel htmlFor="workTags">Work Tags</FieldLabel>
+          <input
+            id="workTags"
+            name="workTags"
+            type="text"
+            placeholder="dreamscape, monochrome, neon"
+            className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
+          />
+          <p className="text-xs text-muted">カンマ区切りで入力します。</p>
+        </div>
+
+        <div className="space-y-2">
+          <FieldLabel htmlFor="summary">Summary</FieldLabel>
+          <textarea
+            id="summary"
+            name="summary"
+            rows={4}
+            placeholder="Gallery detail page summary"
+            className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground outline-none transition-colors focus:border-neon-cyan"
+          />
+          <p className="text-xs text-muted">
+            Imagine の Work Metadata にある Summary と同じ項目です。Asset Notes とは別です。
+          </p>
+        </div>
+
+        <input type="hidden" name="category" value="" />
 
         <label className="flex items-center gap-3 text-sm text-foreground">
           <input

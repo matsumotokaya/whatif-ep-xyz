@@ -108,8 +108,17 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
       <div className="p-2 sm:p-3">
         <p className="font-mono text-[11px] text-muted">#{work.displayCode}</p>
         <p className="mt-0.5 truncate text-sm text-foreground">{work.title}</p>
-        {work.themeCategory && (
-          <p className="mt-0.5 text-[11px] text-muted">{work.themeCategory}</p>
+        {work.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {work.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag.id}
+                className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] text-muted"
+              >
+                {tag.label}
+              </span>
+            ))}
+          </div>
         )}
         {(hasWallpaperOffer || hasStarterOffer) && (
           <div className="mt-2 flex flex-wrap gap-1">

@@ -282,12 +282,36 @@ export default async function WorkDetailPage({
             <div className="mt-5">
               <p className="font-mono text-lg text-muted">#{work.displayCode}</p>
               <h1 className="mt-1 text-xl font-bold sm:text-2xl">{work.title}</h1>
-              {work.themeCategory && (
-                <p className="mt-2 text-sm text-muted">{work.themeCategory}</p>
+              {work.tags.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                    Work Tags
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {work.tags.map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted"
+                      >
+                        {tag.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {work.summary && (
+                <div className="mt-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                    Summary
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {work.summary}
+                  </p>
+                </div>
               )}
 
               {work.variants.length > 1 && (
-                <div className="mt-5">
+                <div className="mt-6">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Variants</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {work.variants

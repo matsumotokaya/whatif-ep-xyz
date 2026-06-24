@@ -15,6 +15,8 @@ import type {
   WorkListItem,
   WorkOffer,
   WorkOfferRow,
+  WorkTag,
+  WorkTagRow,
   WorkRow,
   WorkSeriesRow,
   WorkVariant,
@@ -87,6 +89,14 @@ const OFFER_COLUMNS = [
 
 const CHUNK_SIZE = 100;
 
+function isMissingTableError(error: { message?: string } | null | undefined): boolean {
+  const message = error?.message ?? "";
+  return (
+    message.includes("Could not find the table 'public.work_tag_map'") ||
+    message.includes("Could not find the table 'public.work_tags'")
+  );
+}
+
 function chunkArray<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -126,6 +136,15 @@ function mapOffer(row: WorkOfferRow): WorkOffer {
   };
 }
 
+function mapTag(row: WorkTagRow): WorkTag {
+  return {
+    id: row.id,
+    slug: row.slug,
+    label: row.label,
+    tagType: row.tag_type,
+  };
+}
+
 function mapVariant(
   row: WorkVariantRow,
   offers: WorkOffer[]
@@ -157,7 +176,8 @@ function mapWork(
   row: WorkRow,
   series: WorkSeriesRow,
   variants: WorkVariant[],
-  offers: WorkOffer[]
+  offers: WorkOffer[],
+  tags: WorkTag[]
 ): Work {
   const primaryVariant =
     variants.find((variant) => variant.isPrimary) ?? variants[0] ?? null;
@@ -182,6 +202,7 @@ function mapWork(
     updatedAt: row.updated_at,
     variants,
     offers,
+    tags,
     primaryVariant,
   };
 }
@@ -258,7 +279,7 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
     const workIds = workRows.map((row) => row.id);
     const workIdChunks = chunkArray(workIds, CHUNK_SIZE);
 
-    const [variantChunks, offerChunks, feedImageMap, feedThumbMap] = await Promise.all([
+    const [variantChunks, offerChunks, tagMapChunks, tagRows, feedImageMap, feedThumbMap] = await Promise.all([
       Promise.all(
         workIdChunks.map(async (chunk) => {
           const { data, error } = await supabase
@@ -292,14 +313,49 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
           return (data ?? []) as unknown as WorkOfferRow[];
         })
       ),
+      Promise.all(
+        workIdChunks.map(async (chunk) => {
+          const { data, error } = await supabase
+            .from("work_tag_map")
+            .select("work_id, tag_id")
+            .in("work_id", chunk);
+
+          if (error) {
+            if (isMissingTableError(error)) {
+              return [];
+            }
+            throw new Error(`Failed to load work tag map: ${error.message}`);
+          }
+
+          return (data ?? []) as { work_id: string; tag_id: string }[];
+        })
+      ),
+      (async () => {
+        const { data, error } = await supabase
+          .from("work_tags")
+          .select("id, slug, label, tag_type")
+          .order("label", { ascending: true });
+
+        if (error) {
+          if (isMissingTableError(error)) {
+            return [];
+          }
+          throw new Error(`Failed to load work tags: ${error.message}`);
+        }
+
+        return (data ?? []) as unknown as WorkTagRow[];
+      })(),
       getSeriesFeedImageMap(seriesSlug),
       getSeriesFeedThumbMap(seriesSlug),
     ]);
 
     const variantRows = variantChunks.flat();
     const offerRows = offerChunks.flat();
+    const tagMapRows = tagMapChunks.flat();
     const offersByVariantId = new Map<string, WorkOffer[]>();
     const offersByWorkId = new Map<string, WorkOffer[]>();
+    const tagsById = new Map(tagRows.map((row) => [row.id, mapTag(row)]));
+    const tagsByWorkId = new Map<string, WorkTag[]>();
 
     for (const row of offerRows) {
       const offer = mapOffer(row);
@@ -322,12 +378,21 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
       variantsByWorkId.set(row.work_id, bucket);
     }
 
+    for (const row of tagMapRows) {
+      const tag = tagsById.get(row.tag_id);
+      if (!tag) continue;
+      const bucket = tagsByWorkId.get(row.work_id) ?? [];
+      bucket.push(tag);
+      tagsByWorkId.set(row.work_id, bucket);
+    }
+
     return workRows.map((row) => {
       const work = mapWork(
         row,
         series,
         variantsByWorkId.get(row.id) ?? [],
-        offersByWorkId.get(row.id) ?? []
+        offersByWorkId.get(row.id) ?? [],
+        tagsByWorkId.get(row.id) ?? []
       );
       work.variants.forEach((variant) => {
         const key = `${work.displayCode}:${variant.variantNumber}`;
@@ -459,6 +524,7 @@ function toWorkListItem(work: Work): WorkListItem {
     displayCode: work.displayCode,
     title: work.title,
     themeCategory: work.themeCategory,
+    tags: work.tags,
     sequenceNumber: work.sequenceNumber,
     feedThumbUrl: work.feedThumbUrl ?? null,
     imageCandidates,
