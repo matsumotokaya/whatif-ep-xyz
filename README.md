@@ -94,6 +94,13 @@ NEXT_PUBLIC_R2_BASE_URL=https://pub-9339dc326a024891a297479881e66962.r2.dev
 NEXT_PUBLIC_GA_ID=G-X5E0WH9Y43
 NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+STRIPE_SECRET_KEY=<your-stripe-secret-key>
+STRIPE_WEBHOOK_SECRET=<your-stripe-webhook-secret>
+STRIPE_WALLPAPER_PRICE_ID=<your-wallpaper-price-id>
+RESEND_API_KEY=<your-resend-api-key>
+RESEND_FROM_EMAIL=noreply@whatif-ep.xyz
+CONTACT_NOTIFICATION_EMAIL=contact@whatif-ep.xyz
 R2_ACCOUNT_ID=<your-r2-account-id>
 R2_ACCESS_KEY_ID=<your-r2-access-key>
 R2_SECRET_ACCESS_KEY=<your-r2-secret>
@@ -103,6 +110,7 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 
 `NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は管理画面からの画像アップロード/削除用。
 `R2_ENDPOINT` は未指定なら `R2_ACCOUNT_ID` から自動生成します。
+`RESEND_*` は壁紙購入通知メール（購入者 + 管理者）に使います。
 
 ## Development
 

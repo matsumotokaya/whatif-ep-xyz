@@ -24,6 +24,11 @@ export interface RecordWallpaperPurchaseInput {
   currency: string | null;
 }
 
+export interface RecordWallpaperPurchaseResult {
+  ok: boolean;
+  alreadyExisted: boolean;
+}
+
 // Returns true when the user already owns the wallpaper (status = 'paid').
 // Uses the user-scoped client so RLS limits the read to the user's own rows.
 export async function hasPurchasedWallpaper(
@@ -88,13 +93,46 @@ export async function getPurchasedDisplayCodes(
 // user session and RLS would otherwise block the write.
 export async function recordWallpaperPurchase(
   input: RecordWallpaperPurchaseInput
-): Promise<boolean> {
+): Promise<RecordWallpaperPurchaseResult> {
   const supabase = createAdminClient();
   if (!supabase) {
     console.error(
       "recordWallpaperPurchase: admin client unavailable (missing service role key)."
     );
-    return false;
+    return { ok: false, alreadyExisted: false };
+  }
+
+  const { data: existingPurchase, error: existingPurchaseError } = await (
+    supabase.from("wallpaper_purchases") as unknown as {
+      select: (
+        columns: string
+      ) => {
+        eq: (
+          column: string,
+          value: string
+        ) => {
+          maybeSingle: () => Promise<{
+            data: { id: string } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    }
+  )
+    .select("id")
+    .eq("stripe_checkout_session_id", input.stripeCheckoutSessionId)
+    .maybeSingle();
+
+  if (existingPurchaseError) {
+    console.error(
+      "recordWallpaperPurchase existing lookup failed:",
+      existingPurchaseError.message
+    );
+    return { ok: false, alreadyExisted: false };
+  }
+
+  if (existingPurchase?.id) {
+    return { ok: true, alreadyExisted: true };
   }
 
   const nowIso = new Date().toISOString();
@@ -128,10 +166,10 @@ export async function recordWallpaperPurchase(
 
   if (error) {
     console.error("recordWallpaperPurchase upsert failed:", error.message);
-    return false;
+    return { ok: false, alreadyExisted: false };
   }
 
-  return true;
+  return { ok: true, alreadyExisted: false };
 }
 
 // Success-page fallback: retrieve the session directly from Stripe and record
@@ -173,7 +211,7 @@ export async function verifyAndRecordCheckoutSession(
   const variantRaw = metadata.variant_number;
   const variantNumber = variantRaw ? Number.parseInt(variantRaw, 10) : null;
 
-  return recordWallpaperPurchase({
+  const result = await recordWallpaperPurchase({
     userId,
     wallpaperId,
     seriesSlug: metadata.series_slug ?? null,
@@ -186,4 +224,6 @@ export async function verifyAndRecordCheckoutSession(
     amount: session.amount_total,
     currency: session.currency,
   });
+
+  return result.ok;
 }

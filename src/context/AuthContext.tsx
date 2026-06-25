@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { writeSsoCookie, clearSsoCookie } from '@/lib/ssoCookie';
+import { notifySignupIfNeeded } from '@/lib/account-notifications';
 
 interface Profile {
   id: string;
@@ -56,6 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const notifiedSignupUserIdsRef = useRef<Set<string>>(new Set());
+  const pendingSignupNotificationUserIdsRef = useRef<Set<string>>(new Set());
 
   const supabase = createClient();
 
@@ -123,6 +126,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !session?.access_token || loading) {
+      return;
+    }
+
+    if (notifiedSignupUserIdsRef.current.has(user.id)) {
+      return;
+    }
+
+    if (pendingSignupNotificationUserIdsRef.current.has(user.id)) {
+      return;
+    }
+
+    void (async () => {
+      pendingSignupNotificationUserIdsRef.current.add(user.id);
+
+      try {
+        const retryDelaysMs = [0, 1500, 4000];
+
+        for (const delayMs of retryDelaysMs) {
+          if (delayMs > 0) {
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+          }
+
+          const result = await notifySignupIfNeeded(session.access_token);
+          if (result?.sent || result?.alreadySent || result?.skipped === 'not_recent_signup') {
+            notifiedSignupUserIdsRef.current.add(user.id);
+            return;
+          }
+
+          if (result?.skipped !== 'email_not_verified') {
+            return;
+          }
+        }
+      } finally {
+        pendingSignupNotificationUserIdsRef.current.delete(user.id);
+      }
+    })();
+  }, [loading, session?.access_token, user?.email_confirmed_at, user?.id]);
 
   const signInWithGoogle = async (nextPath = '/') => {
     setAuthNextCookie(nextPath);

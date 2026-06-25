@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { recordWallpaperPurchase } from "@/lib/wallpaper-purchases";
+import { sendWallpaperPurchaseNotifications } from "@/lib/email-notifications";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
     const variantRaw = metadata.variant_number;
     const variantNumber = variantRaw ? Number.parseInt(variantRaw, 10) : null;
 
-    const ok = await recordWallpaperPurchase({
+    const purchaseResult = await recordWallpaperPurchase({
       userId,
       wallpaperId,
       seriesSlug: metadata.series_slug ?? null,
@@ -73,12 +75,77 @@ export async function POST(request: NextRequest) {
       currency: session.currency,
     });
 
-    if (!ok) {
+    if (!purchaseResult.ok) {
       // Returning 500 lets Stripe retry the delivery.
       return NextResponse.json(
         { error: "Failed to record purchase." },
         { status: 500 }
       );
+    }
+
+    if (!purchaseResult.alreadyExisted) {
+      try {
+        const adminClient = createAdminClient();
+        const buyerEmail =
+          session.customer_details?.email ??
+          session.customer_email ??
+          null;
+        let buyerName =
+          session.customer_details?.name ??
+          null;
+
+        let resolvedBuyerEmail = buyerEmail;
+        if ((!resolvedBuyerEmail || !buyerName) && adminClient) {
+          const { data: profile } = await (
+            adminClient.from("profiles") as unknown as {
+              select: (
+                columns: string
+              ) => {
+                eq: (
+                  column: string,
+                  value: string
+                ) => {
+                  single: () => Promise<{
+                    data: { email: string | null; full_name: string | null } | null;
+                  }>;
+                };
+              };
+            }
+          )
+            .select("email, full_name")
+            .eq("id", userId)
+            .single();
+
+          resolvedBuyerEmail = resolvedBuyerEmail ?? profile?.email ?? null;
+          buyerName = buyerName ?? profile?.full_name ?? null;
+        }
+
+        if (resolvedBuyerEmail) {
+          await sendWallpaperPurchaseNotifications({
+            buyerEmail: resolvedBuyerEmail,
+            buyerName,
+            seriesSlug: metadata.series_slug ?? null,
+            displayCode: metadata.display_code ?? null,
+            variantNumber: Number.isFinite(variantNumber as number)
+              ? (variantNumber as number)
+              : null,
+            amount: session.amount_total,
+            currency: session.currency,
+          });
+        } else {
+          console.error(
+            "Stripe webhook: unable to resolve buyer email for wallpaper purchase notification.",
+            session.id
+          );
+        }
+      } catch (notificationError) {
+        console.error(
+          "Stripe webhook: failed to send wallpaper purchase notification:",
+          notificationError instanceof Error
+            ? notificationError.message
+            : String(notificationError)
+        );
+      }
     }
 
     return NextResponse.json({ received: true });
