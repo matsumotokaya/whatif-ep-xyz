@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
-import { writeSsoCookie, clearSsoCookie } from '@/lib/ssoCookie';
+import { readSsoCookie, writeSsoCookie, clearSsoCookie } from '@/lib/ssoCookie';
 import { notifySignupIfNeeded } from '@/lib/account-notifications';
 
 interface Profile {
@@ -59,10 +59,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const notifiedSignupUserIdsRef = useRef<Set<string>>(new Set());
   const pendingSignupNotificationUserIdsRef = useRef<Set<string>>(new Set());
+  const sessionRef = useRef<Session | null>(null);
+  const adoptingSharedSessionRef = useRef(false);
 
   const supabase = createClient();
 
   useEffect(() => {
+    let isActive = true;
+
     // Sync the cross-subdomain SSO cookie so app.whatif-ep.xyz (IMAGINE)
     // can adopt this session. Side-effect only; never calls setSession here.
     const syncSsoCookie = (event: string, session: Session | null) => {
@@ -91,23 +95,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const applySession = (nextSession: Session | null) => {
+      sessionRef.current = nextSession;
+      if (!isActive) {
+        return;
+      }
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
       setLoading(false);
-      syncSsoCookie('INITIAL_SESSION', session);
+    };
+
+    const adoptSharedSessionIfNeeded = async (): Promise<Session | null> => {
+      if (adoptingSharedSessionRef.current || sessionRef.current) {
+        return sessionRef.current;
+      }
+
+      const ssoTokens = readSsoCookie();
+      if (!ssoTokens) {
+        return null;
+      }
+
+      adoptingSharedSessionRef.current = true;
+      try {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: ssoTokens.access_token,
+          refresh_token: ssoTokens.refresh_token,
+        });
+
+        if (error || !data.session) {
+          return null;
+        }
+
+        applySession(data.session);
+        return data.session;
+      } catch {
+        return null;
+      } finally {
+        adoptingSharedSessionRef.current = false;
+      }
+    };
+
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      sessionRef.current = session;
+
+      let resolvedSession = session;
+      if (!resolvedSession) {
+        resolvedSession = await adoptSharedSessionIfNeeded();
+      }
+
+      applySession(resolvedSession);
+      syncSsoCookie('INITIAL_SESSION', resolvedSession);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+        applySession(session);
         syncSsoCookie(event, session);
       }
     );
 
-    return () => subscription.unsubscribe();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      void adoptSharedSessionIfNeeded();
+    };
+
+    const handleWindowFocus = () => {
+      void adoptSharedSessionIfNeeded();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

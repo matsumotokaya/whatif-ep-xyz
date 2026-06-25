@@ -129,6 +129,9 @@ This session aligned Gallery-side notification and purchase handling with the cu
 - Updated wallpaper purchase handling to be idempotent by `stripe_checkout_session_id`
 - Added buyer/admin wallpaper purchase notification send on successful Stripe webhook processing
 - Updated docs and env examples for `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CONTACT_NOTIFICATION_EMAIL`
+- Expanded the lightweight cross-subdomain SSO bridge:
+  - both apps re-check the shared SSO cookie on boot, focus, and visibility return
+  - login carry-over now works more reliably in both directions when the other app is revisited
 
 Confirmed in production:
 
@@ -138,6 +141,10 @@ Remaining production verification:
 
 - Wallpaper purchase notification still needs a real production purchase check
 - Premium subscription notification is implemented on the IMAGINE Supabase webhook side but still needs a real production subscription check
+
+Future auth hardening:
+
+- Replace the current browser-readable shared SSO cookie with an HttpOnly cookie based, server-led session design
 
 ## Adding a New Episode
 
