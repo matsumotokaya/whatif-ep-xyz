@@ -120,6 +120,25 @@ npm run dev    # http://localhost:3710
 npm run build
 ```
 
+## Session Note: 2026-06-25
+
+This session aligned Gallery-side notification and purchase handling with the current production flow.
+
+- Added Resend-based notification helpers for Gallery purchase/account events
+- Added signup notification trigger wiring so Gallery auth flow can call the shared `notify-account-signup` Supabase function
+- Updated wallpaper purchase handling to be idempotent by `stripe_checkout_session_id`
+- Added buyer/admin wallpaper purchase notification send on successful Stripe webhook processing
+- Updated docs and env examples for `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CONTACT_NOTIFICATION_EMAIL`
+
+Confirmed in production:
+
+- Verified-account welcome mail is now sent after email verification, not before
+
+Remaining production verification:
+
+- Wallpaper purchase notification still needs a real production purchase check
+- Premium subscription notification is implemented on the IMAGINE Supabase webhook side but still needs a real production subscription check
+
 ## Adding a New Episode
 
 ### Admin UI（推奨）
