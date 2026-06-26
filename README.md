@@ -120,6 +120,17 @@ npm run dev    # http://localhost:3710
 npm run build
 ```
 
+## Session Note: 2026-06-26
+
+IMAGINE の画像ストレージ Cloudflare R2 移行（production 出力）に合わせ、Gallery 側を対応・修正した。
+
+- **Vercel Image Optimization をサイト全体で無効化**（`next.config.ts` `images.unoptimized = true`）。全画像は R2（egress 無料）から直接配信。無料枠超過の **402 Payment Required** で詳細/ヒーロー/壁紙カバー等が表示されなくなっていた問題の根本対応。
+- `src/lib/wallpaper.ts` `buildPublicUrl` を `storage_provider` 対応化（R2移行済み作品は `assets.whatif-ep.xyz/{bucket}/{path}` を生成）。これが漏れていて削除済み Supabase URL を返していた。
+- `EpisodeDetailImage` / `WorkCard` にキャッシュ画像の `onLoad` 不発対策（ref + `img.complete`）。
+- `assets.whatif-ep.xyz` を `images.remotePatterns` に追加（最適化無効化後は不要だが残置）。
+
+**次セッションの宿題**: 画像 URL 生成が `lib/images.ts` / `work-images.ts` / `wallpaper.ts` / `club/catalog.ts` に散在し、保存先も Supabase / 旧R2 / 新R2 の3種混在。provider 対応漏れの温床なので**単一の provider 対応リゾルバへ集約**する。詳細は [docs/IMAGE_URL_REFACTOR.md](docs/IMAGE_URL_REFACTOR.md)。IMAGINE 側 R2 移行の正本は `imagine/docs/R2_MIGRATION.md`（CLOSED・残フェーズの前提あり）。
+
 ## Session Note: 2026-06-25
 
 This session aligned Gallery-side notification and purchase handling with the current production flow.
