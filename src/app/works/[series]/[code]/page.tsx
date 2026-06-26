@@ -289,12 +289,13 @@ export default async function WorkDetailPage({
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {work.tags.map((tag) => (
-                      <span
+                      <Link
                         key={tag.id}
+                        href={`/works/${work.seriesSlug}?tag=${encodeURIComponent(tag.slug)}`}
                         className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted"
                       >
                         {tag.label}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>

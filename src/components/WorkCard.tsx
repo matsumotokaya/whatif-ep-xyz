@@ -10,13 +10,13 @@ import { SaveButton } from "@/components/SaveButton";
 // Localized badge labels for the work card overlay tags.
 const BADGE_COPY: Record<
   Language,
-  { wallpaper: string; edit: string; purchased: string }
+  { wallpaper: string; purchased: string }
 > = {
-  en: { wallpaper: "Wallpaper", edit: "Edit", purchased: "Purchased" },
-  ja: { wallpaper: "壁紙", edit: "編集", purchased: "購入済み" },
-  "zh-CN": { wallpaper: "壁纸", edit: "编辑", purchased: "已购买" },
-  "zh-TW": { wallpaper: "桌布", edit: "編輯", purchased: "已購買" },
-  ko: { wallpaper: "배경화면", edit: "편집", purchased: "구매 완료" },
+  en: { wallpaper: "Wallpaper", purchased: "Purchased" },
+  ja: { wallpaper: "壁紙", purchased: "購入済み" },
+  "zh-CN": { wallpaper: "壁纸", purchased: "已购买" },
+  "zh-TW": { wallpaper: "桌布", purchased: "已購買" },
+  ko: { wallpaper: "배경화면", purchased: "구매 완료" },
 };
 
 interface WorkCardProps {
@@ -40,7 +40,7 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
   // Vercel Image Optimization). When present it is tried first; on error we fall
   // back to imageCandidates (feedImageUrl + variant images) rendered via normal
   // optimized next/image. The full-size feed PNG is NEVER served unoptimized.
-  const { feedThumbUrl, imageCandidates, hasWallpaperOffer, hasStarterOffer } = work;
+  const { feedThumbUrl, imageCandidates, hasWallpaperOffer } = work;
   const { lang } = useLanguage();
   const badges = BADGE_COPY[lang];
   const [index, setIndex] = useState(0);
@@ -83,6 +83,14 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
           <WorkPlaceholder code={work.displayCode} />
         )}
 
+        {hasWallpaperOffer && (
+          <div className="pointer-events-none absolute left-2 top-2">
+            <span className="inline-flex items-center rounded-full border border-black/10 bg-background/85 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+              {badges.wallpaper}
+            </span>
+          </div>
+        )}
+
         <div className="absolute right-2 top-2">
           <SaveButton workId={work.id} size="card" />
         </div>
@@ -109,29 +117,10 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
         <p className="font-mono text-[11px] text-muted">#{work.displayCode}</p>
         <p className="mt-0.5 truncate text-sm text-foreground">{work.title}</p>
         {work.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
             {work.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag.id}
-                className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] text-muted"
-              >
-                {tag.label}
-              </span>
+              <span key={tag.id}>#{tag.label}</span>
             ))}
-          </div>
-        )}
-        {(hasWallpaperOffer || hasStarterOffer) && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {hasWallpaperOffer && (
-              <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground">
-                {badges.wallpaper}
-              </span>
-            )}
-            {hasStarterOffer && (
-              <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-foreground">
-                {badges.edit}
-              </span>
-            )}
           </div>
         )}
       </div>

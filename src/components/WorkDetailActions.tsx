@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 import { useResolvedFlag } from "@/hooks/useResolvedFlag";
 import { DownloadButton } from "./DownloadButton";
@@ -155,9 +156,11 @@ export function WorkDetailActions({
   wallpaperPurchasedPromise,
   workTitle,
 }: WorkDetailActionsProps) {
+  const { profile } = useAuth();
   const { lang } = useLanguage();
   const t = COPY[lang];
-  const isAdmin = useResolvedFlag(isAdminPromise);
+  const isAdmin =
+    useResolvedFlag(isAdminPromise) || profile?.role === "admin";
   const wallpaperPurchased = useResolvedFlag(
     wallpaperPurchasedPromise ?? FALSE_PROMISE
   );

@@ -12,6 +12,7 @@ import { WorksPageClient } from "./WorksPageClient";
 
 interface WorksSeriesPageProps {
   params: Promise<{ series: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateMetadata({
@@ -26,8 +27,17 @@ export async function generateMetadata({
   };
 }
 
-export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) {
-  const { series } = await params;
+export default async function WorksSeriesPage({
+  params,
+  searchParams,
+}: WorksSeriesPageProps) {
+  const emptySearchParams: Record<string, string | string[] | undefined> = {};
+  const [{ series }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve(emptySearchParams),
+  ]);
+  const tagParam = resolvedSearchParams.tag;
+  const initialSelectedTagId = Array.isArray(tagParam) ? tagParam[0] : tagParam;
 
   // Catalog data (cached via unstable_cache) — fast, forms the static shell.
   const [seriesOptions, works, total] = await Promise.all([
@@ -64,6 +74,7 @@ export default async function WorksSeriesPage({ params }: WorksSeriesPageProps) 
         total={total}
         purchasedCodesPromise={purchasedCodesPromise}
         savedWorkIdsPromise={savedWorkIdsPromise}
+        initialSelectedTagId={initialSelectedTagId ?? null}
       />
     </div>
   );
