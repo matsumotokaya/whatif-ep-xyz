@@ -49,9 +49,13 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
 
   // Index 0 = the unoptimized feed_thumb (when available); the remaining indices
   // map into the optimized imageCandidates fallback chain.
+  // All sources are served unoptimized: feed_thumb is already a lightweight
+  // pre-sized WebP, and the fallbacks come from R2 (egress-free). This bypasses
+  // Vercel Image Optimization, whose transformation quota returns 402 once
+  // exhausted (which left cards/detail images blank).
   const sources: { url: string; unoptimized: boolean }[] = [
     ...(feedThumbUrl ? [{ url: feedThumbUrl, unoptimized: true }] : []),
-    ...imageCandidates.map((url) => ({ url, unoptimized: false })),
+    ...imageCandidates.map((url) => ({ url, unoptimized: true })),
   ];
 
   const current = sources[index] ?? null;

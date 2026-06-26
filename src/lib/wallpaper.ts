@@ -53,6 +53,7 @@ interface ProductionProjectRow {
 interface ProductionOutputRow {
   id: string;
   role: string;
+  storage_provider: string | null;
   storage_bucket: string | null;
   storage_path: string | null;
   mime_type: string | null;
@@ -61,10 +62,26 @@ interface ProductionOutputRow {
   status: string | null;
 }
 
-// Build a public Storage URL for a public bucket object.
-function buildPublicUrl(bucket: string, storagePath: string): string {
+// IMAGINE Content Factory assets migrated to Cloudflare R2 are served from the
+// R2 custom domain. The R2 object key mirrors the legacy Supabase layout with
+// the logical bucket name as the key prefix: `{bucket}/{path}`.
+const IMAGINE_ASSETS_BASE_URL =
+  process.env.NEXT_PUBLIC_IMAGINE_ASSETS_BASE_URL || "https://assets.whatif-ep.xyz";
+
+// Build a public URL for a production output, honoring its storage provider.
+// Migrated rows (storage_provider='r2') resolve to the R2 custom domain; older
+// rows still resolve to the Supabase public Storage endpoint.
+function buildPublicUrl(
+  provider: string | null,
+  bucket: string,
+  storagePath: string
+): string {
+  const cleanPath = storagePath.replace(/^\/+/, "");
+  if (provider === "r2") {
+    return `${IMAGINE_ASSETS_BASE_URL}/${bucket}/${cleanPath}`;
+  }
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return `${baseUrl}/storage/v1/object/public/${bucket}/${storagePath.replace(/^\/+/, "")}`;
+  return `${baseUrl}/storage/v1/object/public/${bucket}/${cleanPath}`;
 }
 
 // ─── Cached: feed image map for a series ─────────────────────────────────────
@@ -96,7 +113,7 @@ const _cachedFeedImageRecord = unstable_cache(
 
     const { data: outputsData } = await supabase
       .from("production_outputs")
-      .select("project_id, storage_bucket, storage_path")
+      .select("project_id, storage_provider, storage_bucket, storage_path")
       .in(
         "project_id",
         projects.map((project) => project.id)
@@ -106,6 +123,7 @@ const _cachedFeedImageRecord = unstable_cache(
 
     const outputs = (outputsData ?? []) as unknown as {
       project_id: string;
+      storage_provider: string | null;
       storage_bucket: string | null;
       storage_path: string | null;
     }[];
@@ -117,7 +135,7 @@ const _cachedFeedImageRecord = unstable_cache(
       const project = projectById.get(output.project_id);
       if (!project || !output.storage_bucket || !output.storage_path) continue;
       record[`${project.work_display_code}:${project.variant_number}`] =
-        buildPublicUrl(output.storage_bucket, output.storage_path);
+        buildPublicUrl(output.storage_provider, output.storage_bucket, output.storage_path);
     }
 
     return record;
@@ -165,7 +183,7 @@ const _cachedFeedThumbRecord = unstable_cache(
 
     const { data: outputsData } = await supabase
       .from("production_outputs")
-      .select("project_id, storage_bucket, storage_path")
+      .select("project_id, storage_provider, storage_bucket, storage_path")
       .in(
         "project_id",
         projects.map((project) => project.id)
@@ -175,6 +193,7 @@ const _cachedFeedThumbRecord = unstable_cache(
 
     const outputs = (outputsData ?? []) as unknown as {
       project_id: string;
+      storage_provider: string | null;
       storage_bucket: string | null;
       storage_path: string | null;
     }[];
@@ -186,7 +205,7 @@ const _cachedFeedThumbRecord = unstable_cache(
       const project = projectById.get(output.project_id);
       if (!project || !output.storage_bucket || !output.storage_path) continue;
       record[`${project.work_display_code}:${project.variant_number}`] =
-        buildPublicUrl(output.storage_bucket, output.storage_path);
+        buildPublicUrl(output.storage_provider, output.storage_bucket, output.storage_path);
     }
 
     return record;
@@ -231,7 +250,7 @@ const _cachedWallpaperCoverRecord = unstable_cache(
 
     const { data: outputsData } = await supabase
       .from("production_outputs")
-      .select("project_id, storage_bucket, storage_path")
+      .select("project_id, storage_provider, storage_bucket, storage_path")
       .in(
         "project_id",
         projects.map((project) => project.id)
@@ -241,6 +260,7 @@ const _cachedWallpaperCoverRecord = unstable_cache(
 
     const outputs = (outputsData ?? []) as unknown as {
       project_id: string;
+      storage_provider: string | null;
       storage_bucket: string | null;
       storage_path: string | null;
     }[];
@@ -252,7 +272,7 @@ const _cachedWallpaperCoverRecord = unstable_cache(
       const project = projectById.get(output.project_id);
       if (!project || !output.storage_bucket || !output.storage_path) continue;
       record[`${project.work_display_code}:${project.variant_number}`] =
-        buildPublicUrl(output.storage_bucket, output.storage_path);
+        buildPublicUrl(output.storage_provider, output.storage_bucket, output.storage_path);
     }
 
     return record;
@@ -298,7 +318,7 @@ const _cachedWallpaperPack = unstable_cache(
     const { data: outputsData } = await supabase
       .from("production_outputs")
       .select(
-        "id, role, storage_bucket, storage_path, mime_type, width, height, status"
+        "id, role, storage_provider, storage_bucket, storage_path, mime_type, width, height, status"
       )
       .eq("project_id", project.id)
       .eq("status", "ready");
@@ -310,7 +330,7 @@ const _cachedWallpaperPack = unstable_cache(
       return {
         id: row.id,
         role: row.role as WallpaperOutputRole,
-        publicUrl: buildPublicUrl(row.storage_bucket, row.storage_path),
+        publicUrl: buildPublicUrl(row.storage_provider, row.storage_bucket, row.storage_path),
         width: row.width,
         height: row.height,
         mimeType: row.mime_type,

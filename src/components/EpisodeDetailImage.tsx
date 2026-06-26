@@ -113,6 +113,10 @@ export function EpisodeDetailImage({
         src={src}
         alt={alt}
         fill
+        // Served directly from R2 (egress-free) instead of through Vercel Image
+        // Optimization. The feed PNG is already a sensible size, and this avoids
+        // the /_next/image transformation quota (which returns 402 once exhausted).
+        unoptimized
         sizes="(min-width: 1024px) calc(100vw - 360px), 100vw"
         className={`object-contain object-top p-2 transition-opacity duration-500 ease-out sm:p-4 lg:p-8 ${
           isLoading ? "opacity-0" : "opacity-100"
