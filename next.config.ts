@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    // Vercel Image Optimization is disabled site-wide. All images are served
+    // from Cloudflare R2 (egress-free) and are already sensibly sized, so the
+    // /_next/image transformation pipeline only adds cost — and returns 402
+    // (Payment Required) once the free transformation quota is exhausted, which
+    // blanked detail/hero images. With this off, every <Image> renders as a
+    // plain <img> straight from R2; per-component `unoptimized` props and the
+    // remotePatterns list below are no longer required (kept for reference).
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
