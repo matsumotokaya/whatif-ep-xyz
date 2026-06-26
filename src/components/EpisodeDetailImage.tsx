@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 
@@ -69,8 +69,19 @@ export function EpisodeDetailImage({
   const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const src = candidates[index] ?? "";
   const editable = Boolean(imagineUrl);
+
+  // A cache-hit image can be `complete` before React attaches onLoad, so the
+  // load event never fires and the image stays stuck at opacity-0. Clear the
+  // loading state proactively once the underlying <img> reports complete.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setIsLoading(false);
+    }
+  }, [src]);
 
   const openImagine = useCallback(() => {
     if (imagineUrl) window.open(imagineUrl, "_blank", "noopener,noreferrer");
@@ -98,6 +109,7 @@ export function EpisodeDetailImage({
       )}
       <Image
         key={src}
+        ref={imgRef}
         src={src}
         alt={alt}
         fill
