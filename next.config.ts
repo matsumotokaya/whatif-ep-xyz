@@ -14,13 +14,17 @@ const nextConfig: NextConfig = {
         hostname: "pub-9339dc326a024891a297479881e66962.r2.dev",
       },
       {
+        // IMAGINE Content Factory assets migrated to Cloudflare R2
+        // (production feed/wallpaper outputs). Served via the R2 custom domain.
+        protocol: "https",
+        hostname: "assets.whatif-ep.xyz",
+      },
+      {
         // Content Factory feed/wallpaper images served from Supabase Storage.
         protocol: "https",
         hostname: "rgqduwojvylkulhyodqg.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
-      // Add custom domain when configured
-      // { protocol: "https", hostname: "assets.whatif-ep.com" },
     ],
     // Single format keeps each (image, width) to one optimized output instead of
     // doubling across webp + avif. Trades a tiny avif size win for ~half the
