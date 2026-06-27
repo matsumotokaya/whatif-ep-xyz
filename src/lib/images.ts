@@ -1,4 +1,5 @@
 import type { Episode } from "./types";
+import { resolveAssetUrl } from "./asset-url";
 
 const R2_BASE_URL = process.env.NEXT_PUBLIC_R2_BASE_URL || "";
 
@@ -7,10 +8,10 @@ type EpisodeImageRef = Pick<
   "number" | "originalStorageKey" | "thumbnailStorageKey" | "updatedAt"
 >;
 
+// Episode assets live in the legacy public R2 bucket; keys are bare storage
+// keys joined directly onto NEXT_PUBLIC_R2_BASE_URL.
 function buildAssetUrl(storageKey: string, version?: string): string {
-  const base = `${R2_BASE_URL}/${storageKey.replace(/^\/+/, "")}`;
-  if (!version) return base;
-  return `${base}?v=${encodeURIComponent(version)}`;
+  return resolveAssetUrl("r2-legacy", storageKey, { version });
 }
 
 function resolveVersion(episode: EpisodeImageRef | string): string | undefined {

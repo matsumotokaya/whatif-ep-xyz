@@ -1,30 +1,19 @@
 import type { Work, WorkVariant } from "./types";
+import { resolveAssetUrl, canResolve, isFullUrl } from "./asset-url";
 
-const R2_BASE_URL = process.env.NEXT_PUBLIC_R2_BASE_URL || "";
-
-function appendVersionParam(url: string, version?: string): string {
-  if (!version) return url;
-
-  try {
-    const parsed = new URL(url);
-    parsed.searchParams.set("v", version);
-    return parsed.toString();
-  } catch {
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}v=${encodeURIComponent(version)}`;
-  }
-}
-
+// Works / variants resolve against the legacy public R2 bucket, but stored
+// values may be either bare keys or full URLs (legacy rows). resolveAssetUrl
+// passes full URLs through and joins bare keys onto NEXT_PUBLIC_R2_BASE_URL.
+// useUrlApiForVersion preserves the prior URL-API based `?v=` appending.
 function buildAssetUrl(storageKey: string, version?: string): string {
-  if (/^https?:\/\//i.test(storageKey)) {
-    return appendVersionParam(storageKey, version);
-  }
-  const base = `${R2_BASE_URL}/${storageKey.replace(/^\/+/, "")}`;
-  return appendVersionParam(base, version);
+  return resolveAssetUrl("r2-legacy", storageKey, {
+    version,
+    useUrlApiForVersion: true,
+  });
 }
 
 function canResolveStorageKey(storageKey: string): boolean {
-  return /^https?:\/\//i.test(storageKey) || Boolean(R2_BASE_URL);
+  return isFullUrl(storageKey) || canResolve("r2-legacy", storageKey);
 }
 
 export function getVariantOriginalUrl(

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveAssetUrl, canResolve } from "@/lib/asset-url";
 
 export type ClubItemKind = "wallpaper" | "zip" | "reel" | "other" | "book";
 
@@ -67,12 +68,13 @@ function formatDate(value: string | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
+// Club cover images live in the legacy public R2 bucket. Returns null when the
+// storage key is absent or NEXT_PUBLIC_R2_BASE_URL is unconfigured, preserving
+// the previous "no cover" behavior.
 function buildCoverUrl(storageKey: string | null) {
   if (!storageKey) return null;
-  const baseUrl = process.env.NEXT_PUBLIC_R2_BASE_URL;
-  if (!baseUrl) return null;
-  const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return new URL(storageKey, base).toString();
+  if (!canResolve("r2-legacy", storageKey)) return null;
+  return resolveAssetUrl("r2-legacy", storageKey);
 }
 
 function resolveAccent(kind: ClubItemKind): ClubItem["accent"] {

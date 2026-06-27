@@ -2,6 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveAssetUrl, r2AssetsKey } from "@/lib/asset-url";
 
 // Roles that make up a wallpaper pack (excludes instagram_feed and zip).
 export type WallpaperOutputRole =
@@ -62,26 +63,20 @@ interface ProductionOutputRow {
   status: string | null;
 }
 
-// IMAGINE Content Factory assets migrated to Cloudflare R2 are served from the
-// R2 custom domain. The R2 object key mirrors the legacy Supabase layout with
-// the logical bucket name as the key prefix: `{bucket}/{path}`.
-const IMAGINE_ASSETS_BASE_URL =
-  process.env.NEXT_PUBLIC_IMAGINE_ASSETS_BASE_URL || "https://assets.whatif-ep.xyz";
-
 // Build a public URL for a production output, honoring its storage provider.
-// Migrated rows (storage_provider='r2') resolve to the R2 custom domain; older
-// rows still resolve to the Supabase public Storage endpoint.
+// Migrated rows (storage_provider='r2') resolve to the R2 custom domain
+// (assets.whatif-ep.xyz) via the 'r2-assets' provider; older rows still resolve
+// to the Supabase public Storage endpoint. The R2 object key mirrors the legacy
+// Supabase layout with the logical bucket name as the key prefix: `{bucket}/{path}`.
 function buildPublicUrl(
   provider: string | null,
   bucket: string,
   storagePath: string
 ): string {
-  const cleanPath = storagePath.replace(/^\/+/, "");
   if (provider === "r2") {
-    return `${IMAGINE_ASSETS_BASE_URL}/${bucket}/${cleanPath}`;
+    return resolveAssetUrl("r2-assets", r2AssetsKey(bucket, storagePath));
   }
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return `${baseUrl}/storage/v1/object/public/${bucket}/${cleanPath}`;
+  return resolveAssetUrl("supabase", r2AssetsKey(bucket, storagePath));
 }
 
 // ─── Cached: feed image map for a series ─────────────────────────────────────
