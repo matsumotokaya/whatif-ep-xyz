@@ -225,3 +225,10 @@ alter table public.default_images drop column storage_provider;
 - レガシー bare user-images 行をライブラリ選択→新規保存すると element.src が bare キーになり Supabase 解決（Stage D で原本削除するまでは表示可）。新規アップロード分は full prefixed key で R2 直参照のため影響なし。恒久解決は M4 で判断。
 - Publish のサムネ複製は fetch(assets.whatif-ep.xyz)→R2 PUT をブラウザで実行。CORS 不可時は banner key 参照へ非致命フォールバック。
 - リスク #3（M3〜M4 間の imagine Publish で full URL 再発）は据え置き。
+
+## 7. Stage C 実行タイミングの決定（2026-07-02・プランA）
+
+- Phase 1 の R2 複製は**完了**（846/846・526.1MB・失敗0）。
+- **Stage C（バックフィルDML）は renewal/single-app の本番デプロイ直後まで実行禁止**。共有DBを先に書き換えると、絶対URL前提の旧 IMAGINE（app.whatif-ep.xyz）の画像表示が即壊れるため。
+- 決定順序: M4（admin/Content Factory 等の残ページ移植）完了 → renewal ブランチ本番化 → 直後に Stage C → 安定確認後 Stage D。
+- この順序なら「M3〜M4 間に旧 IMAGINE の Publish で full URL が再発する」リスク#3 も回避される。
