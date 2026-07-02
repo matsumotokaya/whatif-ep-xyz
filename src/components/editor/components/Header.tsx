@@ -60,6 +60,8 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
 
   const serviceLinks = [
     { label: 'IMAGINE', href: '/', external: false },
+    { label: t('common:galleryLink'), href: '/works/episode', external: false },
+    { label: t('banner:myBannersTab'), href: '/mydesign', external: false },
     { label: 'WHATIF-EP.XYZ', href: 'https://whatif-ep.xyz/', external: true },
     { label: 'The Club', href: 'https://whatif-ep.xyz/the-club', external: true },
     { label: t('common:footer.shop'), href: 'https://whatif.stores.jp/', external: true },
@@ -145,6 +147,13 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
         </div>
 
         <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+          <Link
+            to="/works/episode"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">imagesmode</span>
+            <span>{t('common:galleryLink')}</span>
+          </Link>
           <button
             onClick={() => setIsReleaseNotesOpen(true)}
             className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

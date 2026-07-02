@@ -50,6 +50,7 @@
   },
   "showMore": "Show more ({{count}})",
   "items": "{{count}} items",
+  "galleryLink": "Gallery",
   "footer": {
     "tagline": "99% Ready Design Kit",
     "brandSite": "Brand site",

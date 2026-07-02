@@ -70,6 +70,7 @@
   "like": "いいね",
   "unlike": "いいね解除",
   "guestNoticeTitle": "ゲストモードのご案内",
+  "guestListNotice": "ログインすると複数のデザインを保存できます。",
   "guestNoticeMessage": "編集したイラストはダウンロードしてご利用いただけます。編集データを保存するにはログインしてください。",
   "guestNoticeConfirm": "編集をはじめる"
 }

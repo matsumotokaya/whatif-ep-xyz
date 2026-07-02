@@ -50,6 +50,7 @@
   },
   "showMore": "查看更多 ({{count}}個)",
   "items": "{{count}}個",
+  "galleryLink": "作品畫廊",
   "footer": {
     "tagline": "99%完成設計工具組",
     "brandSite": "品牌網站",

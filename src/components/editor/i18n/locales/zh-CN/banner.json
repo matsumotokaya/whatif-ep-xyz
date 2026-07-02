@@ -70,6 +70,7 @@
   "like": "喜欢",
   "unlike": "取消喜欢",
   "guestNoticeTitle": "访客模式说明",
+  "guestListNotice": "登录后即可保存多个设计。",
   "guestNoticeMessage": "您可以下载并使用编辑后的插画。如需保存编辑数据，请登录。",
   "guestNoticeConfirm": "开始编辑"
 }

@@ -50,6 +50,7 @@
   },
   "showMore": "더보기 ({{count}}개)",
   "items": "{{count}}개",
+  "galleryLink": "갤러리",
   "footer": {
     "tagline": "99% 완성 디자인 키트",
     "brandSite": "브랜드 사이트",

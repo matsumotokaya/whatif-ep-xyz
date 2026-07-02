@@ -70,6 +70,7 @@
   "like": "Like",
   "unlike": "Unlike",
   "guestNoticeTitle": "Guest mode",
+  "guestListNotice": "Log in to save more than one design.",
   "guestNoticeMessage": "You can download and use the artwork you edit. To save your edits, please log in.",
   "guestNoticeConfirm": "Start editing"
 }

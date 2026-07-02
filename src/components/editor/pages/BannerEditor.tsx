@@ -53,11 +53,10 @@ export const BannerEditor = () => {
   const isGuest = !id;
   const guestStorageKey = GUEST_STORAGE_KEY;
   const locationState = location.state as BannerEditorLocationState | null;
-  // Guests also return to the design list (BannerManager renders their single
-  // localStorage design) so they can see their work was saved, instead of TOP.
-  // TODO(M4): restore '/mydesign' once the design-list page is ported to the
-  // Next app. Until then, returning to the Gallery top avoids a 404.
-  const editorReturnTo = isGuest ? '/' : (locationState?.returnTo || '/');
+  // "Back to list" target. Guests also return to the design list (/mydesign
+  // renders their single localStorage design) so they can see their work was
+  // saved, instead of the Gallery top.
+  const editorReturnTo = locationState?.returnTo || '/mydesign';
 
   // Show the guest editor notice once the auth state has settled and only for
   // actual logged-out visitors (not a logged-in user momentarily on /banner).
