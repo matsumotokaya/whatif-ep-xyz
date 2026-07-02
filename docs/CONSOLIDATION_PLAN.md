@@ -1,8 +1,22 @@
 # App Consolidation Plan（Gallery + IMAGINE を1つのNext.jsアプリへ統合）
 
-> Status: **設計（未実装）**。2026-06-29 起案。急がない方針。
+> Status: **PoC 済み・実行計画フェーズ**。2026-06-29 起案、同日 `/edit` client island PoC 実装済み（`docs/EDITOR_INTEGRATION_POC.md`）。
 > 決定: **Gallery(Next.js 16) を土台に、IMAGINE のエディタ/機能を取り込み、単一アプリ・単一ドメイン `whatif-ep.xyz` にする。** `app.whatif-ep.xyz` サブドメインと cross-subdomain SSO は廃止。
 > 関連: アセット参照の再設計 [imagine/docs/ASSET_REFERENCE_REDESIGN.md] は本統合の中で**1回だけ**実装する（2リポジトリへの二重実装をやめる）。
+
+## 0.0 PoC 結果（2026-06-29）
+
+Gallery 側に `/edit` ルートを追加し、`react-konva` を `next/dynamic(..., { ssr:false })` の client-only island で動かす PoC を実装した。
+
+結果:
+
+- `npm run build`: 成功。
+- PoC 追加ファイル単体の eslint: 成功。
+- `/edit` と `/edit?template=ed2f8904-7f24-443b-acdb-d61cab66c839`: dev server で 200 OK。
+- Supabase browser client で `templates` を取得する経路を実装。
+- Gallery 側 asset resolver で IMAGINE 資産を解決する方向に寄せられることを確認。
+
+判定: **Next を母体にして IMAGINE エディタを client island 化する案は技術的に成立する。** 残リスクは「成立可否」ではなく、移植量・画像参照モデル・認証切替・見た目回帰の管理。
 
 ---
 
@@ -72,16 +86,56 @@ app/
 
 ---
 
-## 4. 移行フェーズ（破壊的・一気にやる / ユーザー不在を活かす）
+## 4. 移行フェーズ（PoC 後の実行順）
 
-0. **共通化の足場**: 統合アプリ（=現Galleryリポジトリ）に editor/auth/asset を取り込む受け皿を用意。
-1. **認証を `@supabase/ssr` に統一**し、SSOクッキー経路を撤去（単一オリジン前提に倒す）。
-2. **アセット再設計を実装**（相対キー・単一モジュール・書込はkey返却）。※[[asset-reference-redesign]] を**ここで1回だけ**実施。
-3. **エディタ移植**: Canvas一式を client island 化し `/edit` で起動。`import.meta.env`→`NEXT_PUBLIC`、router差替え、Tailwind v4化。
-4. **残ページ移植**: mydesign / factory / admin / mypage / plans / legal / contact / auth。
-5. **i18n 統一**（react-i18next → LanguageContext、段階）。
-6. **ドメイン統合 + リダイレクトマップ**。`app.*` 廃止。
-7. **旧IMAGINEリポジトリ凍結**、Edge Functions は新アプリから参照継続。
+### M0: PoC 完了（済）
+
+- `/edit` route 作成。
+- `react-konva` の client-only build 確認。
+- Supabase `templates` 読み込み確認。
+- 画像URL resolver の統合方向確認。
+
+### M1: 本物の `BannerEditor` を `/edit` に載せる
+
+- IMAGINE の `BannerEditor` / Canvas / editor components / hooks / utils を Gallery 側へ移植。
+- `react-router-dom` を Next router hooks に置換。
+- `import.meta.env.VITE_*` を `process.env.NEXT_PUBLIC_*` に置換。
+- `@tanstack/react-query`, dnd-kit, i18next など client provider を editor island 内へ閉じる。
+- ゴール: `/edit?template=<id>` で既存テンプレから編集画面が開く。
+
+### M2: 認証を単一オリジンへ寄せる
+
+- Gallery の `@supabase/ssr` セッションを正本にする。
+- IMAGINE 由来 `AuthContext` と `wf-sso-token` 依存を撤去。
+- premium/admin 判定を Gallery 側 profile/subscription 読み取りへ寄せる。
+- ゴール: `whatif-ep.xyz` 内でログイン・編集・保存が完結する。
+
+### M3: 保存・アップロード・画像参照を key 方式へ切替
+
+- `asset-reference-redesign` の単一 asset module を Gallery 側に実装。
+- `thumbnail_url` / `fullres_url` / JSONB `elements[].src` の full URL 新規保存を止める。
+- 既存 R2/Supabase mixed data の読み取り互換を維持しつつ、新規書込は key に寄せる。
+- ゴール: 新規バナー・テンプレ・アップロードが絶対URLをDBに保存しない。
+
+### M4: IMAGINE 周辺ページを統合
+
+- `mydesign`, `mypage`, `plans/upgrade`, `admin/content-factory`, `cover-lab`, `storage-cleanup` を Next route 化。
+- Gallery 側の既存 account / The Club / wallpaper 導線と重複するページを整理。
+- ゴール: app サブドメインなしで運用に必要な全画面が揃う。
+
+### M5: データ移行・URL移行
+
+- `work_offers.target_url` など `app.whatif-ep.xyz/banner?template=` を `/edit?template=` へ更新。
+- `banners/templates` の旧 URL カラム・JSONB 内 URL を相対 key へバックフィル。
+- `app.whatif-ep.xyz` から `whatif-ep.xyz` への 301 と deep link redirect を設定。
+- ゴール: 旧リンクが壊れず、新規導線は単一ドメインへ統一される。
+
+### M6: 旧 IMAGINE 凍結
+
+- 旧 Vite デプロイ停止。
+- IMAGINE repo は履歴・参照用に凍結。
+- Edge Functions は必要分だけ継続利用。
+- ゴール: 運用対象を Gallery repo / single Next app に一本化。
 
 ---
 
@@ -96,10 +150,31 @@ app/
 
 ---
 
-## 6. 次セッション着手順
+## 6. 工数感（AI agent 前提）
 
-- [ ] 統合先リポジトリ確定（現 `whatif-ep-xyz` を母体）＋ monorepo 化要否の判断（単一アプリなら不要）
-- [ ] `@supabase/ssr` への認証統一を先行（SSO撤去の前提）
-- [ ] アセット再設計の実装（[[asset-reference-redesign]] §8）
-- [ ] エディタ island のPoC（`/edit` で既存テンプレを1枚開く）で移植難所を実測
+「1時間で全部完了」は現実的ではない。PoC は短時間で終わるが、本統合は編集画面・保存・認証・画像移行・admin 導線まで含むため、複数セッションに分けるべき。
+
+目安:
+
+| 範囲 | AI agent 実作業の目安 | 備考 |
+|---|---:|---|
+| M0 PoC | 30分〜1時間 | 今回完了 |
+| M1 本物の `BannerEditor` 起動 | 2〜5時間 | import graph と router/env 置換が中心 |
+| M2 認証統一 | 2〜4時間 | premium/admin/未ログイン導線の検証込み |
+| M3 asset key 化の新規書込停止 | 3〜6時間 | DB DDL/手動SQL確認を含む |
+| M4 周辺ページ統合 | 4〜8時間 | admin/Content Factory の量次第 |
+| M5 既存データ移行・redirect | 3〜8時間 | JSONB 変換と検証が最大リスク |
+| M6 凍結・片付け | 1〜2時間 | redirects/env/docs |
+
+合計は **15〜35時間程度**を見込む。AI agent が連続で進めても、DB手動実行・目視確認・本番デプロイ判断が入るため、カレンダー上は **2〜5日程度**に分けるのが安全。
+
+ユーザー/有料会員がほぼいない前提で破壊的移行を許容するなら短縮できる。逆に既存データ保全・全画面目視・本番 rollback を厚くすると増える。
+
+## 7. 次セッション着手順
+
+- [x] エディタ island の PoC（`/edit` で既存テンプレを1枚開く入口）で移植難所を実測。
+- [ ] IMAGINE `BannerEditor` の import graph を洗い出し、M1 の移植対象ファイルを確定。
+- [ ] Gallery 側に editor runtime providers（query/i18n/auth adapter）を用意。
+- [ ] `BannerEditor` 本体を `/edit` に接続し、`/edit?template=<id>` で編集開始できる状態にする。
+- [ ] M1 完了後に SSO 撤去・asset key 化の順序を最終確定。
 </content>

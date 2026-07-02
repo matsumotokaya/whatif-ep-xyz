@@ -10,7 +10,7 @@
 - WHATIF は **Gallery（公開サイト）** と **IMAGINE（編集ツール）** の**2リポジトリ**で構成され、**1つのSupabaseプロジェクトを共有**し、サブドメイン間SSOで行き来している。
 - この「**2サイト＋1共有DB＋SSO**」構成が、画像表示バグ（移行のたびに発生）や直し忘れの**構造的な原因**になっている。
 - **決定済み**: 両者を**1つのNext.jsアプリ（単一ドメイン `whatif-ep.xyz`）に統合**し、SSOを廃止する。エディタはNext内のクライアント専用ルート（`/edit`）として動かす。
-- 実装は未着手（設計フェーズ）。詳細設計は §5 の3ドキュメント。
+- `/edit` client island の軽量 PoC は実装済み。`react-konva` + Supabase template 読み込み + asset resolver は Next 側で成立確認済み。詳細は `docs/EDITOR_INTEGRATION_POC.md`。
 
 ---
 
@@ -72,7 +72,7 @@
 
 | 項目 | 状態 |
 |---|---|
-| 統合の方向性 | **決定**（設計のみ・未実装） |
+| 統合の方向性 | **決定**（PoC済み・実行計画フェーズ） |
 | アセット参照の再設計 | **設計のみ**（実装は統合の中で1回だけ行う） |
 | R2移行 | production / default-images は完了。user-images(518MB) のバックフィルが残 |
 | 直近の本番バグ | テンプレサムネ71件の404を応急SQLで復旧済み（根治は再設計待ち） |
@@ -84,6 +84,8 @@
 | ドキュメント | リポジトリ | 内容 |
 |---|---|---|
 | **CONSOLIDATION_PLAN.md** | whatif-ep-xyz/docs/ | 2アプリ統合の設計・移植スコープ・移行フェーズ・リスク。**統合の正本** |
+| **EDITOR_INTEGRATION_POC.md** | whatif-ep-xyz/docs/ | `/edit` client island PoC の実測結果。Next + react-konva + Supabase template 読み込みが成立済みであることの記録 |
+| **NEXT_SESSION_HANDOFF.md** | whatif-ep-xyz/docs/ | 次回セッション用の依頼文・読む順番・M1の作業範囲 |
 | **ASSET_REFERENCE_REDESIGN.md** | imagine/docs/ | 画像参照モデルのゼロベース再設計（絶対URL廃止→相対キー1本）。**画像バグ根治の正本** |
 | **R2_MIGRATION.md** | imagine/docs/ | R2移行の履歴・教訓・残フェーズ |
 | README.md | 各リポジトリ | 各アプリの運用・機能の現行説明 |
