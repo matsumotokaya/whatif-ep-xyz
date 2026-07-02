@@ -44,6 +44,7 @@
 
 - [x] `Edit in IMAGINE`（`imagine_starter`）実装済み。Content Factory の publish 時に instagram_feed バナーを IMAGINE の premium テンプレへ昇格（冪等キー `templates.production_project_id`）し、`work_offers` に `imagine_starter`(ready) を自動投入。作品詳細の「イラストを編集」ボタンから `app.whatif-ep.xyz/banner?template=<id>` を直接開く（未ログインはログイン誘導、free は UpgradeModal、premium は編集）。
 - [x] ドメインまたぎ SSO（方式2）実装済み。`.whatif-ep.xyz` 共有 Cookie で whatif-ep.xyz のログインを app.whatif-ep.xyz が引き継ぐ。Vercel env `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` / `VITE_SSO_COOKIE_DOMAIN` = `.whatif-ep.xyz` で有効化。簡易実装のため、改善（リファクタ）観点は IMAGINE README の "Gallery Integration" 節を参照。
+  - **2026-07-02 更新**: アプリ統合 M2（`docs/CONSOLIDATION_PLAN.md`）で Gallery 側の SSO 実装を撤去。`whatif-ep.xyz` 単一オリジンの `@supabase/ssr` セッションに一本化（Gallery の `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` は不要）。旧 IMAGINE（`app.whatif-ep.xyz`）側の SSO コードは M6 凍結まで残置。
 - [ ] 昇格対象は現状 instagram_feed のみ。壁紙テンプレ（portrait/landscape master）の昇格は次段。
 - [ ] パック publish → Gallery 反映の `production_delivery_packages.gallery_offer_ref` は未使用。
 - [ ] 全作品を Content Factory 化する過程の管理（feed / pack の出力率を上げ、フォールバックを段階的に解消）。

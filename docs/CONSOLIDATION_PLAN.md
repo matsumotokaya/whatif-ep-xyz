@@ -110,6 +110,43 @@ app/
 - premium/admin 判定を Gallery 側 profile/subscription 読み取りへ寄せる。
 - ゴール: `whatif-ep.xyz` 内でログイン・編集・保存が完結する。
 
+#### M2 実施記録（2026-07-02, ブランチ `renewal/single-app`）
+
+**撤去・変更したもの:**
+
+- `src/lib/ssoCookie.ts` を**削除**（`wf-sso-token` の read/write/clear 実装。Gallery コードベースから SSO クッキー実装が消滅）。
+- `src/context/AuthContext.tsx` から SSO 依存を全撤去:
+  - `syncSsoCookie`（SIGNED_IN / TOKEN_REFRESHED / INITIAL_SESSION での `wf-sso-token` 書き込み、SIGNED_OUT での削除）
+  - `adoptSharedSessionIfNeeded`（SSO クッキーからの `setSession` によるセッション養子縁組）
+  - boot（`getSession` 直後）/ `focus` / `visibilitychange` での SSO 再チェックとイベントリスナー
+  - 補助 ref（`sessionRef` / `adoptingSharedSessionRef`）
+  - 残る認証経路は「`supabase.auth.getSession()` + `onAuthStateChange`」のみ（@supabase/ssr のクッキーセッションが唯一の正本。middleware.ts の `getUser()` によるリフレッシュは従来どおり）。
+- `.env.example` から `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` ブロックを削除（本変数は Gallery では不要になった。Vercel env に残っていても未参照）。
+- ドキュメント追随: `README.md`（lib ツリーから ssoCookie.ts 除去・2026-06-25 Session Note と auth hardening 項へ撤去追記）、`docs/ROADMAP.md`（SSO 項に M2 撤去の更新註記）。
+
+**変更しなかったもの（意図的）:**
+
+- editor 側 `src/components/editor/contexts/AuthContext.tsx`（M1 で作成した Gallery AuthProvider へのアダプタ）: これが M2 の設計そのもの（IMAGINE 由来 AuthContext は移植しない）。premium/admin 判定は Gallery の `profiles.subscription_tier` / `profiles.role` 読み取り（root AuthProvider の profile fetch）を snake_case→camelCase でマップするだけで、editor island（Sidebar / MobileToolbar / useOpenTemplate / BannerEditor / AuthButton / UpgradeModal）は `profile.subscriptionTier` / `profile.role` を参照。判定 DB は 1 経路。
+- `/auth/legacy-login`（The Club legacy 会員、`profiles.legacy_login_id`）: 無改変。SSO 撤去はクッキー同期のみで、`signInWithPassword` 経路には触れていない。
+- 旧 IMAGINE リポジトリ（`../imagine`）の SSO コード: M6 凍結まで残置（app.whatif-ep.xyz が稼働中のため）。Gallery が `wf-sso-token` を書かなくなるので、**旧 IMAGINE への「Gallery ログイン引き継ぎ」は本ブランチのデプロイ時点で機能停止**する（統合方針どおり。旧 IMAGINE 単体のログインは無影響）。
+
+**確認結果:**
+
+- `npm run build`: 成功（型チェック含む）。`npx eslint src/context/AuthContext.tsx`: pass。
+- dev (3710): `/edit` 200 / `/edit?template=ed2f8904-…` 200 / `/edit/[id]` ビルド済み / `/works/episode` 200 / `/works/episode/0469` 200 / `/auth/login?next=%2Fedit%3Ftemplate%3D…` 200 / `/auth/legacy-login` 200。
+- コードパス整合（静的確認）:
+  - ログイン導線: editor は `useOpenTemplate.onLoginRequired` / `redirectToLoginForGuest` / AuthButton から `/auth/login?next=<現在URL>` へ遷移。email ログインは `router.push(nextPath)`、Google OAuth は `whatif_auth_next` クッキー → `/auth/callback` の redirect で同一オリジンのまま `/edit?template=…` へ復帰。
+  - 保存: `editor/utils/bannerStorage.ts` の insert/update は `getSupabase()` →（M1 で委譲済みの）Gallery browser client の `auth.getUser()` を使用 = 単一セッション。
+  - アップロード: `editor/utils/r2Upload.ts` は `supabase.functions.invoke('r2-presign')`（JWT 自動添付）→ presigned PUT。同じ単一セッションの JWT。
+  - Stripe portal / checkout（`editor/utils/subscription.ts`）も同クライアントの `auth.getSession()` の access_token を使用。
+
+**残リスク:**
+
+- 実ログインでの E2E（ログイン → `/edit` 復帰 → 保存 → premium 判定）は実ブラウザ手動検証が必要（コード整合とビルドのみ担保）。
+- `signOut` は `scope: 'local'` のまま（SSO 期の名残だが、単一アプリでも「このブラウザのみログアウト」として妥当。global 化は他デバイス強制ログアウトになるため見送り）。
+- 本番の旧 IMAGINE 併存期間中、ユーザーには「Gallery でログインしても app.whatif-ep.xyz に引き継がれない」状態が発生する（M5/M6 のリダイレクト移行で解消する前提）。
+- Vercel env の `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` は未参照になったので、M6 の片付けで削除する。既存ブラウザに残る `wf-sso-token` クッキーは Gallery からは無害（誰も読まない）だが、削除コードも撤去したため自然失効（Max-Age 30日）待ち。
+
 ### M3: 保存・アップロード・画像参照を key 方式へ切替
 
 - `asset-reference-redesign` の単一 asset module を Gallery 側に実装。
