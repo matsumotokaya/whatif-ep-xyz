@@ -1,0 +1,108 @@
+{
+  "button": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "duplicate": "复制",
+    "add": "添加",
+    "apply": "应用",
+    "close": "关闭",
+    "upload": "上传",
+    "create": "创建",
+    "back": "返回",
+    "backToHome": "返回首页"
+  },
+  "label": {
+    "width": "宽度",
+    "height": "高度",
+    "current": "当前",
+    "custom": "自定义",
+    "loading": "加载中...",
+    "admin": "管理员",
+    "premium": "高级版",
+    "free": "免费",
+    "private": "私密",
+    "public": "公开",
+    "name": "名称",
+    "untitled": "未命名"
+  },
+  "status": {
+    "saving": "保存中...",
+    "saved": "已保存",
+    "loading": "加载中...",
+    "uploading": "上传中...",
+    "creating": "创建中..."
+  },
+  "thumbnail": {
+    "loading": "加载中...",
+    "noThumbnail": "无缩略图",
+    "generating": "正在生成缩略图...",
+    "pleaseWait": "请稍候"
+  },
+  "colorPicker": {
+    "open": "打开取色器"
+  },
+  "cookie": {
+    "message": "本网站使用Cookie以提升服务质量。继续使用本网站即表示您同意使用Cookie。",
+    "accept": "同意",
+    "decline": "拒绝",
+    "privacyLink": "隐私政策"
+  },
+  "showMore": "查看更多 ({{count}}个)",
+  "items": "{{count}}个",
+  "footer": {
+    "tagline": "99%完成设计工具包",
+    "brandSite": "品牌网站",
+    "shop": "商店",
+    "aboutUs": "关于我们",
+    "company": "运营公司",
+    "legalInfo": "法律信息",
+    "privacyPolicy": "隐私政策",
+    "termsOfService": "服务条款",
+    "securityPolicy": "安全政策",
+    "contact": "联系我们",
+    "copyright": "©IMAGINE"
+  },
+  "hero": {
+    "headline1": "Your design is",
+    "headline2": "99% done.",
+    "headline3": "You just finish it.",
+    "description": "手机壁纸、社交媒体横幅、专属头像和缩略图。简单设计工具IMAGINE让创作更自由、更简单。",
+    "downloadButton": "下载为PNG"
+  },
+  "templatePromo": {
+    "eyebrow": "免费内容",
+    "title": "设计模板",
+    "description": "这些模板可直接下载并用于壁纸、头像、缩略图等用途。你也可以修改版式和文字，轻松制作属于自己的 WHATIF 风格原创设计。"
+  },
+  "clubPromo": {
+    "eyebrow": "高级会员专属内容",
+    "title": "The Club 壁纸下载",
+    "description": "Imagine 高级会员可用同一账号访问 The Club。先查看专属壁纸缩略图，再进入会员入口。",
+    "tag": "高级限定",
+    "more": "查看更多（前往 The Club）"
+  },
+  "contact": {
+    "title": "联系我们",
+    "description": "如果您有任何问题或需求，请随时与我们联系。",
+    "backToHome": "← 返回首页",
+    "name": "姓名",
+    "namePlaceholder": "张三",
+    "email": "邮箱地址",
+    "subject": "主题",
+    "subjectPlaceholder": "请输入咨询主题",
+    "messageLabel": "咨询内容",
+    "messagePlaceholder": "请详细描述您的咨询内容",
+    "submitButton": "发送",
+    "sending": "发送中...",
+    "successTitle": "发送成功",
+    "successMessage": "感谢您的咨询。我们将在1-3个工作日内回复。",
+    "errorTitle": "发送失败",
+    "errorMessage": "发送失败，请稍后重试。",
+    "directEmail": "直接发送邮件",
+    "directEmailDescription": "您也可以直接通过以下邮箱地址联系我们：",
+    "businessHours": "工作时间",
+    "businessHoursDescription": "我们将在1-3个工作日内回复您的咨询。",
+    "businessHoursNote": "（周末及节假日除外）"
+  }
+}

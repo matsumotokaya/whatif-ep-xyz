@@ -1,0 +1,132 @@
+{
+  "tabs": {
+    "tool": "ツール",
+    "layer": "レイヤー",
+    "selectTool": "選択",
+    "handTool": "ハンド"
+  },
+  "page": {
+    "canvasSettings": "キャンバス設定",
+    "canvasSize": "キャンバスサイズ",
+    "backgroundColor": "背景色",
+    "noLayers": "レイヤーがありません",
+    "addObjects": "オブジェクトを追加してください"
+  },
+  "canvasSizeSelector": {
+    "allSizes": "その他のサイズを選ぶ",
+    "customSize": "カスタムサイズ",
+    "closeCustomSize": "カスタムサイズを閉じる",
+    "width": "幅",
+    "height": "高さ",
+    "apply": "適用",
+    "currentSize": "現在",
+    "presets": {
+      "hdLandscape": "HD 横",
+      "hdPortrait": "HD 縦",
+      "youtube": "YouTube",
+      "ogp": "OGP Image",
+      "note": "note",
+      "instagramSquare": "Instagram 正方形",
+      "instagramFeed": "Instagram フィード",
+      "twitterHeader": "X ヘッダー"
+    }
+  },
+  "imageUploader": {
+    "uploadImage": "画像をアップロード",
+    "chooseFromLibrary": "ライブラリから選ぶ",
+    "imageLibrary": "画像ライブラリ",
+    "dragDropHint": "ドラッグ＆ドロップでも追加できます",
+    "supportedFormats": "JPG, PNG, GIF対応"
+  },
+  "object": {
+    "text": "テキスト",
+    "shapes": "図形",
+    "image": "画像",
+    "addText": "テキスト追加",
+    "addShape": "図形を選ぶ",
+    "templates": "テンプレート"
+  },
+  "shapes": {
+    "rectangle": "四角形",
+    "circle": "円形",
+    "triangle": "三角形",
+    "star": "星",
+    "heart": "ハート"
+  },
+  "properties": {
+    "title": "プロパティ",
+    "selectObject": "オブジェクトを選択",
+    "font": "フォント",
+    "textSize": "文字サイズ",
+    "fontWeight": "太さ",
+    "letterSpacing": "カーニング",
+    "lineHeight": "行間",
+    "textAlign": "文字揃え",
+    "fill": "塗りつぶし",
+    "stroke": "線",
+    "strokeOnly": "線のみ",
+    "strokeWidth": "線の太さ",
+    "shadow": "シャドウ",
+    "shadowBlur": "ぼかし",
+    "shadowOffsetX": "横オフセット",
+    "shadowOffsetY": "縦オフセット",
+    "shadowOpacity": "不透明度",
+    "imageBlur": "ブラー",
+    "generateShadow": "シャドウを生成",
+    "fitToCanvas": "キャンバスに合わせる",
+    "alignment": "配置",
+    "centerX": "水平中央",
+    "centerY": "垂直中央",
+    "objectsSelected": "個のオブジェクトを選択中",
+    "mixedColors": "複数の色",
+    "opacity": "不透明度",
+    "layer": "レイヤー",
+    "bringToFront": "最前面へ",
+    "sendToBack": "最背面へ",
+    "moveUp": "前面へ",
+    "moveDown": "背面へ",
+    "width": "幅",
+    "height": "高さ",
+    "delete": "削除",
+    "fontCategories": {
+      "latinSans": "🔤 欧文サンセリフ",
+      "latinSerif": "🔤 欧文セリフ",
+      "japaneseSans": "📝 和文サンセリフ",
+      "japaneseSerif": "📝 和文セリフ"
+    },
+    "fontWeights": {
+      "thin": "Thin",
+      "extraLight": "Extra Light",
+      "light": "Light",
+      "regular": "Regular",
+      "medium": "Medium",
+      "semiBold": "Semi Bold",
+      "bold": "Bold",
+      "extraBold": "Extra Bold",
+      "black": "Black"
+    }
+  },
+  "textInput": {
+    "placeholder": "テキストを入力...",
+    "add": "テキストを追加",
+    "clickCanvas": "キャンバスをクリックして配置"
+  },
+  "download": "ダウンロード",
+  "dropImage": "画像をドロップ",
+  "zoom": "ズーム",
+  "save": {
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "保存しました",
+    "unsaved": "未保存の変更",
+    "error": "保存エラー",
+    "retry": "再試行"
+  },
+  "dragToReorder": "ドラッグして並び替え",
+  "layerVisibility": {
+    "show": "表示",
+    "hide": "非表示"
+  },
+  "lock": "ロック",
+  "unlock": "ロック解除"
+}

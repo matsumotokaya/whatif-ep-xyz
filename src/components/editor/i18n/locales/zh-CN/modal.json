@@ -1,0 +1,96 @@
+{
+  "editTemplate": {
+    "title": "编辑模板",
+    "templateName": "模板名称",
+    "templateNamePlaceholder": "输入模板名称",
+    "planType": "方案类型",
+    "free": "免费",
+    "premium": "高级版",
+    "displayOrder": "显示顺序",
+    "displayOrderPlaceholder": "数字越小越靠前",
+    "displayOrderHint": "留空则按更新时间排序",
+    "size": "尺寸",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中...",
+    "deleteTemplate": "删除模板",
+    "deleteConfirm": "确定要删除吗？此操作无法撤销。",
+    "deleting": "删除中...",
+    "delete": "删除",
+    "editButton": "编辑",
+    "errors": {
+      "nameEmpty": "请输入模板名称",
+      "saveFailed": "模板保存失败",
+      "deleteFailed": "模板删除失败"
+    }
+  },
+  "upgrade": {
+    "title": "高级版专属",
+    "description": "需要升级才能查看/编辑此设计或功能",
+    "features": {
+      "access": {
+        "title": "访问所有高级版设计",
+        "desc": "无限使用高品质模板"
+      },
+      "theClub": {
+        "title": "下载画廊壁纸",
+        "desc": "无限下载所有高级壁纸包"
+      },
+      "support": {
+        "title": "无限设计文件",
+        "desc": "无限创建设计文件"
+      },
+      "earlyAccess": {
+        "title": "访问设计素材库",
+        "desc": "无限使用高级素材"
+      }
+    },
+    "upgradeButton": "高级版方案（$3/月）",
+    "cancel": "取消",
+    "comingSoon": "升级功能即将推出",
+    "freePlan": {
+      "name": "免费版",
+      "price": "$0",
+      "billing": "按月计费",
+      "active": "当前方案",
+      "feat1Title": "免费设计模板",
+      "feat1Desc": "使用所有免费模板",
+      "feat2Title": "无限设计文件",
+      "feat2Desc": "随意创建设计",
+      "feat3Title": "PNG / JPEG 导出",
+      "feat3Desc": "随时下载作品"
+    },
+    "premiumPlan": {
+      "name": "高级版",
+      "price": "$3",
+      "billing": "按月计费",
+      "upgradeButton": "升级方案"
+    }
+  },
+  "desktopRecommended": {
+    "title": "\u5efa\u8bae\u4f7f\u7528\u7535\u8111",
+    "description": "\u6b64\u5de5\u5177\u9488\u5bf9\u7b14\u8bb0\u672c\u7535\u8111\u7b49\u5927\u5c4f\u5e55\u8fdb\u884c\u4e86\u4f18\u5316\u3002\u5728\u79fb\u52a8\u8bbe\u5907\u4e0a\u90e8\u5206\u529f\u80fd\u53ef\u80fd\u53d7\u9650\u3002",
+    "dontShowAgain": "\u4e0d\u518d\u663e\u793a",
+    "gotIt": "\u77e5\u9053\u4e86"
+  },
+  "imageLibrary": {
+    "title": "图片库",
+    "tabs": {
+      "default": "高级素材库",
+      "myLibrary": "上传"
+    },
+    "upload": "上传图片",
+    "uploading": "上传中...",
+    "adminAccess": "👑 管理员权限",
+    "noDefaultImages": "暂无默认图片",
+    "noUserImages": "请上传图片到图库",
+    "onlyImages": "请选择图片文件",
+    "loginRequired": "需要登录",
+    "uploadSuccess": "已上传 {{count}} 张图片",
+    "uploadPartialFail": "{{success}} 张成功，{{fail}} 张失败",
+    "uploadFailed": "上传失败",
+    "deleteConfirm": "确定删除「{{name}}」吗？",
+    "deleteFailed": "图片删除失败",
+    "adminDbNotice": "图片的添加和删除请直接在数据库（Supabase Dashboard）中管理。可通过此处显示的图片名称识别记录。"
+  }
+}

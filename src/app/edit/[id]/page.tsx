@@ -8,9 +8,9 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-// /edit           -> guest design (localStorage) or ?template=<id> direct open
-// /edit?template= -> open an existing template (Gallery "Edit in IMAGINE")
-export default function EditPage() {
+// /edit/[id] -> open a saved banner (requires login; id read client-side via
+// the editor's router shim useParams()).
+export default function EditBannerPage() {
   return (
     <Suspense fallback={null}>
       <EditClientOnly />

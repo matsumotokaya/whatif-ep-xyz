@@ -1,0 +1,132 @@
+{
+  "tabs": {
+    "tool": "Tool",
+    "layer": "Layer",
+    "selectTool": "Select",
+    "handTool": "Hand"
+  },
+  "page": {
+    "canvasSettings": "Canvas Settings",
+    "canvasSize": "Canvas Size",
+    "backgroundColor": "Background Color",
+    "noLayers": "No layers",
+    "addObjects": "Add objects to get started"
+  },
+  "canvasSizeSelector": {
+    "allSizes": "More Sizes...",
+    "customSize": "Custom Size",
+    "closeCustomSize": "Close Custom Size",
+    "width": "Width",
+    "height": "Height",
+    "apply": "Apply",
+    "currentSize": "Current",
+    "presets": {
+      "hdLandscape": "HD Landscape",
+      "hdPortrait": "HD Portrait",
+      "youtube": "YouTube",
+      "ogp": "OGP Image",
+      "note": "note",
+      "instagramSquare": "Instagram Square",
+      "instagramFeed": "Instagram Feed",
+      "twitterHeader": "X Header"
+    }
+  },
+  "imageUploader": {
+    "uploadImage": "Upload Image",
+    "chooseFromLibrary": "Choose from Library",
+    "imageLibrary": "Image Library",
+    "dragDropHint": "You can also drag & drop images",
+    "supportedFormats": "Supports JPG, PNG, GIF"
+  },
+  "object": {
+    "text": "Text",
+    "shapes": "Shapes",
+    "image": "Image",
+    "addText": "Add Text",
+    "addShape": "Add Shape",
+    "templates": "Templates"
+  },
+  "shapes": {
+    "rectangle": "Rectangle",
+    "circle": "Circle",
+    "triangle": "Triangle",
+    "star": "Star",
+    "heart": "Heart"
+  },
+  "properties": {
+    "title": "Properties",
+    "selectObject": "Select an object",
+    "font": "Font",
+    "textSize": "Text Size",
+    "fontWeight": "Font Weight",
+    "letterSpacing": "Letter Spacing",
+    "lineHeight": "Line Height",
+    "textAlign": "Text Align",
+    "fill": "Fill",
+    "stroke": "Stroke",
+    "strokeOnly": "Stroke Only",
+    "strokeWidth": "Stroke Width",
+    "shadow": "Shadow",
+    "shadowBlur": "Blur",
+    "shadowOffsetX": "Offset X",
+    "shadowOffsetY": "Offset Y",
+    "shadowOpacity": "Opacity",
+    "imageBlur": "Blur",
+    "generateShadow": "Generate Shadow",
+    "fitToCanvas": "Fit to Canvas",
+    "alignment": "Alignment",
+    "centerX": "Center X",
+    "centerY": "Center Y",
+    "objectsSelected": "objects selected",
+    "mixedColors": "Mixed colors",
+    "opacity": "Opacity",
+    "layer": "Layer",
+    "bringToFront": "Bring to Front",
+    "sendToBack": "Send to Back",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "width": "Width",
+    "height": "Height",
+    "delete": "Delete",
+    "fontCategories": {
+      "latinSans": "Latin Sans Serif",
+      "latinSerif": "Latin Serif",
+      "japaneseSans": "Japanese Sans Serif",
+      "japaneseSerif": "Japanese Serif"
+    },
+    "fontWeights": {
+      "thin": "Thin",
+      "extraLight": "Extra Light",
+      "light": "Light",
+      "regular": "Regular",
+      "medium": "Medium",
+      "semiBold": "Semi Bold",
+      "bold": "Bold",
+      "extraBold": "Extra Bold",
+      "black": "Black"
+    }
+  },
+  "textInput": {
+    "placeholder": "Enter text...",
+    "add": "Add Text",
+    "clickCanvas": "Click on canvas to place"
+  },
+  "download": "Download",
+  "dropImage": "Drop image here",
+  "zoom": "Zoom",
+  "save": {
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "unsaved": "Unsaved changes",
+    "error": "Save error",
+    "retry": "Retry"
+  },
+  "dragToReorder": "Drag to reorder",
+  "layerVisibility": {
+    "show": "Show",
+    "hide": "Hide"
+  },
+  "lock": "Lock",
+  "unlock": "Unlock"
+}

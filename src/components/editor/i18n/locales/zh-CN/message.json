@@ -1,0 +1,38 @@
+{
+  "error": {
+    "imageGenerationFailed": "图片生成失败，请重试。",
+    "exportFailed": "图片导出失败。",
+    "loginRequired": "需要登录",
+    "bannerCreationFailed": "横幅创建失败",
+    "uploadFailed": "上传失败",
+    "onlyImageFiles": "请选择图片文件",
+    "upgradeComingSoon": "升级功能即将推出",
+    "upgradeError": "升级失败，请重试。",
+    "saveFailed": "保存失败",
+    "imageLoginRequired": "访客免费模式下无法上传图片。登录后即可上传。",
+    "imageUploadFailed": "图片上传失败。"
+  },
+  "success": {
+    "uploadComplete": "已成功上传 {{count}} 张图片",
+    "uploadPartial": "{{success}} 张成功，{{fail}} 张失败",
+    "upgradeComplete": "升级完成！",
+    "welcomePremium": "欢迎使用 IMAGINE Premium！所有高级功能现已可用。",
+    "premiumFeatures": "高级功能",
+    "feature1": "访问所有高级版横幅",
+    "feature2": "无限使用高品质模板",
+    "feature3": "优先支持及抢先体验新功能",
+    "redirecting": "{{seconds}} 秒后返回首页..."
+  },
+  "info": {
+    "saveImageGuide": "在 iPhone 上，请打开分享菜单并选择“存储图像”以保存到相册。",
+    "inAppBrowserGuide": "如果在应用内浏览器中无法保存，请改用 Safari 打开后重试。"
+  },
+  "confirm": {
+    "deleteBanner": "确定要删除此横幅吗？"
+  },
+  "placeholder": {
+    "defaultBannerText": "使用 IMAGINE 创建横幅。",
+    "enterText": "输入文字...",
+    "untitledBanner": "未命名横幅"
+  }
+}

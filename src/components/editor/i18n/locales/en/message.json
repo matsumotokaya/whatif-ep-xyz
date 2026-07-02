@@ -1,0 +1,39 @@
+{
+  "error": {
+    "imageGenerationFailed": "Image generation failed. Please try again.",
+    "exportFailed": "Image export failed.",
+    "loginRequired": "Login required",
+    "bannerCreationFailed": "Failed to create banner",
+    "uploadFailed": "Upload failed",
+    "onlyImageFiles": "Please select image files only",
+    "upgradeComingSoon": "Upgrade feature coming soon",
+    "upgradeError": "Upgrade failed. Please try again.",
+    "saveFailed": "Save failed",
+    "imageLoginRequired": "Image upload is not available in guest free mode. Log in to enable uploads.",
+    "imageUploadFailed": "Image upload failed.",
+    "subscriptionPortalFailed": "Could not open subscription management. Please try again."
+  },
+  "success": {
+    "uploadComplete": "{{count}} image(s) uploaded successfully",
+    "uploadPartial": "{{success}} succeeded, {{fail}} failed",
+    "upgradeComplete": "Upgrade Complete!",
+    "welcomePremium": "Welcome to IMAGINE Premium! You now have access to all premium features.",
+    "premiumFeatures": "Premium Features",
+    "feature1": "Access to all Premium banners",
+    "feature2": "Unlimited use of high-quality templates",
+    "feature3": "Priority support & early access to new features",
+    "redirecting": "Redirecting to home in {{seconds}} seconds..."
+  },
+  "info": {
+    "saveImageGuide": "On iPhone, open Share and choose Save Image to add it to your Camera Roll.",
+    "inAppBrowserGuide": "If save fails in an in-app browser, open this page in Safari and try again."
+  },
+  "confirm": {
+    "deleteBanner": "Are you sure you want to delete this banner?"
+  },
+  "placeholder": {
+    "defaultBannerText": "Create banners with IMAGINE.",
+    "enterText": "Enter text...",
+    "untitledBanner": "Untitled Banner"
+  }
+}
