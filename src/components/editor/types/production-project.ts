@@ -66,6 +66,8 @@ export interface ProductionBannerSummary {
   updated_at: string;
   thumbnail_url: string | null;
   fullres_url: string | null;
+  thumbnail_key?: string | null;
+  fullres_key?: string | null;
   template: {
     width?: number;
     height?: number;

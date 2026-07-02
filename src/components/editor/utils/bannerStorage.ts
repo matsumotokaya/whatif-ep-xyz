@@ -2,21 +2,32 @@ import { getSupabase } from './supabase';
 import { cacheManager } from './cacheManager';
 import type { Banner, BannerListItem, CanvasElement, Template, TemplateRecord } from '../types/template';
 import {
-  appendCacheBust,
+  dataUrlToBlob,
   extractStoragePathFromPublicUrl,
   removeFilesFromBucket,
-  uploadDataUrlToBucket,
 } from './storage';
+import { uploadAsset, deleteAssets } from './r2Upload';
+import {
+  buildBannerThumbKey,
+  buildBannerFullKey,
+  isAssetKey,
+  resolveAsset,
+} from '@/lib/asset';
 
 const BANNER_ASSET_BUCKET = 'user-images';
 
-const getBannerThumbnailFileBase = (userId: string, bannerId: string, revision?: string) =>
-  `${userId}/thumbnails/${bannerId}${revision ? `-${revision}` : ''}`;
-const getBannerDownloadFileBase = (userId: string, bannerId: string, revision?: string) =>
-  `${userId}/downloads/${bannerId}${revision ? `-${revision}` : ''}`;
-const versionAssetUrl = (url: string | null | undefined, updatedAt: string) =>
-  url ? appendCacheBust(url, updatedAt) : undefined;
-const createBannerAssetRevision = () => Date.now().toString(36);
+// Resolve a stored banner asset to a public URL: prefer the key column
+// (M3 R2 target), fall back to the legacy full-URL column (passthrough). Both
+// are cache-busted with the row's updated_at.
+const resolveBannerAsset = (
+  key: string | null | undefined,
+  url: string | null | undefined,
+  updatedAt: string,
+): string | undefined => {
+  const value = key || url;
+  if (!value) return undefined;
+  return resolveAsset(value, { version: updatedAt, legacyBucket: 'user-images' }) || undefined;
+};
 
 interface DbBanner {
   id: string;
@@ -27,6 +38,8 @@ interface DbBanner {
   canvas_color: string;
   thumbnail_url?: string | null;
   fullres_url?: string | null;
+  thumbnail_key?: string | null;
+  fullres_key?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +49,8 @@ interface DbBannerListItem {
   name: string;
   thumbnail_url?: string | null;
   fullres_url?: string | null;
+  thumbnail_key?: string | null;
+  fullres_key?: string | null;
   updated_at: string;
   template?: { width?: number; height?: number } | null;
   display_order?: number | null;
@@ -48,8 +63,8 @@ const dbToBanner = (db: DbBanner): Banner => ({
   template: db.template,
   elements: db.elements,
   canvasColor: db.canvas_color,
-  thumbnailUrl: versionAssetUrl(db.thumbnail_url, db.updated_at),
-  fullresUrl: versionAssetUrl(db.fullres_url, db.updated_at),
+  thumbnailUrl: resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at),
+  fullresUrl: resolveBannerAsset(db.fullres_key, db.fullres_url, db.updated_at),
   createdAt: db.created_at,
   updatedAt: db.updated_at,
 });
@@ -57,13 +72,36 @@ const dbToBanner = (db: DbBanner): Banner => ({
 const dbToBannerListItem = (db: DbBannerListItem): BannerListItem => ({
   id: db.id,
   name: db.name,
-  thumbnailUrl: versionAssetUrl(db.thumbnail_url, db.updated_at),
-  fullresUrl: versionAssetUrl(db.fullres_url, db.updated_at),
+  thumbnailUrl: resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at),
+  fullresUrl: resolveBannerAsset(db.fullres_key, db.fullres_url, db.updated_at),
   updatedAt: db.updated_at,
   width: db.template?.width,
   height: db.template?.height,
   displayOrder: db.display_order ?? undefined,
 });
+
+// Collect storage delete targets for a banner from its stored asset columns,
+// routing R2 keys and legacy Supabase full URLs to their respective backends.
+const collectBannerDeleteTargets = (row: {
+  thumbnail_key?: string | null;
+  fullres_key?: string | null;
+  thumbnail_url?: string | null;
+  fullres_url?: string | null;
+}): { r2Keys: string[]; supabasePaths: string[] } => {
+  const r2Keys: string[] = [];
+  const supabasePaths: string[] = [];
+  const consider = (key: string | null | undefined, url: string | null | undefined) => {
+    if (key && isAssetKey(key)) {
+      r2Keys.push(key);
+      return;
+    }
+    const path = extractStoragePathFromPublicUrl(url ?? '', BANNER_ASSET_BUCKET);
+    if (path) supabasePaths.push(path);
+  };
+  consider(row.thumbnail_key, row.thumbnail_url);
+  consider(row.fullres_key, row.fullres_url);
+  return { r2Keys, supabasePaths };
+};
 
 export const bannerStorage = {
   async createFromTemplate(template: TemplateRecord, editorTemplate: Template): Promise<Banner | null> {
@@ -122,7 +160,7 @@ export const bannerStorage = {
     // RLS policy handles access control: public banners OR own banners
     const { data, error } = await supabase
       .from('banners')
-      .select('id, name, thumbnail_url, fullres_url, updated_at, template, display_order')
+      .select('id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, updated_at, template, display_order')
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -221,6 +259,8 @@ export const bannerStorage = {
     if (updates.canvasColor !== undefined) dbUpdates.canvas_color = updates.canvasColor;
     if (updates.thumbnailUrl !== undefined) dbUpdates.thumbnail_url = updates.thumbnailUrl;
     if (updates.fullresUrl !== undefined) dbUpdates.fullres_url = updates.fullresUrl;
+    if (updates.thumbnailKey !== undefined) dbUpdates.thumbnail_key = updates.thumbnailKey;
+    if (updates.fullresKey !== undefined) dbUpdates.fullres_key = updates.fullresKey;
 
     const { data, error } = await supabase
       .from('banners')
@@ -249,7 +289,7 @@ export const bannerStorage = {
 
      const { data: existingBanner } = await supabase
       .from('banners')
-      .select('thumbnail_url, fullres_url')
+      .select('thumbnail_url, fullres_url, thumbnail_key, fullres_key')
       .eq('id', id)
       .eq('user_id', user.id)
       .single();
@@ -263,14 +303,18 @@ export const bannerStorage = {
     if (error) {
       console.error('Error deleting banner:', error);
     } else {
-      const storagePaths = [
-        extractStoragePathFromPublicUrl(existingBanner?.thumbnail_url ?? '', BANNER_ASSET_BUCKET),
-        extractStoragePathFromPublicUrl(existingBanner?.fullres_url ?? '', BANNER_ASSET_BUCKET),
-      ].filter((path): path is string => Boolean(path));
+      const { r2Keys, supabasePaths } = collectBannerDeleteTargets(existingBanner ?? {});
 
-      if (storagePaths.length > 0) {
+      if (r2Keys.length > 0) {
         try {
-          await removeFilesFromBucket(BANNER_ASSET_BUCKET, storagePaths);
+          await deleteAssets(r2Keys);
+        } catch (storageError) {
+          console.warn('Failed to remove banner R2 assets:', storageError);
+        }
+      }
+      if (supabasePaths.length > 0) {
+        try {
+          await removeFilesFromBucket(BANNER_ASSET_BUCKET, supabasePaths);
         } catch (storageError) {
           console.warn('Failed to remove banner assets:', storageError);
         }
@@ -329,19 +373,21 @@ export const bannerStorage = {
     await this.update(id, { canvasColor });
   },
 
-  // Save thumbnail
+  // Save thumbnail. Uploads to a deterministic R2 key (overwrite-in-place) and
+  // stores the key; the URL is composed at read time via resolveAsset.
   async saveThumbnail(id: string, thumbnailDataURL: string): Promise<void> {
     const supabase = await getSupabase();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const fileBase = getBannerThumbnailFileBase(user.id, id, createBannerAssetRevision());
-    const publicUrl = await uploadDataUrlToBucket(thumbnailDataURL, BANNER_ASSET_BUCKET, fileBase, {
-      upsert: false,
-    });
-    await this.update(id, { thumbnailUrl: publicUrl });
+    const { blob, mimeType } = dataUrlToBlob(thumbnailDataURL);
+    const key = await uploadAsset(buildBannerThumbKey(user.id, id), blob, mimeType);
+    await this.update(id, { thumbnailKey: key });
   },
 
-  // Batch save multiple properties at once (optimized for auto-save)
+  // Batch save multiple properties at once (optimized for auto-save). Thumbnail
+  // and full-res images upload to deterministic R2 keys (thumb.jpg / full.png)
+  // that overwrite in place, so no stale-asset cleanup is needed and only the
+  // key columns are persisted.
   async batchSave(
     id: string,
     updates: {
@@ -357,78 +403,31 @@ export const bannerStorage = {
     if (updates.thumbnailDataURL || updates.fullresDataURL) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: currentAssets, error: currentAssetsError } = await supabase
-          .from('banners')
-          .select('thumbnail_url, fullres_url')
-          .eq('id', id)
-          .eq('user_id', user.id)
-          .single();
-
-        if (currentAssetsError) {
-          console.error('Error fetching current banner assets:', currentAssetsError);
+        let nextThumbnailKey: string | undefined;
+        if (updates.thumbnailDataURL) {
+          const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
+          nextThumbnailKey = await uploadAsset(buildBannerThumbKey(user.id, id), blob, mimeType);
         }
-
-        const assetRevision = createBannerAssetRevision();
-        const nextThumbnailUrl = updates.thumbnailDataURL
-          ? await uploadDataUrlToBucket(
-              updates.thumbnailDataURL,
-              BANNER_ASSET_BUCKET,
-              getBannerThumbnailFileBase(user.id, id, assetRevision),
-              { upsert: false }
-            )
-          : undefined;
 
         let savedBanner = await this.update(id, {
           elements: updates.elements,
           canvasColor: updates.canvasColor,
-          thumbnailUrl: nextThumbnailUrl,
+          thumbnailKey: nextThumbnailKey,
         });
 
-        const staleThumbnailPath =
-          currentAssets?.thumbnail_url && nextThumbnailUrl && currentAssets.thumbnail_url !== nextThumbnailUrl
-            ? extractStoragePathFromPublicUrl(currentAssets.thumbnail_url, BANNER_ASSET_BUCKET)
-            : null;
-
-        if (staleThumbnailPath) {
-          try {
-            await removeFilesFromBucket(BANNER_ASSET_BUCKET, [staleThumbnailPath]);
-          } catch (storageError) {
-            console.warn('Failed to clean up stale banner thumbnail asset:', storageError);
-          }
-        }
-
         if (updates.fullresDataURL) {
-          const previousFullresUrl = currentAssets?.fullres_url ?? null;
-
           // Full-resolution PNG is heavier than the list thumbnail, so persist it
           // separately to avoid blocking preview freshness when the PNG upload fails.
           try {
-            const nextFullresUrl = await uploadDataUrlToBucket(
-              updates.fullresDataURL as string,
-              BANNER_ASSET_BUCKET,
-              getBannerDownloadFileBase(user.id, id, assetRevision),
-              { upsert: false }
-            );
+            const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
+            const nextFullresKey = await uploadAsset(buildBannerFullKey(user.id, id), blob, mimeType);
 
             const bannerWithFullres = await this.update(id, {
-              fullresUrl: nextFullresUrl,
+              fullresKey: nextFullresKey,
             });
 
             if (bannerWithFullres) {
               savedBanner = bannerWithFullres;
-            }
-
-            const staleFullresPath =
-              previousFullresUrl && previousFullresUrl !== nextFullresUrl
-                ? extractStoragePathFromPublicUrl(previousFullresUrl, BANNER_ASSET_BUCKET)
-                : null;
-
-            if (staleFullresPath) {
-              try {
-                await removeFilesFromBucket(BANNER_ASSET_BUCKET, [staleFullresPath]);
-              } catch (storageError) {
-                console.warn('Failed to clean up stale banner full-resolution asset:', storageError);
-              }
             }
           } catch (fullresError) {
             console.warn('Failed to upload/save banner full-resolution asset:', fullresError);

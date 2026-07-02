@@ -11,8 +11,10 @@ import type {
 import { formatSeriesLabel, formatWorkDisplayCode } from './libraryAssets';
 import { ensureCanonicalWorkVariant } from './canonicalWorks';
 import { getFitToCanvasPlacement } from './canvasPlacement';
-import { appendCacheBust, extractStoragePathFromPublicUrl, removeFilesFromBucket } from './storage';
-import { resolveAssetUrl, type StorageProvider } from './assetUrl';
+import { extractStoragePathFromPublicUrl, removeFilesFromBucket } from './storage';
+import { deleteAssets } from './r2Upload';
+import { isAssetKey, resolveAsset, toDefaultImageKey } from '@/lib/asset';
+import type { StorageProvider } from './assetUrl';
 
 const DEFAULT_DRAFT_CANVAS_COLOR = '#808080';
 const INSTAGRAM_FEED_ACCENT_COLOR = '#fd4d52';
@@ -105,7 +107,10 @@ function getAssetDimensions(asset: DefaultImage): { width: number; height: numbe
 }
 
 function buildCenteredImageElement(asset: DefaultImage, spec: DraftBannerSpec): ImageElement {
-  const src = resolveAssetUrl(asset.storage_provider ?? 'supabase', 'default-images', asset.storage_path);
+  // Store the relative asset key in element.src (resolved at render time), not
+  // an absolute URL. default_images.storage_path is a bare path; prefix it with
+  // the default-images logical bucket to form the key.
+  const src = toDefaultImageKey(asset.storage_path) as string;
   const { width: sourceWidth, height: sourceHeight } = getAssetDimensions(asset);
   const placement = getFitToCanvasPlacement(
     spec.template.width,
@@ -249,7 +254,7 @@ async function loadProjectSummariesByIds(projectIds: string[]): Promise<Producti
   if (bannerIds.length > 0) {
     const { data: banners, error: bannersError } = await supabase
       .from('banners')
-      .select('id, name, updated_at, thumbnail_url, fullres_url, template')
+      .select('id, name, updated_at, thumbnail_url, fullres_url, thumbnail_key, fullres_key, template')
       .in('id', bannerIds);
 
     if (bannersError) {
@@ -291,11 +296,14 @@ async function loadProjectSummariesByIds(projectIds: string[]): Promise<Producti
       role: link.role,
       sortOrder: link.sort_order,
       name: banner.name,
-      thumbnailUrl: appendCacheBust(
-        banner.thumbnail_url ?? '',
-        banner.updated_at,
-      ) || null,
-      fullresUrl: appendCacheBust(banner.fullres_url ?? '', banner.updated_at) || null,
+      thumbnailUrl: resolveAsset(banner.thumbnail_key || banner.thumbnail_url, {
+        version: banner.updated_at,
+        legacyBucket: 'user-images',
+      }) || null,
+      fullresUrl: resolveAsset(banner.fullres_key || banner.fullres_url, {
+        version: banner.updated_at,
+        legacyBucket: 'user-images',
+      }) || null,
       width: banner.template?.width,
       height: banner.template?.height,
     });
@@ -412,6 +420,9 @@ type EnsureProjectOptions = {
 type ProjectStorageFile = {
   bucket: string;
   path: string;
+  // Backend the object lives on. 'r2' objects are deleted through the presign
+  // Edge Function; 'supabase' objects through Supabase Storage.
+  provider?: StorageProvider;
 };
 
 function getPrimaryEditBanner(
@@ -440,14 +451,27 @@ async function removeProjectStorageFiles(files: ProjectStorageFile[]): Promise<v
     return;
   }
 
-  const bucketMap = new Map<string, string[]>();
+  // R2-backed objects: delete via the presign Edge Function using the full
+  // `{bucket}/{path}` object key. This fixes the previous silent no-op where
+  // R2 outputs were routed to Supabase Storage (which does not hold them).
+  const r2Keys: string[] = [];
+  const supabaseByBucket = new Map<string, string[]>();
+
   for (const file of files) {
-    const paths = bucketMap.get(file.bucket) ?? [];
-    paths.push(file.path);
-    bucketMap.set(file.bucket, paths);
+    if (file.provider === 'r2') {
+      r2Keys.push(`${file.bucket}/${file.path}`);
+    } else {
+      const paths = supabaseByBucket.get(file.bucket) ?? [];
+      paths.push(file.path);
+      supabaseByBucket.set(file.bucket, paths);
+    }
   }
 
-  for (const [bucket, paths] of bucketMap) {
+  if (r2Keys.length > 0) {
+    await deleteAssets(r2Keys);
+  }
+
+  for (const [bucket, paths] of supabaseByBucket) {
     await removeFilesFromBucket(bucket, paths);
   }
 }
@@ -463,7 +487,7 @@ async function deleteBannerRecords(params: {
   const supabase = await getSupabase();
   const { data: banners, error: bannersError } = await supabase
     .from('banners')
-    .select('id, thumbnail_url, fullres_url')
+    .select('id, thumbnail_url, fullres_url, thumbnail_key, fullres_key')
     .in('id', params.bannerIds)
     .eq('user_id', params.userId);
 
@@ -472,22 +496,26 @@ async function deleteBannerRecords(params: {
   }
 
   const files: ProjectStorageFile[] = [];
-  for (const banner of banners ?? []) {
-    const thumbnailPath = extractStoragePathFromPublicUrl(
-      banner.thumbnail_url ?? '',
-      BANNER_ASSET_BUCKET,
-    );
-    const fullresPath = extractStoragePathFromPublicUrl(
-      banner.fullres_url ?? '',
-      BANNER_ASSET_BUCKET,
-    );
+  const addBannerAsset = (
+    key: string | null | undefined,
+    url: string | null | undefined,
+  ) => {
+    // Prefer the R2 key column; delete the object key directly. Fall back to
+    // deriving the Supabase path from the legacy full URL.
+    if (key && isAssetKey(key)) {
+      const [bucket, ...rest] = key.split('/');
+      files.push({ bucket, path: rest.join('/'), provider: 'r2' });
+      return;
+    }
+    const path = extractStoragePathFromPublicUrl(url ?? '', BANNER_ASSET_BUCKET);
+    if (path) {
+      files.push({ bucket: BANNER_ASSET_BUCKET, path, provider: 'supabase' });
+    }
+  };
 
-    if (thumbnailPath) {
-      files.push({ bucket: BANNER_ASSET_BUCKET, path: thumbnailPath });
-    }
-    if (fullresPath) {
-      files.push({ bucket: BANNER_ASSET_BUCKET, path: fullresPath });
-    }
+  for (const banner of banners ?? []) {
+    addBannerAsset(banner.thumbnail_key, banner.thumbnail_url);
+    addBannerAsset(banner.fullres_key, banner.fullres_url);
   }
 
   const { error: deleteError } = await supabase
@@ -511,7 +539,7 @@ async function collectProjectOutputFiles(projectId: string): Promise<ProjectStor
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('production_outputs')
-    .select('storage_bucket, storage_path')
+    .select('storage_bucket, storage_path, storage_provider')
     .eq('project_id', projectId);
 
   if (error) {
@@ -519,11 +547,12 @@ async function collectProjectOutputFiles(projectId: string): Promise<ProjectStor
   }
 
   return (data ?? [])
-    .filter((row): row is { storage_bucket: string; storage_path: string } =>
+    .filter((row): row is { storage_bucket: string; storage_path: string; storage_provider: StorageProvider | null } =>
       Boolean(row.storage_bucket) && Boolean(row.storage_path))
     .map((row) => ({
       bucket: row.storage_bucket,
       path: row.storage_path,
+      provider: row.storage_provider ?? 'supabase',
     }));
 }
 

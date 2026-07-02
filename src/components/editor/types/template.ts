@@ -96,8 +96,13 @@ export interface Banner {
   template: Template;
   elements: CanvasElement[];
   canvasColor: string;
+  // Resolved public URLs (read side). Composed from the key columns at read
+  // time, falling back to the legacy full-URL columns.
   thumbnailUrl?: string;
   fullresUrl?: string;
+  // Relative asset keys (write side, M3). New writes populate these.
+  thumbnailKey?: string;
+  fullresKey?: string;
 }
 
 export interface BannerListItem {

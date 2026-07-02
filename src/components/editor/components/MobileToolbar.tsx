@@ -9,6 +9,7 @@ import { ColorSelector } from './ColorSelector';
 import { MobileSheet } from './MobileSheet';
 import { useAuth } from '../contexts/AuthContext';
 import type { CanvasElement } from '../types/template';
+import { resolveElementSrc } from '@/lib/asset';
 import { arrayMove } from '@dnd-kit/sortable';
 
 interface MobileToolbarProps {
@@ -80,7 +81,7 @@ export const MobileToolbar = ({
       return element.text.length > 20 ? element.text.substring(0, 20) + '...' : element.text;
     } else if (element.type === 'image') {
       try {
-        const url = new URL(element.src);
+        const url = new URL(resolveElementSrc(element.src));
         const pathParts = url.pathname.split('/');
         const filename = pathParts[pathParts.length - 1];
         return filename.length > 20 ? filename.substring(0, 20) + '...' : filename;

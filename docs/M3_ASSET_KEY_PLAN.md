@@ -178,3 +178,50 @@ alter table public.default_images drop column storage_provider;
 7. Cloudflare ネガティブキャッシュ → 検証は認証 S3 HEAD
 8. `src/lib/r2.ts`（r2-legacy）と混同しない
 9. 細部: `profiles.avatar_url` bare 1件 / ゲスト localStorage 旧データ / `user_images.thumbnail_path` null 16件
+
+---
+
+## 6. 実施記録
+
+### 2026-07-02 Phase 0〜2 実装（コミット前・レビュー待ち）
+
+**Phase 0 再確認（read-only MCP）**
+
+- 件数は §0.1 と一致: banners.thumbnail_url=376 / null=147、fullres_url=79、templates.thumbnail_url=251、user_images=140、default_images=112。elements[].src: banners Supabase 1309 + R2 416 + bare 0、templates Supabase 242 + R2 192 + bare 0。
+- Supabase Storage 実体は `user-images` のみ（**846 オブジェクト / 約 526MB**、実測 551,677,494 bytes）。`default-images` は 0（R2 移行済み）。
+- **Stage A の key 列は追加済みを確認**: `banners.thumbnail_key` / `banners.fullres_key` / `templates.thumbnail_key` が information_schema に存在（ユーザー実行済み）。
+- 手動テンプレ保存の「壊れ疑い」実測: `storage.buckets` に `default-images`（public）が存在し RLS も admin INSERT/SELECT あり。実体は 0 だが**書込先バケット自体は存在**するため、旧コードは「アップロードは成功するが Wave A の原本削除で 404」になる構造。M3 で `default-images/templates/{id}/thumb.jpg`（R2）へ切替え、key 保存に修正した。
+
+**Phase 2 実装ファイル（新規1・変更13）**
+
+- 新規 `src/lib/asset.ts`: `AssetKey` brand 型 / `isFullUrl` / `isInlineData` / `isAssetKey` / `asAssetKey` / `resolveAsset`（passthrough + logical-prefix→R2 + bare+legacyBucket フォールバック）/ `resolveElementSrc` / `appendCacheBust`（asset-url.ts の appendVersion を共用）/ 決定的キー生成（`buildBannerThumbKey`/`buildBannerFullKey`/`buildUserUploadKey`/`buildTemplateThumbKey`/`buildLibraryAssetKey`/`toDefaultImageKey`）。
+- `editor/utils/assetUrl.ts`: src/lib/asset.ts への re-export シム化（StorageProvider 型のみ互換保持）。
+- `editor/utils/r2Upload.ts`: `uploadAsset(key)→key` / `deleteAssets(keys)` / `deleteAsset(key)` に改修（URL を返さない）。
+- `editor/utils/storage.ts`: `{r2}` オプトインと uploadBlobToR2 依存を削除。appendCacheBust は @/lib/asset から再輸出。
+- `editor/utils/bannerStorage.ts`: サムネ/フルレスを固定キー（thumb.jpg/full.png）上書きで R2 アップロード、`thumbnail_key`/`fullres_key` 保存。読みは key 優先→URL フォールバック。delete は key→R2 / URL→Supabase 振り分け。旧リビジョン方式・stale 掃除を撤去。
+- `editor/utils/templateStorage.ts`: 読みは thumbnail_key 優先。createTemplate は thumbnailKey を受ける形へ。`setTemplateThumbnailKey` 追加。Publish はテンプレ自身のキーへサムネ複製（失敗時は banner key 参照の非致命フォールバック）。
+- `editor/utils/productionProjects.ts`: `buildCenteredImageElement` は `default-images/{path}` の**キーを src に保存**。banner サムネ読みを key 優先へ。production_outputs 削除の **R2 silent no-op を修正**（provider を見て r2=deleteAssets / supabase=removeFilesFromBucket）。deleteBannerRecords も key/URL 振り分け。
+- `pages/BannerEditor.tsx`: 画像追加/ドロップ/シャドウ生成の 3 アップロードを `uploadAsset(buildUserUploadKey)` に、`element.src` にキー保存、user_images にフルキー insert。シャドウ元は resolveElementSrc 経由。手動テンプレ保存は create→キーへ upload→setTemplateThumbnailKey の順。
+- `components/ImageLibraryModal.tsx`: 両タブとも R2 presign アップロード。グリッドは resolveAsset。選択時は**キー**を返す（default は `default-images/` 前置、user は storage_path そのまま）。削除は R2/Supabase 振り分け。
+- 読み取り: `canvas/ImageRenderer.tsx`（ロード直前 resolveElementSrc、Supabase blob 迂回は温存）/ `Sidebar.tsx`・`MobileToolbar.tsx`（レイヤー名は resolveElementSrc 後に URL パース）。
+- 型: `types/template.ts`（Banner に thumbnailKey/fullresKey）/ `types/production-project.ts`（ProductionBannerSummary に thumbnail_key/fullres_key）。
+- **エディタ state の element.src はキーのまま保持**。
+
+**Phase 1 納品物**
+
+- `scripts/migrate-user-images-to-r2.mjs`: Supabase `user-images` 全オブジェクトを R2 `whatif-assets/user-images/{元パス}` へ複製。コピーのみ（原本温存）・冪等（認証付き S3 HEAD で既存スキップ）・進捗表示・list() 再帰ページング。env は既存 .env.local のキー名。`node --env-file=.env.local scripts/migrate-user-images-to-r2.mjs`（--apply で実行）。**実行はユーザー**。
+
+**検証**
+
+- `npm run build`: 成功（TS 型チェック通過）。
+- dev(3710): `/edit?template=ed2f8904…`=200 / `/mydesign`=200 / `/works/episode`=200。
+- headless Chrome で `/edit?template=`: `konvajs-content` + `<canvas>` マウント確認。dev.log にエラー無し。当該テンプレの element.src は全て full Supabase URL → passthrough で従来どおり表示。
+- resolver 分岐のユニット確認: 7 ケース PASS（full passthrough / prefixed→R2 / bare user→Supabase / bare default→R2 / null / data:）。
+
+**Stage C の前提**: Stage A 適用済み。残る前提は **Phase 1 スクリプトの実行（846 個の R2 複製）**。完了後に §3 Stage C の DML を実行可。
+
+**未解決リスク・TODO**
+
+- レガシー bare user-images 行をライブラリ選択→新規保存すると element.src が bare キーになり Supabase 解決（Stage D で原本削除するまでは表示可）。新規アップロード分は full prefixed key で R2 直参照のため影響なし。恒久解決は M4 で判断。
+- Publish のサムネ複製は fetch(assets.whatif-ep.xyz)→R2 PUT をブラウザで実行。CORS 不可時は banner key 参照へ非致命フォールバック。
+- リスク #3（M3〜M4 間の imagine Publish で full URL 再発）は据え置き。

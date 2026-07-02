@@ -1,22 +1,14 @@
 import { getSupabase, getSupabaseStoragePublicUrl } from './supabase';
-import { isR2Configured, toR2Key } from './assetUrl';
-import { uploadBlobToR2 } from './r2Upload';
 
-// Re-exported from the leaf assetUrl module so existing importers
-// (e.g. bannerStorage) keep working without an import cycle.
-export { appendCacheBust } from './assetUrl';
+// Re-exported from the single asset module (M3) so existing importers
+// (e.g. bannerStorage) keep working.
+export { appendCacheBust } from '@/lib/asset';
 
 const DATA_URL_PREFIX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/;
 const PUBLIC_OBJECT_PATH_SEGMENT = '/storage/v1/object/public/';
 
 interface UploadOptions {
   upsert?: boolean;
-  // Opt-in: route this upload to Cloudflare R2 (presigned PUT) instead of
-  // Supabase Storage. Only call sites whose READ path is provider-aware
-  // (full-URL columns, or rows carrying storage_provider) should set this.
-  // Library-table-backed uploads (default_images / user_images) stay on
-  // Supabase until those tables gain a storage_provider column.
-  r2?: boolean;
 }
 
 export const getExtensionFromMime = (mimeType: string): string => {
@@ -55,12 +47,6 @@ export const uploadBlobToBucket = async (
   contentType: string,
   options: UploadOptions = {}
 ): Promise<string> => {
-  // Opt-in R2: single bucket, logical bucket name becomes the key prefix.
-  // PUT overwrites in place, so the legacy `upsert` flag is a no-op.
-  if (options.r2 && isR2Configured) {
-    return uploadBlobToR2(toR2Key(bucket, filePath), blob, contentType);
-  }
-
   const supabase = await getSupabase();
   const { error } = await supabase.storage
     .from(bucket)
@@ -96,12 +82,6 @@ export const uploadFileToBucket = async (
 ): Promise<string> => {
   const extension = getExtensionFromMime(file.type || '');
   const filePath = `${filePathBase}.${extension}`;
-  const contentType = file.type || 'application/octet-stream';
-
-  if (options.r2 && isR2Configured) {
-    return uploadBlobToR2(toR2Key(bucket, filePath), file, contentType);
-  }
-
   const supabase = await getSupabase();
   const { error } = await supabase.storage
     .from(bucket)

@@ -20,7 +20,9 @@ import { useElementOperations } from '../hooks/useElementOperations';
 import { useAuth } from '../contexts/AuthContext';
 import { GUEST_STORAGE_KEY } from '../utils/guestDesign';
 import { useOpenTemplate } from '../hooks/useOpenTemplate';
-import { isDataUrlImage, uploadDataUrlToBucket, uploadFileToBucket } from '../utils/storage';
+import { isDataUrlImage, dataUrlToBlob, getExtensionFromMime } from '../utils/storage';
+import { uploadAsset } from '../utils/r2Upload';
+import { buildUserUploadKey, buildTemplateThumbKey, resolveElementSrc } from '@/lib/asset';
 import { templateStorage } from '../utils/templateStorage';
 import { exportImageFromDataUrl } from '../utils/exportImage';
 import { createSilhouetteBlob } from '../utils/imageShadow';
@@ -1042,24 +1044,23 @@ export const BannerEditor = () => {
         return;
       }
       try {
-        const fileBase = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        finalSrc = await uploadDataUrlToBucket(src, 'user-images', fileBase);
+        const { blob, mimeType, extension } = dataUrlToBlob(src);
+        const key = buildUserUploadKey(user.id, crypto.randomUUID(), extension);
+        // Store the relative asset key in element.src (resolved at render time);
+        // the user_images row records the same full key.
+        finalSrc = await uploadAsset(key, blob, mimeType);
 
-        // Register metadata to user_images table so it appears in Uploads tab
-        const storagePath = finalSrc.split('/user-images/')[1];
-        if (storagePath) {
-          await insertUserImageRecord({
-            userId: user.id,
-            name: `image-${Date.now()}`,
-            storagePath,
-            width,
-            height,
-            fileSize: 0,
-            assetScope: 'user',
-            sourceContext: 'editor',
-            assetRole: 'general',
-          });
-        }
+        await insertUserImageRecord({
+          userId: user.id,
+          name: `image-${Date.now()}`,
+          storagePath: finalSrc,
+          width,
+          height,
+          fileSize: blob.size,
+          assetScope: 'user',
+          sourceContext: 'editor',
+          assetRole: 'general',
+        });
       } catch (error) {
         console.error('Image upload failed:', error);
         alert(t('message:error.imageUploadFailed'));
@@ -1099,26 +1100,25 @@ export const BannerEditor = () => {
       return;
     }
 
-    let publicUrl = '';
+    let imageKey = '';
     try {
-      const fileBase = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      publicUrl = await uploadFileToBucket(file, 'user-images', fileBase);
+      const extension = getExtensionFromMime(file.type || '');
+      const key = buildUserUploadKey(user.id, crypto.randomUUID(), extension);
+      // element.src holds the relative asset key; the user_images row records
+      // the same full key so it shows up in the Uploads tab.
+      imageKey = await uploadAsset(key, file, file.type || 'application/octet-stream');
 
-      // Register metadata to user_images table so it appears in Uploads tab
-      const storagePath = publicUrl.split('/user-images/')[1];
-      if (storagePath) {
-        await insertUserImageRecord({
-          userId: user.id,
-          name: file.name,
-          storagePath,
-          width,
-          height,
-          fileSize: file.size,
-          assetScope: 'user',
-          sourceContext: 'editor',
-          assetRole: 'general',
-        });
-      }
+      await insertUserImageRecord({
+        userId: user.id,
+        name: file.name,
+        storagePath: imageKey,
+        width,
+        height,
+        fileSize: file.size,
+        assetScope: 'user',
+        sourceContext: 'editor',
+        assetRole: 'general',
+      });
     } catch (error) {
       console.error('Image upload failed:', error);
       alert(t('message:error.imageUploadFailed'));
@@ -1131,7 +1131,7 @@ export const BannerEditor = () => {
         type: 'image',
         x: (banner.template.width - width) / 2,
         y: (banner.template.height - height) / 2,
-        src: publicUrl,
+        src: imageKey,
         width,
         height,
         visible: true,
@@ -1418,25 +1418,22 @@ export const BannerEditor = () => {
 
     setIsGeneratingShadow(true);
     try {
-      const silhouetteBlob = await createSilhouetteBlob(imageEl.src);
-      const file = new File([silhouetteBlob], 'shadow.png', { type: 'image/png' });
-      const fileBase = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const publicUrl = await uploadFileToBucket(file, 'user-images', fileBase);
+      // imageEl.src is a relative asset key; resolve it before loading pixels.
+      const silhouetteBlob = await createSilhouetteBlob(resolveElementSrc(imageEl.src));
+      const key = buildUserUploadKey(user.id, crypto.randomUUID(), 'png');
+      const publicUrl = await uploadAsset(key, silhouetteBlob, 'image/png');
 
-      const storagePath = publicUrl.split('/user-images/')[1];
-      if (storagePath) {
-        await insertUserImageRecord({
-          userId: user.id,
-          name: 'shadow.png',
-          storagePath,
-          width: imageEl.width,
-          height: imageEl.height,
-          fileSize: silhouetteBlob.size,
-          assetScope: 'user',
-          sourceContext: 'editor',
-          assetRole: 'shadow',
-        });
-      }
+      await insertUserImageRecord({
+        userId: user.id,
+        name: 'shadow.png',
+        storagePath: publicUrl,
+        width: imageEl.width,
+        height: imageEl.height,
+        fileSize: silhouetteBlob.size,
+        assetScope: 'user',
+        sourceContext: 'editor',
+        assetRole: 'shadow',
+      });
 
       // 45-degree offset (down-right)
       const offset = Math.min(imageEl.width, imageEl.height) * 0.05;
@@ -1596,21 +1593,23 @@ export const BannerEditor = () => {
         return;
       }
 
-      // Upload thumbnail to storage (same bucket as existing templates)
-      const fileBase = `templates/${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const thumbnailUrl = await uploadDataUrlToBucket(thumbnailDataUrl, 'default-images', fileBase);
-
-      // Create template
-      await templateStorage.createTemplate({
+      // Create the template first to obtain its id, then upload the thumbnail
+      // to the template's OWN deterministic R2 key and record that key.
+      const templateId = await templateStorage.createTemplate({
         name: banner.name,
         elements: elements,
         canvasColor: canvasColor,
-        thumbnailUrl: thumbnailUrl,
         planType: planType,
         displayOrder: displayOrder,
         width: banner.template.width,
         height: banner.template.height,
       });
+
+      if (templateId) {
+        const { blob, mimeType } = dataUrlToBlob(thumbnailDataUrl);
+        const key = await uploadAsset(buildTemplateThumbKey(templateId), blob, mimeType);
+        await templateStorage.setTemplateThumbnailKey(templateId, key);
+      }
 
       // モーダル側で閉じる処理とメッセージ表示を行う
     } catch (error) {

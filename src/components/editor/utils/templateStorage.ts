@@ -1,5 +1,7 @@
 import { getSupabase } from './supabase';
 import type { CanvasElement, TemplateRecord } from '../types/template';
+import { uploadAsset } from './r2Upload';
+import { buildTemplateThumbKey, resolveAsset, type AssetKey } from '@/lib/asset';
 
 interface DbTemplate {
   id: string;
@@ -7,20 +9,33 @@ interface DbTemplate {
   elements?: CanvasElement[] | null;
   canvas_color: string;
   thumbnail_url: string | null;
+  thumbnail_key?: string | null;
   plan_type: 'free' | 'premium' | null;
   display_order?: number | null;
   width?: number | null;
   height?: number | null;
   like_count?: number | null;
   open_count?: number | null;
+  updated_at?: string | null;
 }
+
+// Prefer the key column (M3 R2 target), fall back to the legacy full-URL
+// column (passthrough). Template thumbnails live under the default-images
+// logical bucket.
+const resolveTemplateThumbnail = (db: DbTemplate): string | undefined => {
+  const value = db.thumbnail_key || db.thumbnail_url;
+  if (!value) return undefined;
+  return (
+    resolveAsset(value, { version: db.updated_at, legacyBucket: 'default-images' }) || undefined
+  );
+};
 
 const dbToTemplate = (db: DbTemplate): TemplateRecord => ({
   id: db.id,
   name: db.name,
   elements: db.elements ?? undefined,
   canvasColor: db.canvas_color,
-  thumbnailUrl: db.thumbnail_url || undefined,
+  thumbnailUrl: resolveTemplateThumbnail(db),
   planType: db.plan_type || undefined,
   displayOrder: db.display_order ?? undefined,
   width: db.width ?? undefined,
@@ -34,7 +49,7 @@ export const templateStorage = {
     const supabase = await getSupabase();
     const { data, error } = await supabase
       .from('templates')
-      .select('id, name, canvas_color, thumbnail_url, plan_type, display_order, width, height, updated_at, like_count, open_count')
+      .select('id, name, canvas_color, thumbnail_url, thumbnail_key, plan_type, display_order, width, height, updated_at, like_count, open_count')
       .order('display_order', { ascending: true, nullsFirst: false })
       .order('updated_at', { ascending: false });
 
@@ -66,7 +81,7 @@ export const templateStorage = {
     name: string;
     elements: CanvasElement[];
     canvasColor: string;
-    thumbnailUrl?: string;
+    thumbnailKey?: string;
     planType: 'free' | 'premium';
     displayOrder?: number;
     width: number;
@@ -79,7 +94,7 @@ export const templateStorage = {
         name: params.name,
         elements: params.elements,
         canvas_color: params.canvasColor,
-        thumbnail_url: params.thumbnailUrl || null,
+        thumbnail_key: params.thumbnailKey || null,
         plan_type: params.planType,
         display_order: params.displayOrder || null,
         width: params.width,
@@ -94,6 +109,22 @@ export const templateStorage = {
     }
 
     return data?.id || null;
+  },
+
+  // Persist a template's thumbnail key after it has been uploaded to the
+  // template's own deterministic R2 key (used by the manual save + Publish
+  // paths where the template id is only known after insert/upsert).
+  async setTemplateThumbnailKey(id: string, thumbnailKey: string): Promise<void> {
+    const supabase = await getSupabase();
+    const { error } = await supabase
+      .from('templates')
+      .update({ thumbnail_key: thumbnailKey })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error setting template thumbnail key:', error);
+      throw error;
+    }
   },
 
   // Promote one of a production project's editable drafts into a public template.
@@ -116,7 +147,7 @@ export const templateStorage = {
     // live inside the template jsonb (see bannerStorage.ts dbToBannerListItem).
     const { data: banner, error: bannerError } = await supabase
       .from('banners')
-      .select('elements, canvas_color, thumbnail_url, template')
+      .select('elements, canvas_color, thumbnail_url, thumbnail_key, updated_at, template')
       .eq('id', params.bannerId)
       .single();
 
@@ -135,7 +166,6 @@ export const templateStorage = {
       name: params.name,
       elements: banner.elements,
       canvas_color: banner.canvas_color,
-      thumbnail_url: banner.thumbnail_url || null,
       plan_type: params.planType,
       is_public: true,
       width: template.width,
@@ -153,7 +183,43 @@ export const templateStorage = {
       throw error;
     }
 
-    return data?.id || null;
+    const templateId = data?.id || null;
+
+    // Copy the source banner's thumbnail into the template's OWN deterministic
+    // key so the template no longer shares an object with the banner (which can
+    // be deleted independently). Non-fatal: on failure, fall back to referencing
+    // the banner's key directly so the template still renders a thumbnail.
+    if (templateId) {
+      const sourceThumb = banner.thumbnail_key || banner.thumbnail_url;
+      if (sourceThumb) {
+        try {
+          const sourceUrl = resolveAsset(sourceThumb, {
+            version: banner.updated_at,
+            legacyBucket: 'user-images',
+          });
+          const response = await fetch(sourceUrl);
+          if (!response.ok) throw new Error(`fetch ${response.status}`);
+          const blob = await response.blob();
+          const key = await uploadAsset(
+            buildTemplateThumbKey(templateId),
+            blob,
+            blob.type || 'image/jpeg',
+          );
+          await this.setTemplateThumbnailKey(templateId, key);
+        } catch (copyError) {
+          console.warn('Failed to copy banner thumbnail to template key:', copyError);
+          if (banner.thumbnail_key) {
+            try {
+              await this.setTemplateThumbnailKey(templateId, banner.thumbnail_key as AssetKey);
+            } catch (fallbackError) {
+              console.warn('Failed to set fallback template thumbnail key:', fallbackError);
+            }
+          }
+        }
+      }
+    }
+
+    return templateId;
   },
 
   async updateTemplate(

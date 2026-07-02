@@ -26,6 +26,7 @@ import { ShapeSelector } from './ShapeSelector';
 import { CanvasSizeSelector } from './CanvasSizeSelector';
 import { UpgradeModal } from './UpgradeModal';
 import type { CanvasElement } from '../types/template';
+import { resolveElementSrc } from '@/lib/asset';
 
 interface SidebarProps {
   canvasColor: string;
@@ -55,9 +56,9 @@ const getLayerName = (element: CanvasElement, t: (key: string) => string): strin
   if (element.type === 'text') {
     return element.text.length > 20 ? element.text.substring(0, 20) + '...' : element.text;
   } else if (element.type === 'image') {
-    // Extract filename from URL
+    // Extract filename from the resolved URL (element.src is an asset key).
     try {
-      const url = new URL(element.src);
+      const url = new URL(resolveElementSrc(element.src));
       const pathParts = url.pathname.split('/');
       const filename = pathParts[pathParts.length - 1];
       return filename.length > 20 ? filename.substring(0, 20) + '...' : filename;

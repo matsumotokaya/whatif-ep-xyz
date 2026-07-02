@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, memo } from 'react';
 import Konva from 'konva';
 import { Image as KonvaImage } from 'react-konva';
 import type { ImageElement } from '../../types/template';
+import { resolveElementSrc } from '@/lib/asset';
 
 const alphaPremultiplyFilter = (imageData: ImageData) => {
   const { data } = imageData;
@@ -63,14 +64,18 @@ const ImageRendererComponent = ({
     const loadImage = async () => {
       const img = new window.Image();
 
-      // Check if this is a Supabase Storage URL
-      const isSupabaseUrl = imageElement.src.includes('supabase');
+      // element.src is a relative asset key (M3); resolve it to a URL at load
+      // time. Full URLs / data: / blob: pass through unchanged.
+      const resolvedSrc = resolveElementSrc(imageElement.src);
 
-      if (isSupabaseUrl && !imageElement.src.startsWith('blob:')) {
+      // Check if this is a Supabase Storage URL
+      const isSupabaseUrl = resolvedSrc.includes('supabase');
+
+      if (isSupabaseUrl && !resolvedSrc.startsWith('blob:')) {
         // If it's a Supabase URL, download it as Blob to avoid CORS issues
         try {
           // Extract bucket name and path from URL
-          const url = new URL(imageElement.src);
+          const url = new URL(resolvedSrc);
           const pathParts = url.pathname.split('/');
           const bucketIndex = pathParts.findIndex(part => part === 'object' || part === 'public') + 1;
           const bucketName = pathParts[bucketIndex];
@@ -86,7 +91,7 @@ const ImageRendererComponent = ({
             console.error('Error downloading image from Supabase:', error);
             // Fallback to direct load with CORS
             img.crossOrigin = 'anonymous';
-            img.src = imageElement.src;
+            img.src = resolvedSrc;
           } else {
             // Create Blob URL
             const blobUrl = URL.createObjectURL(data);
@@ -96,14 +101,14 @@ const ImageRendererComponent = ({
           console.error('Error processing Supabase URL:', error);
           // Fallback to direct load with CORS
           img.crossOrigin = 'anonymous';
-          img.src = imageElement.src;
+          img.src = resolvedSrc;
         }
       } else {
         // For non-Supabase URLs or already Blob URLs, load normally
-        if (!imageElement.src.startsWith('blob:')) {
+        if (!resolvedSrc.startsWith('blob:')) {
           img.crossOrigin = 'anonymous';
         }
-        img.src = imageElement.src;
+        img.src = resolvedSrc;
       }
 
       img.onload = () => {

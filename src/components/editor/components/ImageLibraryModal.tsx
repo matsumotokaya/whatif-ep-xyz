@@ -1,11 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getSupabase, getSupabaseStoragePublicUrl } from '../utils/supabase';
+import { getSupabase } from '../utils/supabase';
 import type { DefaultImage, UserImage } from '../types/image-library';
 import { formatWorkVariantLabel, insertUserImageRecord } from '../utils/libraryAssets';
 import { generateImageThumbnail } from '../utils/imageThumbnail';
-import { isR2Configured, resolveAssetUrl, toR2Key, type StorageProvider } from '../utils/assetUrl';
-import { deleteFromR2, uploadBlobToR2 } from '../utils/r2Upload';
+import { getExtensionFromMime } from '../utils/storage';
+import {
+  asAssetKey,
+  buildUserUploadKey,
+  resolveAsset,
+  toDefaultImageKey,
+  type LegacyBucket,
+} from '@/lib/asset';
+import { deleteAssets, uploadAsset } from '../utils/r2Upload';
 
 interface ImageLibraryModalProps {
   isOpen: boolean;
@@ -195,40 +202,28 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
           const thumbnail = await generateImageThumbnail(file);
 
           if (activeTab === 'default') {
+            // Admin default-images uploads go to R2 (presign allows the
+            // `default-images/...` prefix for admins). storage_path is kept as a
+            // bare path (matching existing rows); the read path prefixes it via
+            // the default-images logical bucket. storage_provider:'r2' is set
+            // until that column is dropped in Stage D.
             const filePath = fileName;
-            // Route admin default-images uploads to R2 when configured (the
-            // presign Edge Function allows `default-images/...` for admins),
-            // recording storage_provider:'r2' so the read path resolves to R2.
-            // Falls back to Supabase Storage when R2 is not configured.
-            const useR2 = isR2Configured;
-            let thumbnailPath: string | null = thumbnail ? `thumbnails/${fileName}.jpg` : null;
+            const thumbnailPath: string | null = thumbnail ? `thumbnails/${fileName}.jpg` : null;
 
-            if (useR2) {
-              await uploadBlobToR2(
-                toR2Key('default-images', filePath),
-                file,
-                file.type || 'application/octet-stream',
-              );
-              if (thumbnail && thumbnailPath) {
-                await uploadBlobToR2(toR2Key('default-images', thumbnailPath), thumbnail.blob, 'image/jpeg');
-              }
-            } else {
-              const { error: uploadError } = await supabase.storage.from('default-images').upload(filePath, file);
-              if (uploadError) throw uploadError;
-
-              if (thumbnail && thumbnailPath) {
-                const { error: thumbError } = await supabase.storage
-                  .from('default-images')
-                  .upload(thumbnailPath, thumbnail.blob, { contentType: 'image/jpeg', upsert: true });
-                if (thumbError) throw thumbError;
-              }
+            await uploadAsset(
+              asAssetKey(`default-images/${filePath}`),
+              file,
+              file.type || 'application/octet-stream',
+            );
+            if (thumbnail && thumbnailPath) {
+              await uploadAsset(asAssetKey(`default-images/${thumbnailPath}`), thumbnail.blob, 'image/jpeg');
             }
 
             const { error: dbError } = await supabase.from('default_images').insert({
               name: file.name,
               storage_path: filePath,
               thumbnail_path: thumbnailPath,
-              storage_provider: useR2 ? 'r2' : 'supabase',
+              storage_provider: 'r2',
               width,
               height,
               file_size: file.size,
@@ -236,25 +231,25 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
             });
             if (dbError) throw dbError;
           } else {
-            const filePath = `${user.id}/${fileName}`;
-            const { error: uploadError } = await supabase.storage.from('user-images').upload(filePath, file);
-            if (uploadError) throw uploadError;
+            // User uploads go to R2 under a deterministic key. The full,
+            // logical-bucket-prefixed key is stored so the read path resolves
+            // to R2 directly.
+            const assetId = crypto.randomUUID();
+            const ext = getExtensionFromMime(file.type || '') || 'bin';
+            const storageKey = buildUserUploadKey(user.id, assetId, ext);
+            await uploadAsset(storageKey, file, file.type || 'application/octet-stream');
 
-            let thumbnailPath: string | null = null;
+            let thumbnailKey: string | null = null;
             if (thumbnail) {
-              // user-images RLS requires the first path segment to be the UID.
-              thumbnailPath = `${user.id}/thumbnails/${fileName}.jpg`;
-              const { error: thumbError } = await supabase.storage
-                .from('user-images')
-                .upload(thumbnailPath, thumbnail.blob, { contentType: 'image/jpeg', upsert: true });
-              if (thumbError) throw thumbError;
+              thumbnailKey = `user-images/${user.id}/uploads/${assetId}.thumb.jpg`;
+              await uploadAsset(asAssetKey(thumbnailKey), thumbnail.blob, 'image/jpeg');
             }
 
             await insertUserImageRecord({
               userId: user.id,
               name: file.name,
-              storagePath: filePath,
-              thumbnailPath,
+              storagePath: storageKey,
+              thumbnailPath: thumbnailKey,
               width,
               height,
               fileSize: file.size,
@@ -288,41 +283,37 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
     }
   };
 
-  // Get cached public URL (no transform — requires paid plan). The provider is
-  // only meaningful for provider-aware tables (default_images carries
-  // storage_provider); user-images always resolves on Supabase for now.
+  // Get cached public URL for the grid. Resolution goes through the single
+  // asset module: bare default-images paths resolve to R2, bare user-images
+  // paths resolve to Supabase (until the Phase 1 R2 copy + Stage C backfill),
+  // and already-prefixed keys resolve to their target backend.
   const getCachedDisplayUrl = (
     storagePath: string,
-    bucketName: 'default-images' | 'user-images',
-    provider: StorageProvider = 'supabase',
+    bucketName: LegacyBucket,
   ): string => {
-    const cacheKey = `${provider}:${bucketName}:${storagePath}`;
+    const cacheKey = `${bucketName}:${storagePath}`;
 
     if (urlCacheRef.current.has(cacheKey)) {
       return urlCacheRef.current.get(cacheKey)!;
     }
 
-    const publicUrl =
-      bucketName === 'default-images'
-        ? resolveAssetUrl(provider, bucketName, storagePath)
-        : getSupabaseStoragePublicUrl(bucketName, storagePath);
+    const publicUrl = resolveAsset(storagePath, { legacyBucket: bucketName });
     urlCacheRef.current.set(cacheKey, publicUrl);
     return publicUrl;
   };
 
+  // Selection passes an ASSET KEY (not a URL) to the editor so element.src
+  // stores a backend-independent key that is resolved at render time.
   const handleSelectDefaultImage = (image: DefaultImageWithUrl) => {
-    const publicUrl = resolveAssetUrl(
-      image.storage_provider ?? 'supabase',
-      'default-images',
-      image.storage_path,
-    );
-    onSelectImage(publicUrl, image.width || 800, image.height || 600);
+    onSelectImage(toDefaultImageKey(image.storage_path), image.width || 800, image.height || 600);
     onClose();
   };
 
   const handleSelectUserImage = (image: UserImageWithUrl) => {
-    const publicUrl = getSupabaseStoragePublicUrl('user-images', image.storage_path);
-    onSelectImage(publicUrl, image.width || 800, image.height || 600);
+    // New uploads store a full `user-images/`-prefixed key; legacy rows store a
+    // bare path (resolved to Supabase during migration). Pass the stored value
+    // through unchanged so resolveElementSrc handles both.
+    onSelectImage(image.storage_path, image.width || 800, image.height || 600);
     onClose();
   };
 
@@ -335,16 +326,18 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
     try {
       const supabase = await getSupabase();
 
-      // Remove the original + thumbnail objects from the bucket first. Route to
-      // the storage backend the row actually lives on so R2-backed rows delete
-      // their R2 objects (not a non-existent Supabase copy).
+      // Remove the original + thumbnail objects. Legacy rows may carry a bare
+      // path; prefix it with the default-images logical bucket to form the R2
+      // key. Rows explicitly on Supabase (pre-R2) still delete there.
       const paths = [image.storage_path, image.thumbnail_path].filter(Boolean) as string[];
       if (paths.length > 0) {
-        if ((image.storage_provider ?? 'supabase') === 'r2') {
-          await deleteFromR2(paths.map((path) => toR2Key('default-images', path)));
-        } else {
+        if ((image.storage_provider ?? 'r2') === 'supabase') {
           const { error: storageError } = await supabase.storage.from('default-images').remove(paths);
           if (storageError) throw storageError;
+        } else {
+          await deleteAssets(
+            paths.map((path) => toDefaultImageKey(path) as string),
+          );
         }
       }
 
@@ -501,7 +494,6 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
                         src={getCachedDisplayUrl(
                           image.thumbnail_path || image.storage_path,
                           bucketName,
-                          isDefaultTab ? (image as DefaultImageWithUrl).storage_provider ?? 'supabase' : 'supabase',
                         )}
                         alt={image.name}
                         className="w-full h-full object-contain"
