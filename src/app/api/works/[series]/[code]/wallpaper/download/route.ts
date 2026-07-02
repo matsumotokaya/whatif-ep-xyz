@@ -7,7 +7,10 @@ import {
   buildWallpaperReadme,
   manualFilename,
 } from "@/lib/wallpaper-manual";
-import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
+import {
+  hasPurchasedWallpaper,
+  isValidWallpaperDownloadToken,
+} from "@/lib/wallpaper-purchases";
 import { getWorkBySeriesAndCode } from "@/lib/works";
 
 export const runtime = "nodejs";
@@ -35,14 +38,6 @@ export async function GET(
   const parsedVariant = Number.parseInt(variantParam ?? "", 10);
   const variantNumber = Number.isFinite(parsedVariant) ? parsedVariant : 1;
 
-  const access = await getClubAccess();
-
-  if (access.status === "anonymous" || !access.user) {
-    return NextResponse.redirect(
-      new URL(`/auth/login?next=/works/${series}/${code}/wallpaper`, origin)
-    );
-  }
-
   const pack = await getPublishedWallpaperPack(series, code, variantNumber);
   if (!pack) {
     return NextResponse.json(
@@ -51,11 +46,31 @@ export async function GET(
     );
   }
 
-  // Authorize: premium members get all packs; otherwise the user must have
-  // purchased this specific wallpaper.
-  const entitled =
-    canAccessClub(access) ||
-    (await hasPurchasedWallpaper(access.user.id, pack.projectId));
+  // Authorize, in order:
+  //   1. A valid download token (guest purchase / emailed link) scoped to
+  //      this exact wallpaper — no login session required.
+  //   2. Premium members get all packs.
+  //   3. Signed-in users who purchased this specific wallpaper.
+  const token = request.nextUrl.searchParams.get("token");
+  let entitled = false;
+
+  if (token) {
+    entitled = await isValidWallpaperDownloadToken(token, pack.projectId);
+  }
+
+  if (!entitled) {
+    const access = await getClubAccess();
+
+    if (access.status === "anonymous" || !access.user) {
+      return NextResponse.redirect(
+        new URL(`/auth/login?next=/works/${series}/${code}/wallpaper`, origin)
+      );
+    }
+
+    entitled =
+      canAccessClub(access) ||
+      (await hasPurchasedWallpaper(access.user.id, pack.projectId));
+  }
 
   if (!entitled) {
     return NextResponse.redirect(

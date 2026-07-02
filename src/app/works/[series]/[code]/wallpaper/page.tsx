@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { canAccessClub, getClubAccess } from "@/lib/club/access";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
 import {
   hasPurchasedWallpaper,
+  isValidWallpaperDownloadToken,
   verifyAndRecordCheckoutSession,
 } from "@/lib/wallpaper-purchases";
 import { getWorkBySeriesAndCode } from "@/lib/works";
@@ -66,19 +67,51 @@ export default async function WallpaperPage({
   const access = await getClubAccess();
   const isPremium = canAccessClub(access);
 
+  const purchasedFlagRaw = resolvedSearchParams.purchased;
+  const purchasedValue = Array.isArray(purchasedFlagRaw)
+    ? purchasedFlagRaw[0]
+    : purchasedFlagRaw;
+  const sessionRaw = resolvedSearchParams.session_id;
+  const sessionId = Array.isArray(sessionRaw) ? sessionRaw[0] : sessionRaw;
+  const tokenRaw = resolvedSearchParams.token;
+  const downloadToken = Array.isArray(tokenRaw) ? tokenRaw[0] : tokenRaw;
+
+  // Token entitlement (guest purchase / emailed link): valid for exactly this
+  // wallpaper, no login session required.
+  let tokenEntitled = false;
+  if (downloadToken) {
+    tokenEntitled = await isValidWallpaperDownloadToken(
+      downloadToken,
+      pack.projectId
+    );
+  }
+
+  // Guest success redirect: an anonymous buyer lands with a session id but no
+  // token yet. Verify the session with Stripe (recording the purchase if the
+  // webhook has not arrived) and redirect to a stable tokenized URL so the
+  // download keeps working across reloads. redirect() throws, so it stays
+  // outside the try block.
+  if (!access.user && !tokenEntitled && purchasedValue === "1" && sessionId) {
+    let guestToken: string | null = null;
+    try {
+      const result = await verifyAndRecordCheckoutSession(sessionId);
+      guestToken = result.downloadToken;
+    } catch {
+      // Best-effort; the emailed link still works once the webhook lands.
+    }
+    if (guestToken) {
+      redirect(
+        `/works/${series}/${code}/wallpaper?variant=${variantNumber}&purchased=1&token=${guestToken}`
+      );
+    }
+  }
+
   // Non-premium signed-in users may own this specific wallpaper via one-time
   // purchase. Resolve ownership and, on the Stripe success redirect, fall back
   // to verifying the session directly in case the webhook is delayed.
   let hasPurchased = false;
   if (!isPremium && access.user) {
     hasPurchased = await hasPurchasedWallpaper(access.user.id, pack.projectId);
-
-    const purchasedFlag = resolvedSearchParams.purchased;
-    const purchasedValue = Array.isArray(purchasedFlag)
-      ? purchasedFlag[0]
-      : purchasedFlag;
-    const sessionRaw = resolvedSearchParams.session_id;
-    const sessionId = Array.isArray(sessionRaw) ? sessionRaw[0] : sessionRaw;
 
     if (purchasedValue === "1" && sessionId && !hasPurchased) {
       try {
@@ -93,15 +126,16 @@ export default async function WallpaperPage({
     }
   }
 
-  const purchasedFlagRaw = resolvedSearchParams.purchased;
-  const justPurchased =
-    (Array.isArray(purchasedFlagRaw) ? purchasedFlagRaw[0] : purchasedFlagRaw) ===
-    "1";
+  const justPurchased = purchasedValue === "1";
 
-  const entitled = isPremium || hasPurchased;
+  const entitled = isPremium || hasPurchased || tokenEntitled;
 
   const variantQuery = variantNumber > 1 ? `?variant=${variantNumber}` : "";
-  const downloadUrl = `/api/works/${series}/${code}/wallpaper/download?variant=${variantNumber}`;
+  const downloadUrl =
+    `/api/works/${series}/${code}/wallpaper/download?variant=${variantNumber}` +
+    (tokenEntitled && downloadToken
+      ? `&token=${encodeURIComponent(downloadToken)}`
+      : "");
   const galleryOrigin =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || "https://whatif-ep.xyz";
   const returnTo = `${galleryOrigin}/works/${series}/${code}/wallpaper${variantQuery}`;
@@ -117,8 +151,10 @@ export default async function WallpaperPage({
       code={code}
       variantNumber={variantNumber}
       entitled={entitled}
-      hasPurchased={hasPurchased}
+      hasPurchased={hasPurchased || tokenEntitled}
       isPremium={isPremium}
+      isLoggedIn={Boolean(access.user)}
+      tokenEntitled={tokenEntitled}
       justPurchased={justPurchased}
       downloadUrl={downloadUrl}
       imaginePlansUrl={imaginePlansUrl}

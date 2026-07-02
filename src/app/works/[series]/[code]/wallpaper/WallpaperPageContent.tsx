@@ -24,6 +24,10 @@ interface WallpaperPageContentProps {
   entitled: boolean;
   hasPurchased: boolean;
   isPremium: boolean;
+  isLoggedIn: boolean;
+  // True when access comes from a guest download token (emailed link /
+  // post-checkout redirect) rather than a signed-in purchase.
+  tokenEntitled: boolean;
   justPurchased: boolean;
   downloadUrl: string;
   imaginePlansUrl: string;
@@ -159,6 +163,8 @@ export default function WallpaperPageContent({
   entitled,
   hasPurchased,
   isPremium,
+  isLoggedIn,
+  tokenEntitled,
   justPurchased,
   downloadUrl,
   imaginePlansUrl,
@@ -292,6 +298,11 @@ export default function WallpaperPageContent({
                 }
                 copy={copy}
               />
+              {tokenEntitled ? (
+                <p className="mt-3 text-xs text-muted">
+                  {copy.guestDownloadNote}
+                </p>
+              ) : null}
             </div>
           ) : (
             <div>
@@ -317,8 +328,12 @@ export default function WallpaperPageContent({
                       series={series}
                       code={code}
                       variant={variantNumber}
-                      loginUrl={loginUrl}
                     />
+                    {!isLoggedIn ? (
+                      <p className="mt-2 text-xs text-muted">
+                        {copy.guestCheckoutNote}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 

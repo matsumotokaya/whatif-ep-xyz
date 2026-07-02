@@ -49,6 +49,35 @@ interface WallpaperPurchaseNotificationParams {
   variantNumber: number | null;
   amount: number | null;
   currency: string | null;
+  // Per-purchase download token; when present (and the work is identifiable)
+  // the buyer email includes a tokenized download link that works without
+  // logging in. Essential for guest checkout.
+  downloadToken?: string | null;
+  // True when the purchase was made without an account (guest checkout).
+  isGuest?: boolean;
+}
+
+// Build the tokenized wallpaper-page URL included in the buyer email. Returns
+// null when the work cannot be identified (the email then ships without a
+// link and the buyer can still use the success page).
+function buildDownloadPageUrl(
+  params: WallpaperPurchaseNotificationParams
+): string | null {
+  if (!params.downloadToken || !params.seriesSlug || !params.displayCode) {
+    return null;
+  }
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ||
+    "https://whatif-ep.xyz";
+  const variant =
+    params.variantNumber && params.variantNumber > 0
+      ? params.variantNumber
+      : 1;
+  return (
+    `${siteUrl}/works/${encodeURIComponent(params.seriesSlug)}` +
+    `/${encodeURIComponent(params.displayCode)}/wallpaper` +
+    `?variant=${variant}&token=${encodeURIComponent(params.downloadToken)}`
+  );
 }
 
 function formatMoney(amount: number | null, currency: string | null): string {
@@ -76,6 +105,17 @@ export async function sendWallpaperPurchaseNotifications(
       ? `variant ${params.variantNumber}`
       : "variant -";
   const amountLabel = formatMoney(params.amount, params.currency);
+  const downloadPageUrl = buildDownloadPageUrl(params);
+
+  // English base with a Japanese supplement for the download link — the mail
+  // is transactional and the link is the actionable part.
+  const downloadSection = downloadPageUrl
+    ? `Download your wallpaper pack here (this link is unique to your purchase — please do not share it):\n` +
+      `${downloadPageUrl}\n\n` +
+      `--\n` +
+      `以下のリンクから壁紙パックをダウンロードできます（ご購入者専用のリンクです。第三者と共有しないでください）:\n` +
+      `${downloadPageUrl}\n\n`
+    : "";
 
   await Promise.all([
     sendEmail({
@@ -87,6 +127,7 @@ export async function sendWallpaperPurchaseNotifications(
         `Work: ${workLabel || "-"}\n` +
         `Variant: ${variantLabel}\n` +
         `Amount: ${amountLabel}\n\n` +
+        downloadSection +
         `Thank you for your purchase.\n`,
       replyTo: DEFAULT_ADMIN_EMAIL,
     }),
@@ -97,6 +138,7 @@ export async function sendWallpaperPurchaseNotifications(
         `A wallpaper purchase was completed.\n\n` +
         `Buyer: ${buyerName}\n` +
         `Email: ${params.buyerEmail}\n` +
+        `Guest checkout: ${params.isGuest ? "yes" : "no"}\n` +
         `Work: ${workLabel || "-"}\n` +
         `Variant: ${variantLabel}\n` +
         `Amount: ${amountLabel}\n`,

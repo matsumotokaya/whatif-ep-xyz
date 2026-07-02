@@ -40,6 +40,8 @@ export interface WallpaperCopy {
   purchasedBadge: string;
   purchasedNote: string;
   purchaseThanks: string;
+  guestCheckoutNote: string;
+  guestDownloadNote: string;
   buyLine: string;
   spec: {
     mobile: string;
@@ -97,6 +99,10 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     purchasedBadge: "Purchased",
     purchasedNote: "This is your purchased wallpaper pack. Download it anytime.",
     purchaseThanks: "Thank you for your purchase.",
+    guestCheckoutNote:
+      "No account needed — pay by card and we'll email you the download link.",
+    guestDownloadNote:
+      "We've also emailed this download link to you, so you can come back and download again anytime.",
     buyLine: "Just one? You can buy it for $1",
     spec: {
       mobile: "Smartphone (portrait)",
@@ -152,6 +158,10 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     purchasedBadge: "ご購入済み",
     purchasedNote: "ご購入いただいた壁紙パックです。いつでもダウンロードできます。",
     purchaseThanks: "ご購入ありがとうございます。",
+    guestCheckoutNote:
+      "アカウント登録は不要です。カード決済後、ダウンロードリンクをメールでお届けします。",
+    guestDownloadNote:
+      "このダウンロードリンクはメールでもお送りしています。いつでも再ダウンロードできます。",
     buyLine: "1枚だけなら $1 で購入できます",
     spec: {
       mobile: "スマートフォン（縦型）",
@@ -207,6 +217,10 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     purchasedBadge: "已购买",
     purchasedNote: "这是您已购买的壁纸套装，可随时下载。",
     purchaseThanks: "感谢您的购买。",
+    guestCheckoutNote:
+      "无需注册账号——银行卡付款后，我们会将下载链接发送到您的邮箱。",
+    guestDownloadNote:
+      "下载链接也已发送至您的邮箱，您可以随时回来重新下载。",
     buyLine: "只要一张的话，$1 即可购买",
     spec: {
       mobile: "智能手机（竖版）",
@@ -262,6 +276,10 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     purchasedBadge: "已購買",
     purchasedNote: "這是您已購買的桌布套組，可隨時下載。",
     purchaseThanks: "感謝您的購買。",
+    guestCheckoutNote:
+      "無需註冊帳號——信用卡付款後，我們會將下載連結傳送到您的信箱。",
+    guestDownloadNote:
+      "下載連結也已傳送至您的信箱，您可以隨時回來重新下載。",
     buyLine: "只要一張的話，$1 即可購買",
     spec: {
       mobile: "智慧型手機（直式）",
@@ -317,6 +335,10 @@ export const WALLPAPER_COPY: Record<Language, WallpaperCopy> = {
     purchasedBadge: "구매 완료",
     purchasedNote: "구매하신 배경화면 팩입니다. 언제든지 다운로드하실 수 있습니다.",
     purchaseThanks: "구매해 주셔서 감사합니다.",
+    guestCheckoutNote:
+      "계정 등록이 필요 없습니다. 카드 결제 후 다운로드 링크를 이메일로 보내드립니다.",
+    guestDownloadNote:
+      "다운로드 링크는 이메일로도 보내드렸습니다. 언제든지 다시 다운로드할 수 있습니다.",
     buyLine: "한 장만이라면 $1에 구매할 수 있습니다",
     spec: {
       mobile: "스마트폰(세로형)",

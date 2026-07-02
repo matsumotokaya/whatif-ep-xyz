@@ -41,13 +41,14 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = session.metadata ?? {};
-    const userId = metadata.user_id;
+    // user_id is absent for guest checkout — only wallpaper_id is required.
+    const userId = metadata.user_id || null;
     const wallpaperId = metadata.wallpaper_id;
 
-    if (!userId || !wallpaperId) {
+    if (!wallpaperId) {
       // Log and ack to avoid Stripe retry storms; nothing actionable here.
       console.error(
-        "Stripe webhook: checkout.session.completed missing user_id/wallpaper_id metadata.",
+        "Stripe webhook: checkout.session.completed missing wallpaper_id metadata.",
         session.id
       );
       return NextResponse.json({ received: true });
@@ -61,8 +62,12 @@ export async function POST(request: NextRequest) {
     const variantRaw = metadata.variant_number;
     const variantNumber = variantRaw ? Number.parseInt(variantRaw, 10) : null;
 
+    const sessionBuyerEmail =
+      session.customer_details?.email ?? session.customer_email ?? null;
+
     const purchaseResult = await recordWallpaperPurchase({
       userId,
+      buyerEmail: sessionBuyerEmail,
       wallpaperId,
       seriesSlug: metadata.series_slug ?? null,
       displayCode: metadata.display_code ?? null,
@@ -86,16 +91,14 @@ export async function POST(request: NextRequest) {
     if (!purchaseResult.alreadyExisted) {
       try {
         const adminClient = createAdminClient();
-        const buyerEmail =
-          session.customer_details?.email ??
-          session.customer_email ??
-          null;
         let buyerName =
           session.customer_details?.name ??
           null;
 
-        let resolvedBuyerEmail = buyerEmail;
-        if ((!resolvedBuyerEmail || !buyerName) && adminClient) {
+        let resolvedBuyerEmail = sessionBuyerEmail;
+        // Fall back to the profile only for signed-in buyers; guests have no
+        // profile row and Stripe always collects their email at Checkout.
+        if ((!resolvedBuyerEmail || !buyerName) && userId && adminClient) {
           const { data: profile } = await (
             adminClient.from("profiles") as unknown as {
               select: (
@@ -131,6 +134,8 @@ export async function POST(request: NextRequest) {
               : null,
             amount: session.amount_total,
             currency: session.currency,
+            downloadToken: purchaseResult.downloadToken,
+            isGuest: !userId,
           });
         } else {
           console.error(
