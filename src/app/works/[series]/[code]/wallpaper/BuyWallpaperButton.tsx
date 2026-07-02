@@ -7,7 +7,6 @@ interface BuyWallpaperButtonProps {
   series: string;
   code: string;
   variant: number;
-  loginUrl: string;
 }
 
 // Localized UI copy. Brand token "$1" is kept intact across languages.
@@ -46,7 +45,6 @@ export default function BuyWallpaperButton({
   series,
   code,
   variant,
-  loginUrl,
 }: BuyWallpaperButtonProps) {
   const { lang } = useLanguage();
   const labels = COPY[lang];
@@ -72,14 +70,10 @@ export default function BuyWallpaperButton({
         alreadyEntitled?: boolean;
         downloadUrl?: string;
         error?: string;
-        loginUrl?: string;
       };
 
-      if (response.status === 401 && data.error === "auth_required") {
-        window.location.href = data.loginUrl ?? loginUrl;
-        return;
-      }
-
+      // Guest checkout: anonymous visitors go straight to Stripe, so there is
+      // no login redirect here anymore.
       if (data.alreadyEntitled && data.downloadUrl) {
         window.location.href = data.downloadUrl;
         return;
