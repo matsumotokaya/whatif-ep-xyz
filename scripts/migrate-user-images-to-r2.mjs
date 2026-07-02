@@ -1,6 +1,6 @@
 /**
  * Phase 1 (M3): copy every Supabase Storage `user-images` object into the R2
- * bucket `whatif-assets` under the key `user-images/{original path}`.
+ * assets bucket `whatif-assets` under the key `user-images/{original path}`.
  *
  * See docs/M3_ASSET_KEY_PLAN.md. This is a COPY only — the Supabase originals
  * are left untouched (they stay the read source for bare-key rows until Stage
@@ -12,37 +12,58 @@
  * serve that stale 404 right after the PUT. The S3 endpoint is read-after-write
  * consistent and has no CDN cache.
  *
- * Required env (names match whatif-ep-xyz/.env.local; do NOT hardcode values):
+ * Bucket safety: the destination is the ASSETS bucket (`whatif-assets`, served
+ * from assets.whatif-ep.xyz), which is DIFFERENT from the legacy bucket
+ * `whatif-ep-xyz` that .env.local's R2_BUCKET points at (used by src/lib/r2.ts).
+ * This script therefore reads R2_ASSETS_BUCKET (default `whatif-assets`) and
+ * refuses to run against the legacy bucket, so loading .env.local can't
+ * misdirect the copy.
+ *
+ * Required env (do NOT hardcode values):
  *   SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)
  *   SUPABASE_SERVICE_ROLE_KEY
- *   R2_ACCOUNT_ID
- *   R2_ACCESS_KEY_ID
+ *   R2_ACCOUNT_ID (or R2_ENDPOINT)
+ *   R2_ACCESS_KEY_ID          (must have write access to whatif-assets)
  *   R2_SECRET_ACCESS_KEY
- *   R2_BUCKET                 (defaults to `whatif-assets`)
+ *   R2_ASSETS_BUCKET          (defaults to `whatif-assets`; NOT R2_BUCKET)
+ *
+ * IMPORTANT — which env file:
+ *   Use ../imagine/.env.r2backfill.local, NOT whatif-ep-xyz/.env.local. The
+ *   gallery .env.local R2 credentials are scoped to the LEGACY bucket
+ *   `whatif-ep-xyz` and get 403 Access Denied on `whatif-assets`. The imagine
+ *   backfill env file holds credentials with write access to `whatif-assets`
+ *   (and R2_BUCKET=whatif-assets, though this script reads R2_ASSETS_BUCKET).
  *
  * Usage:
  *   # dry-run (lists what would be copied, no writes):
- *   node --env-file=.env.local scripts/migrate-user-images-to-r2.mjs
+ *   node --env-file=../imagine/.env.r2backfill.local scripts/migrate-user-images-to-r2.mjs
  *
  *   # actually copy:
- *   node --env-file=.env.local scripts/migrate-user-images-to-r2.mjs --apply
+ *   node --env-file=../imagine/.env.r2backfill.local scripts/migrate-user-images-to-r2.mjs --apply
  *
  * Notes:
- *   - `.env.local` sets R2_BUCKET=whatif-assets (the assets.whatif-ep.xyz
- *     bucket). Confirm it is NOT the r2-legacy `whatif-ep-xyz` bucket.
  *   - The Supabase JS Storage API caps `list()` at 100 rows per page and does
  *     not recurse, so this script walks the folder tree page by page.
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { AwsClient } from 'aws4fetch';
+import {
+  S3Client,
+  HeadObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_ENDPOINT =
+  process.env.R2_ENDPOINT ||
+  (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : undefined);
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET = process.env.R2_BUCKET || 'whatif-assets';
+// Deliberately NOT R2_BUCKET: that points at the legacy bucket in .env.local.
+const R2_ASSETS_BUCKET = process.env.R2_ASSETS_BUCKET || 'whatif-assets';
+const LEGACY_BUCKET = 'whatif-ep-xyz';
 
 const APPLY = process.argv.includes('--apply');
 const SOURCE_BUCKET = 'user-images';
@@ -50,7 +71,7 @@ const SOURCE_BUCKET = 'user-images';
 const missing = [];
 if (!SUPABASE_URL) missing.push('SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL');
 if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
-if (!R2_ACCOUNT_ID) missing.push('R2_ACCOUNT_ID');
+if (!R2_ENDPOINT) missing.push('R2_ENDPOINT / R2_ACCOUNT_ID');
 if (!R2_ACCESS_KEY_ID) missing.push('R2_ACCESS_KEY_ID');
 if (!R2_SECRET_ACCESS_KEY) missing.push('R2_SECRET_ACCESS_KEY');
 if (missing.length) {
@@ -58,45 +79,53 @@ if (missing.length) {
   process.exit(1);
 }
 
+// Guard: never write the assets copy into the legacy bucket by mistake.
+if (R2_ASSETS_BUCKET === LEGACY_BUCKET) {
+  console.error(
+    `Refusing to run: target bucket is the legacy bucket "${LEGACY_BUCKET}". ` +
+      `Set R2_ASSETS_BUCKET=whatif-assets (the assets.whatif-ep.xyz bucket).`,
+  );
+  process.exit(1);
+}
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
 
-const r2 = new AwsClient({
-  accessKeyId: R2_ACCESS_KEY_ID,
-  secretAccessKey: R2_SECRET_ACCESS_KEY,
-  service: 's3',
+const r2 = new S3Client({
   region: 'auto',
+  endpoint: R2_ENDPOINT,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
 });
-
-const encodeKey = (key) =>
-  key
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-
-const r2Url = (r2Key) =>
-  `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${encodeKey(r2Key)}`;
 
 // Authenticated HEAD against the S3 endpoint (read-after-write consistent).
 const r2ObjectExists = async (r2Key) => {
-  const res = await r2.fetch(r2Url(r2Key), { method: 'HEAD' });
-  if (res.ok) {
-    return { exists: true, size: Number(res.headers.get('content-length') || 0) };
+  try {
+    const res = await r2.send(
+      new HeadObjectCommand({ Bucket: R2_ASSETS_BUCKET, Key: r2Key }),
+    );
+    return { exists: true, size: Number(res.ContentLength || 0) };
+  } catch (err) {
+    const status = err?.$metadata?.httpStatusCode;
+    if (status === 404 || err?.name === 'NotFound' || err?.name === 'NoSuchKey') {
+      return { exists: false, size: 0 };
+    }
+    throw err;
   }
-  return { exists: false, size: 0 };
 };
 
 const r2Put = async (r2Key, body, contentType) => {
-  const res = await r2.fetch(r2Url(r2Key), {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType || 'application/octet-stream' },
-    body,
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`R2 PUT ${res.status}: ${detail}`);
-  }
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: R2_ASSETS_BUCKET,
+      Key: r2Key,
+      Body: body,
+      ContentType: contentType || 'application/octet-stream',
+    }),
+  );
 };
 
 // Recursively list every object path in the Supabase bucket. list() returns at
@@ -144,7 +173,7 @@ const downloadFromSupabase = async (path) => {
 async function main() {
   console.log(`Mode: ${APPLY ? 'APPLY (copying)' : 'DRY-RUN (no writes)'}`);
   console.log(`Source: Supabase bucket "${SOURCE_BUCKET}"`);
-  console.log(`Target: R2 bucket "${R2_BUCKET}" key prefix "user-images/"`);
+  console.log(`Target: R2 bucket "${R2_ASSETS_BUCKET}" key prefix "user-images/"`);
 
   console.log('\nListing Supabase objects (this may take a moment)...');
   const objects = await listAllObjects('');
