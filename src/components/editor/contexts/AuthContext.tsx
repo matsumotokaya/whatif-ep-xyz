@@ -40,6 +40,7 @@ export const useAuth = () => {
         role: profile.role,
         subscriptionTier: profile.subscription_tier,
         subscriptionStatus: profile.subscription_status,
+        subscriptionExpiresAt: profile.subscription_expires_at ?? undefined,
       };
     }
 

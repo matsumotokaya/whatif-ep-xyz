@@ -8,11 +8,12 @@
 // (useNavigate / useLocation / useParams / useSearchParams / Link) on top of
 // the Next.js App Router.
 //
-// TODO(M4): remove this shim once the editor code is rewritten directly
-// against next/navigation.
+// TODO(post-M5): remove this shim once the ported pages are rewritten
+// directly against next/navigation.
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useSyncExternalStore,
   type AnchorHTMLAttributes,
@@ -130,6 +131,23 @@ export function useSearchParams(): [
   );
 
   return [searchParams, setSearchParams];
+}
+
+// react-router's declarative redirect. The ported pages use it for auth /
+// admin gating (`if (!user) return <Navigate to="/auth/login" replace />`).
+// Implemented as an effect-driven client redirect that renders nothing.
+export function Navigate({ to, replace = true }: { to: string; replace?: boolean }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (replace) {
+      router.replace(to);
+    } else {
+      router.push(to);
+    }
+  }, [router, to, replace]);
+
+  return null;
 }
 
 export interface LinkProps

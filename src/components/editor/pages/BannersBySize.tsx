@@ -3,8 +3,9 @@
 //
 // Differences from the IMAGINE original:
 // - Routes: /banner/:id -> /edit/:id, /banner -> /edit, list -> /mydesign.
-// - Content Factory view (?source=factory) and the IMAGINE Footer are left
-//   for M4.
+// - Content Factory has its own list at /mydesign/factory (M4); the
+//   ?source=factory view of this page was not ported. The IMAGINE Footer is
+//   available (components/Footer) but this list page keeps its own layout.
 
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from '@/components/editor/lib/router';

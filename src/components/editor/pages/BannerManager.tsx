@@ -6,8 +6,9 @@
 //   /mydesign/:sizeKey. Empty-state "view templates" points to the Gallery
 //   works list (/works/episode) because the template gallery page is not
 //   ported yet (M4).
-// - Content Factory view (/mydesign/factory), GalleryTabs and the IMAGINE
-//   Footer are left for M4.
+// - The Content Factory list now lives at /mydesign/factory (M4,
+//   FactoryProjectManager). GalleryTabs / the IMAGINE Footer exist as island
+//   components but this page keeps its original chrome.
 // - Guests get an explicit "log in to save more designs" notice above their
 //   single localStorage design.
 

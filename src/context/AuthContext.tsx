@@ -13,6 +13,7 @@ interface Profile {
   role: 'user' | 'admin';
   subscription_tier: 'free' | 'premium';
   subscription_status: 'active' | 'canceling' | 'canceled' | null;
+  subscription_expires_at: string | null;
 }
 
 interface AuthContextType {
@@ -101,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, subscription_tier, subscription_status')
+      .select('id, email, full_name, avatar_url, role, subscription_tier, subscription_status, subscription_expires_at')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
