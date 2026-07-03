@@ -1,0 +1,109 @@
+{
+  "button": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "duplicate": "Duplicate",
+    "add": "Add",
+    "apply": "Apply",
+    "close": "Close",
+    "upload": "Upload",
+    "create": "Create",
+    "back": "Back",
+    "backToHome": "Back to Home"
+  },
+  "label": {
+    "width": "Width",
+    "height": "Height",
+    "current": "Current",
+    "custom": "Custom",
+    "loading": "Loading...",
+    "admin": "Admin",
+    "premium": "Premium",
+    "free": "Free",
+    "private": "Private",
+    "public": "Public",
+    "name": "Name",
+    "untitled": "Untitled"
+  },
+  "status": {
+    "saving": "Saving...",
+    "saved": "Saved",
+    "loading": "Loading...",
+    "uploading": "Uploading...",
+    "creating": "Creating..."
+  },
+  "thumbnail": {
+    "loading": "Loading...",
+    "noThumbnail": "No thumbnail",
+    "generating": "Generating thumbnail...",
+    "pleaseWait": "Please wait a moment"
+  },
+  "colorPicker": {
+    "open": "Open color picker"
+  },
+  "cookie": {
+    "message": "We use cookies to improve your experience. By continuing to use this site, you agree to our use of cookies.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "privacyLink": "Privacy Policy"
+  },
+  "showMore": "Show more ({{count}})",
+  "items": "{{count}} items",
+  "galleryLink": "Gallery",
+  "footer": {
+    "tagline": "99% Ready Design Kit",
+    "brandSite": "Brand site",
+    "shop": "Shop",
+    "aboutUs": "About Us",
+    "company": "Company",
+    "legalInfo": "Legal Information",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "securityPolicy": "Security Policy",
+    "contact": "Contact",
+    "copyright": "©IMAGINE"
+  },
+  "hero": {
+    "headline1": "Your design is",
+    "headline2": "99% done.",
+    "headline3": "You just finish it.",
+    "description": "Phone wallpapers, SNS headers, custom icons and thumbnails. Create freely and easily with IMAGINE, the simple design tool.",
+    "downloadButton": "Download as PNG"
+  },
+  "templatePromo": {
+    "eyebrow": "Free Content",
+    "title": "Design Templates",
+    "description": "You can download and use these assets as wallpapers, avatars, and thumbnails as they are. You can also change layouts and rewrite text to easily create your own WHATIF-style original design."
+  },
+  "clubPromo": {
+    "eyebrow": "Premium Members-Only Content",
+    "title": "Wallpaper Downloads In The Club",
+    "description": "Imagine Premium members can also access The Club with the same account. Preview exclusive wallpapers and jump to the member entrance.",
+    "tag": "Premium only",
+    "more": "View More In The Club"
+  },
+  "contact": {
+    "title": "Contact Us",
+    "description": "If you have any questions or requests, please feel free to contact us.",
+    "backToHome": "← Back to Home",
+    "name": "Name",
+    "namePlaceholder": "John Doe",
+    "email": "Email Address",
+    "subject": "Subject",
+    "subjectPlaceholder": "Enter the subject of your inquiry",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Please describe your inquiry in detail",
+    "submitButton": "Send",
+    "sending": "Sending...",
+    "successTitle": "Message Sent",
+    "successMessage": "Thank you for your inquiry. We will respond within 1-3 business days.",
+    "errorTitle": "Error Sending Message",
+    "errorMessage": "Failed to send message. Please try again later.",
+    "directEmail": "Send Email Directly",
+    "directEmailDescription": "You can also contact us directly at the following email address:",
+    "businessHours": "Business Hours",
+    "businessHoursDescription": "We will respond to your inquiry within 1-3 business days.",
+    "businessHoursNote": "(Excluding weekends and holidays)"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "button": {
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "duplicate": "복제",
+    "add": "추가",
+    "apply": "적용",
+    "close": "닫기",
+    "upload": "업로드",
+    "create": "만들기",
+    "back": "뒤로",
+    "backToHome": "홈으로 돌아가기"
+  },
+  "label": {
+    "width": "너비",
+    "height": "높이",
+    "current": "현재",
+    "custom": "사용자 정의",
+    "loading": "로딩 중...",
+    "admin": "관리자",
+    "premium": "프리미엄",
+    "free": "무료",
+    "private": "비공개",
+    "public": "공개",
+    "name": "이름",
+    "untitled": "제목 없음"
+  },
+  "status": {
+    "saving": "저장 중...",
+    "saved": "저장됨",
+    "loading": "로딩 중...",
+    "uploading": "업로드 중...",
+    "creating": "만드는 중..."
+  },
+  "thumbnail": {
+    "loading": "로딩 중...",
+    "noThumbnail": "썸네일 없음",
+    "generating": "썸네일 생성 중...",
+    "pleaseWait": "잠시만 기다려 주세요"
+  },
+  "colorPicker": {
+    "open": "색상 선택기 열기"
+  },
+  "cookie": {
+    "message": "본 웹사이트는 서비스 향상을 위해 쿠키를 사용합니다. 사이트를 계속 이용하면 쿠키 사용에 동의하는 것으로 간주합니다.",
+    "accept": "동의",
+    "decline": "거부",
+    "privacyLink": "개인정보처리방침"
+  },
+  "showMore": "더보기 ({{count}}개)",
+  "items": "{{count}}개",
+  "galleryLink": "갤러리",
+  "footer": {
+    "tagline": "99% 완성 디자인 키트",
+    "brandSite": "브랜드 사이트",
+    "shop": "쇼핑",
+    "aboutUs": "소개",
+    "company": "운영 회사",
+    "legalInfo": "법적 고지",
+    "privacyPolicy": "개인정보처리방침",
+    "termsOfService": "이용약관",
+    "securityPolicy": "보안 정책",
+    "contact": "문의하기",
+    "copyright": "©IMAGINE"
+  },
+  "hero": {
+    "headline1": "Your design is",
+    "headline2": "99% done.",
+    "headline3": "You just finish it.",
+    "description": "스마트폰 배경화면, SNS 헤더, 나만의 아이콘과 썸네일. 간단한 디자인 도구 IMAGINE으로 '만들기'를 더 자유롭게, 더 쉽게.",
+    "downloadButton": "PNG로 다운로드"
+  },
+  "templatePromo": {
+    "eyebrow": "무료 콘텐츠",
+    "title": "디자인 템플릿",
+    "description": "템플릿을 그대로 다운로드해 배경화면, 아바타, 썸네일 등에 사용할 수 있습니다. 또한 레이아웃과 문구를 바꾸면 누구나 쉽게 WHATIF 스타일의 오리지널 디자인을 만들 수 있습니다."
+  },
+  "clubPromo": {
+    "eyebrow": "프리미엄 회원 전용 콘텐츠",
+    "title": "The Club 배경화면 다운로드",
+    "description": "Imagine 프리미엄 회원은 같은 계정으로 The Club도 이용할 수 있습니다. 전용 배경화면 썸네일을 보고 회원 입구로 이동하세요.",
+    "tag": "프리미엄 전용",
+    "more": "더 보기 (The Club로 이동)"
+  },
+  "contact": {
+    "title": "문의하기",
+    "description": "질문이나 요청 사항이 있으시면 언제든지 문의해 주세요.",
+    "backToHome": "← 홈으로 돌아가기",
+    "name": "이름",
+    "namePlaceholder": "홍길동",
+    "email": "이메일 주소",
+    "subject": "제목",
+    "subjectPlaceholder": "문의 제목을 입력해 주세요",
+    "messageLabel": "문의 내용",
+    "messagePlaceholder": "문의 내용을 자세히 작성해 주세요",
+    "submitButton": "보내기",
+    "sending": "전송 중...",
+    "successTitle": "전송 완료",
+    "successMessage": "문의해 주셔서 감사합니다. 1-3영업일 이내에 답변드리겠습니다.",
+    "errorTitle": "전송 실패",
+    "errorMessage": "전송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    "directEmail": "직접 이메일 보내기",
+    "directEmailDescription": "아래 이메일 주소로 직접 문의하실 수도 있습니다:",
+    "businessHours": "업무 시간",
+    "businessHoursDescription": "문의에 대한 답변은 보통 1-3영업일 이내에 이루어집니다.",
+    "businessHoursNote": "(주말 및 공휴일 제외)"
+  }
+}

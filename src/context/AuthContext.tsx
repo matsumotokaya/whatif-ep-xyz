@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
-import { readSsoCookie, writeSsoCookie, clearSsoCookie } from '@/lib/ssoCookie';
 import { notifySignupIfNeeded } from '@/lib/account-notifications';
 
 interface Profile {
@@ -14,6 +13,7 @@ interface Profile {
   role: 'user' | 'admin';
   subscription_tier: 'free' | 'premium';
   subscription_status: 'active' | 'canceling' | 'canceled' | null;
+  subscription_expires_at: string | null;
 }
 
 interface AuthContextType {
@@ -59,44 +59,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const notifiedSignupUserIdsRef = useRef<Set<string>>(new Set());
   const pendingSignupNotificationUserIdsRef = useRef<Set<string>>(new Set());
-  const sessionRef = useRef<Session | null>(null);
-  const adoptingSharedSessionRef = useRef(false);
 
   const supabase = createClient();
 
   useEffect(() => {
     let isActive = true;
 
-    // Sync the cross-subdomain SSO cookie so app.whatif-ep.xyz (IMAGINE)
-    // can adopt this session. Side-effect only; never calls setSession here.
-    const syncSsoCookie = (event: string, session: Session | null) => {
-      try {
-        // Only a confirmed sign-out should delete the shared cookie. A null
-        // local session on this subdomain does not prove the sibling app is
-        // also signed out, so clearing here can break cross-subdomain SSO.
-        if (event === 'SIGNED_OUT') {
-          clearSsoCookie();
-          return;
-        }
-        if (
-          event === 'SIGNED_IN' ||
-          event === 'TOKEN_REFRESHED' ||
-          event === 'INITIAL_SESSION'
-        ) {
-          if (session?.access_token && session?.refresh_token) {
-            writeSsoCookie({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            });
-          }
-        }
-      } catch {
-        // Never let SSO cookie sync break auth.
-      }
-    };
-
+    // Single-origin session: the @supabase/ssr cookie session is the sole
+    // source of truth. The former cross-subdomain SSO cookie (wf-sso-token)
+    // sync/adoption was removed in consolidation M2.
     const applySession = (nextSession: Session | null) => {
-      sessionRef.current = nextSession;
       if (!isActive) {
         return;
       }
@@ -106,75 +78,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
 
-    const adoptSharedSessionIfNeeded = async (): Promise<Session | null> => {
-      if (adoptingSharedSessionRef.current || sessionRef.current) {
-        return sessionRef.current;
-      }
-
-      const ssoTokens = readSsoCookie();
-      if (!ssoTokens) {
-        return null;
-      }
-
-      adoptingSharedSessionRef.current = true;
-      try {
-        const { data, error } = await supabase.auth.setSession({
-          access_token: ssoTokens.access_token,
-          refresh_token: ssoTokens.refresh_token,
-        });
-
-        if (error || !data.session) {
-          return null;
-        }
-
-        applySession(data.session);
-        return data.session;
-      } catch {
-        return null;
-      } finally {
-        adoptingSharedSessionRef.current = false;
-      }
-    };
-
-    void supabase.auth.getSession().then(async ({ data: { session } }) => {
-      sessionRef.current = session;
-
-      let resolvedSession = session;
-      if (!resolvedSession) {
-        resolvedSession = await adoptSharedSessionIfNeeded();
-      }
-
-      applySession(resolvedSession);
-      syncSsoCookie('INITIAL_SESSION', resolvedSession);
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      applySession(session);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         applySession(session);
-        syncSsoCookie(event, session);
       }
     );
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') {
-        return;
-      }
-
-      void adoptSharedSessionIfNeeded();
-    };
-
-    const handleWindowFocus = () => {
-      void adoptSharedSessionIfNeeded();
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
       isActive = false;
       subscription.unsubscribe();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -186,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, subscription_tier, subscription_status')
+      .select('id, email, full_name, avatar_url, role, subscription_tier, subscription_status, subscription_expires_at')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {

@@ -1,0 +1,132 @@
+{
+  "tabs": {
+    "tool": "도구",
+    "layer": "레이어",
+    "selectTool": "선택",
+    "handTool": "핸드"
+  },
+  "page": {
+    "canvasSettings": "캔버스 설정",
+    "canvasSize": "캔버스 크기",
+    "backgroundColor": "배경색",
+    "noLayers": "레이어가 없습니다",
+    "addObjects": "오브젝트를 추가하세요"
+  },
+  "canvasSizeSelector": {
+    "allSizes": "다른 크기 선택...",
+    "customSize": "사용자 정의 크기",
+    "closeCustomSize": "사용자 정의 크기 닫기",
+    "width": "너비",
+    "height": "높이",
+    "apply": "적용",
+    "currentSize": "현재",
+    "presets": {
+      "hdLandscape": "HD 가로",
+      "hdPortrait": "HD 세로",
+      "youtube": "YouTube",
+      "ogp": "OGP Image",
+      "note": "note",
+      "instagramSquare": "Instagram 정사각형",
+      "instagramFeed": "Instagram 피드",
+      "twitterHeader": "X 헤더"
+    }
+  },
+  "imageUploader": {
+    "uploadImage": "이미지 업로드",
+    "chooseFromLibrary": "라이브러리에서 선택",
+    "imageLibrary": "이미지 라이브러리",
+    "dragDropHint": "드래그 앤 드롭으로도 추가할 수 있습니다",
+    "supportedFormats": "JPG, PNG, GIF 지원"
+  },
+  "object": {
+    "text": "텍스트",
+    "shapes": "도형",
+    "image": "이미지",
+    "addText": "텍스트 추가",
+    "addShape": "도형 선택",
+    "templates": "템플릿"
+  },
+  "shapes": {
+    "rectangle": "사각형",
+    "circle": "원형",
+    "triangle": "삼각형",
+    "star": "별",
+    "heart": "하트"
+  },
+  "properties": {
+    "title": "속성",
+    "selectObject": "오브젝트를 선택하세요",
+    "font": "글꼴",
+    "textSize": "글자 크기",
+    "fontWeight": "굵기",
+    "letterSpacing": "자간",
+    "lineHeight": "행간",
+    "textAlign": "텍스트 정렬",
+    "fill": "채우기",
+    "stroke": "테두리",
+    "strokeOnly": "테두리만",
+    "strokeWidth": "테두리 두께",
+    "shadow": "그림자",
+    "shadowBlur": "흐림",
+    "shadowOffsetX": "가로 오프셋",
+    "shadowOffsetY": "세로 오프셋",
+    "shadowOpacity": "불투명도",
+    "imageBlur": "블러",
+    "generateShadow": "그림자 생성",
+    "fitToCanvas": "캔버스에 맞추기",
+    "alignment": "정렬",
+    "centerX": "가로 중앙",
+    "centerY": "세로 중앙",
+    "objectsSelected": "개 오브젝트 선택됨",
+    "mixedColors": "혼합 색상",
+    "opacity": "불투명도",
+    "layer": "레이어",
+    "bringToFront": "맨 앞으로",
+    "sendToBack": "맨 뒤로",
+    "moveUp": "앞으로",
+    "moveDown": "뒤로",
+    "width": "너비",
+    "height": "높이",
+    "delete": "삭제",
+    "fontCategories": {
+      "latinSans": "🔤 라틴 산세리프",
+      "latinSerif": "🔤 라틴 세리프",
+      "japaneseSans": "📝 일본어 산세리프",
+      "japaneseSerif": "📝 일본어 세리프"
+    },
+    "fontWeights": {
+      "thin": "Thin",
+      "extraLight": "Extra Light",
+      "light": "Light",
+      "regular": "Regular",
+      "medium": "Medium",
+      "semiBold": "Semi Bold",
+      "bold": "Bold",
+      "extraBold": "Extra Bold",
+      "black": "Black"
+    }
+  },
+  "textInput": {
+    "placeholder": "텍스트 입력...",
+    "add": "텍스트 추가",
+    "clickCanvas": "캔버스를 클릭하여 배치"
+  },
+  "download": "다운로드",
+  "dropImage": "이미지를 드롭하세요",
+  "zoom": "확대/축소",
+  "save": {
+    "save": "저장",
+    "saving": "저장 중...",
+    "saved": "저장됨",
+    "unsaved": "저장되지 않은 변경 사항",
+    "error": "저장 오류",
+    "retry": "재시도"
+  },
+  "dragToReorder": "드래그하여 순서 변경",
+  "layerVisibility": {
+    "show": "표시",
+    "hide": "숨기기"
+  },
+  "lock": "잠금",
+  "unlock": "잠금 해제"
+}

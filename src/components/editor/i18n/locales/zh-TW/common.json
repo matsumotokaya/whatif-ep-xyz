@@ -1,0 +1,109 @@
+{
+  "button": {
+    "save": "儲存",
+    "cancel": "取消",
+    "delete": "刪除",
+    "duplicate": "複製",
+    "add": "新增",
+    "apply": "套用",
+    "close": "關閉",
+    "upload": "上傳",
+    "create": "建立",
+    "back": "返回",
+    "backToHome": "返回首頁"
+  },
+  "label": {
+    "width": "寬度",
+    "height": "高度",
+    "current": "目前",
+    "custom": "自訂",
+    "loading": "載入中...",
+    "admin": "管理員",
+    "premium": "進階版",
+    "free": "免費",
+    "private": "私人",
+    "public": "公開",
+    "name": "名稱",
+    "untitled": "未命名"
+  },
+  "status": {
+    "saving": "儲存中...",
+    "saved": "已儲存",
+    "loading": "載入中...",
+    "uploading": "上傳中...",
+    "creating": "建立中..."
+  },
+  "thumbnail": {
+    "loading": "載入中...",
+    "noThumbnail": "無縮圖",
+    "generating": "正在生成縮圖...",
+    "pleaseWait": "請稍候"
+  },
+  "colorPicker": {
+    "open": "開啟取色器"
+  },
+  "cookie": {
+    "message": "本網站使用 Cookie 以提升服務品質。繼續使用本網站即表示您同意使用 Cookie。",
+    "accept": "同意",
+    "decline": "拒絕",
+    "privacyLink": "隱私權政策"
+  },
+  "showMore": "查看更多 ({{count}}個)",
+  "items": "{{count}}個",
+  "galleryLink": "作品畫廊",
+  "footer": {
+    "tagline": "99%完成設計工具組",
+    "brandSite": "品牌網站",
+    "shop": "商店",
+    "aboutUs": "關於我們",
+    "company": "營運公司",
+    "legalInfo": "法律資訊",
+    "privacyPolicy": "隱私權政策",
+    "termsOfService": "服務條款",
+    "securityPolicy": "安全政策",
+    "contact": "聯絡我們",
+    "copyright": "©IMAGINE"
+  },
+  "hero": {
+    "headline1": "Your design is",
+    "headline2": "99% done.",
+    "headline3": "You just finish it.",
+    "description": "手機桌布、社群媒體橫幅、專屬頭像與縮圖。簡單設計工具IMAGINE讓創作更自由、更簡單。",
+    "downloadButton": "下載為PNG"
+  },
+  "templatePromo": {
+    "eyebrow": "免費內容",
+    "title": "設計模板",
+    "description": "這些模板可直接下載並用於桌布、頭像、縮圖等用途。你也可以調整版面與文字，輕鬆製作屬於自己的 WHATIF 風格原創設計。"
+  },
+  "clubPromo": {
+    "eyebrow": "進階會員專屬內容",
+    "title": "The Club 桌布下載",
+    "description": "Imagine 進階會員可用同一帳號存取 The Club。先查看專屬桌布縮圖，再進入會員入口。",
+    "tag": "進階限定",
+    "more": "查看更多（前往 The Club）"
+  },
+  "contact": {
+    "title": "聯絡我們",
+    "description": "如果您有任何問題或需求，請隨時與我們聯繫。",
+    "backToHome": "← 返回首頁",
+    "name": "姓名",
+    "namePlaceholder": "王大明",
+    "email": "電子信箱",
+    "subject": "主旨",
+    "subjectPlaceholder": "請輸入詢問主旨",
+    "messageLabel": "詢問內容",
+    "messagePlaceholder": "請詳細描述您的詢問內容",
+    "submitButton": "送出",
+    "sending": "發送中...",
+    "successTitle": "發送成功",
+    "successMessage": "感謝您的詢問。我們將在1-3個工作天內回覆。",
+    "errorTitle": "發送失敗",
+    "errorMessage": "發送失敗，請稍後重試。",
+    "directEmail": "直接發送郵件",
+    "directEmailDescription": "您也可以直接透過以下信箱地址聯繫我們：",
+    "businessHours": "營業時間",
+    "businessHoursDescription": "我們將在1-3個工作天內回覆您的詢問。",
+    "businessHoursNote": "（週末及國定假日除外）"
+  }
+}

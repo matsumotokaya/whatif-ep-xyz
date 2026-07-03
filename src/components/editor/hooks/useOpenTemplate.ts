@@ -1,0 +1,110 @@
+import { useCallback } from 'react';
+import { useNavigate } from '@/components/editor/lib/router';
+import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
+import { bannerStorage } from '../utils/bannerStorage';
+import { templateStorage } from '../utils/templateStorage';
+import { hasGuestDesignConflict, isPremiumTemplate } from '../utils/guestDesign';
+import { invalidateBannerCollectionQueries } from './useBanners';
+import { DEFAULT_TEMPLATES } from '../templates/defaultTemplates';
+import type { Template, TemplateRecord } from '../types/template';
+
+function buildEditorTemplate(template: TemplateRecord): Template {
+  const fallbackTemplate = DEFAULT_TEMPLATES[0];
+  return {
+    id: template.id,
+    name: template.name,
+    width: template.width ?? fallbackTemplate.width,
+    height: template.height ?? fallbackTemplate.height,
+    backgroundColor: template.canvasColor,
+    thumbnail: template.thumbnailUrl,
+    planType: template.planType,
+  };
+}
+
+interface UseOpenTemplateOptions {
+  // Shown when a logged-in free user (or a user without a profile) opens a premium template.
+  onUpgradeRequired: () => void;
+  // Called when a logged-out visitor opens a premium template, to send them to
+  // login instead of the upgrade modal. Falls back to onUpgradeRequired when omitted.
+  onLoginRequired?: () => void;
+  // Shown when a guest already has a different in-progress guest design.
+  onGuestConflict: (template: TemplateRecord) => void;
+  // Toggles the per-card "creating..." spinner (no-op when not needed).
+  onCreatingChange?: (templateId: string | null) => void;
+}
+
+// Shared template-open flow used by both TemplateGallery cards and the
+// /banner?template=<id> direct-open receiver. Mirrors the original
+// handleTemplateClick: getById resolution + premium guard + login/guest branch.
+export function useOpenTemplate(options: UseOpenTemplateOptions) {
+  const { onUpgradeRequired, onLoginRequired, onGuestConflict, onCreatingChange } = options;
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { t } = useTranslation(['banner']);
+  const { user, profile } = useAuth();
+
+  return useCallback(
+    async (template: TemplateRecord) => {
+      const resolvedTemplate = template.elements
+        ? template
+        : await templateStorage.getById(template.id);
+      if (!resolvedTemplate?.elements) {
+        alert(t('banner:templateLoadFailed'));
+        return;
+      }
+
+      // Premium guard:
+      // - Logged-out visitor -> send to login (so premium members can sign in and
+      //   continue), falling back to the upgrade modal when no login handler is given.
+      // - Logged-in user without a premium subscription -> upgrade modal.
+      if (isPremiumTemplate(resolvedTemplate)) {
+        if (!user) {
+          (onLoginRequired ?? onUpgradeRequired)();
+          return;
+        }
+        if (!profile || profile.subscriptionTier === 'free') {
+          onUpgradeRequired();
+          return;
+        }
+      }
+
+      // Fire-and-forget: increment open count
+      templateStorage.incrementOpenCount(resolvedTemplate.id);
+
+      const editorTemplate = buildEditorTemplate(resolvedTemplate);
+      const templateElements = JSON.parse(JSON.stringify(resolvedTemplate.elements || []));
+
+      if (!user) {
+        if (hasGuestDesignConflict(resolvedTemplate.id)) {
+          onGuestConflict(resolvedTemplate);
+          return;
+        }
+
+        navigate('/edit', {
+          state: {
+            template: editorTemplate,
+            elements: templateElements,
+            canvasColor: resolvedTemplate.canvasColor,
+            name: resolvedTemplate.name,
+            templateId: resolvedTemplate.id,
+          },
+        });
+        return;
+      }
+
+      onCreatingChange?.(resolvedTemplate.id);
+      try {
+        const created = await bannerStorage.createFromTemplate(resolvedTemplate, editorTemplate);
+        if (created) {
+          await invalidateBannerCollectionQueries(queryClient);
+          navigate(`/edit/${created.id}`);
+        }
+      } finally {
+        onCreatingChange?.(null);
+      }
+    },
+    [navigate, queryClient, t, user, profile, onUpgradeRequired, onLoginRequired, onGuestConflict, onCreatingChange],
+  );
+}

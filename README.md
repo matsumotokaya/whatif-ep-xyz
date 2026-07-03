@@ -70,7 +70,7 @@ src/
 └── lib/
     ├── works.ts / work-images.ts / work-saves.ts   # works data access (source of truth)
     ├── wallpaper.ts / wallpaper-manual.ts / wallpaper-purchases.ts
-    ├── club/ · admin/ · supabase/ · stripe.ts · ssoCookie.ts
+    ├── club/ · admin/ · supabase/ · stripe.ts
     ├── episodes.ts / images.ts / r2.ts             # legacy episode helpers
     └── types.ts
 src/data/
@@ -152,6 +152,7 @@ This session aligned Gallery-side notification and purchase handling with the cu
 - Expanded the lightweight cross-subdomain SSO bridge:
   - both apps re-check the shared SSO cookie on boot, focus, and visibility return
   - login carry-over now works more reliably in both directions when the other app is revisited
+  - **2026-07-02 追記**: アプリ統合 M2（`docs/CONSOLIDATION_PLAN.md`）で Gallery 側の SSO 実装（`src/lib/ssoCookie.ts`・boot/focus/visibility 再チェック・`wf-sso-token` 読み書き）は撤去済み。認証は `@supabase/ssr` の単一オリジンセッションのみ
 
 Confirmed in production:
 
@@ -164,7 +165,7 @@ Remaining production verification:
 
 Future auth hardening:
 
-- Replace the current browser-readable shared SSO cookie with an HttpOnly cookie based, server-led session design
+- ~~Replace the current browser-readable shared SSO cookie with an HttpOnly cookie based, server-led session design~~ → 解決（2026-07-02 統合 M2 で SSO クッキー自体を廃止。セッションは `@supabase/ssr` クッキーに一本化）
 
 ## Adding a New Episode
 

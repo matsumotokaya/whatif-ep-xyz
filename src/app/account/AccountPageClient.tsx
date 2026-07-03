@@ -352,7 +352,7 @@ const LOCALE_TAG: Record<Language, string> = {
   ko: "ko-KR",
 };
 
-const IMAGINE_UPGRADE_URL = "https://app.whatif-ep.xyz/upgrade";
+const IMAGINE_UPGRADE_URL = "/plans";
 
 function formatDate(iso: string | null, lang: Language): string {
   if (!iso) return "—";

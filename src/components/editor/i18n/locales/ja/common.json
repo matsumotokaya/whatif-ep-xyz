@@ -1,0 +1,109 @@
+{
+  "button": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "duplicate": "複製",
+    "add": "追加",
+    "apply": "適用",
+    "close": "閉じる",
+    "upload": "アップロード",
+    "create": "作成",
+    "back": "戻る",
+    "backToHome": "ホームに戻る"
+  },
+  "label": {
+    "width": "幅",
+    "height": "高さ",
+    "current": "現在",
+    "custom": "カスタム",
+    "loading": "読み込み中...",
+    "admin": "管理者",
+    "premium": "プレミアム",
+    "free": "無料",
+    "private": "非公開",
+    "public": "公開",
+    "name": "名前",
+    "untitled": "無題"
+  },
+  "status": {
+    "saving": "保存中...",
+    "saved": "保存しました",
+    "loading": "読み込み中...",
+    "uploading": "アップロード中...",
+    "creating": "作成中..."
+  },
+  "thumbnail": {
+    "loading": "読み込み中...",
+    "noThumbnail": "サムネイルなし",
+    "generating": "サムネイル生成中...",
+    "pleaseWait": "しばらくお待ちください"
+  },
+  "colorPicker": {
+    "open": "カラーピッカーを開く"
+  },
+  "cookie": {
+    "message": "当サイトでは、サービス向上のためにCookieを使用しています。サイトの利用を続けることで、Cookieの使用に同意したものとみなします。",
+    "accept": "同意する",
+    "decline": "拒否する",
+    "privacyLink": "プライバシーポリシー"
+  },
+  "showMore": "もっと見る ({{count}}件)",
+  "items": "{{count}}件",
+  "galleryLink": "ギャラリー",
+  "footer": {
+    "tagline": "99%完成済みデザインキット",
+    "brandSite": "ブランドサイト",
+    "shop": "ショップ",
+    "aboutUs": "サービスについて",
+    "company": "運営会社",
+    "legalInfo": "特定商取引法に基づく表記",
+    "privacyPolicy": "プライバシーポリシー",
+    "termsOfService": "利用規約",
+    "securityPolicy": "セキュリティポリシー",
+    "contact": "お問い合わせ",
+    "copyright": "©IMAGINE"
+  },
+  "hero": {
+    "headline1": "Your design is",
+    "headline2": "99% done.",
+    "headline3": "You just finish it.",
+    "description": "スマホの壁紙、SNSのヘッダー、自分専用のアイコンやサムネイル。簡単デザインツールIMAGINEで「作る」を、もっと自由に、もっと簡単に。",
+    "downloadButton": "PNGでダウンロードする"
+  },
+  "templatePromo": {
+    "eyebrow": "無料コンテンツ",
+    "title": "デザインテンプレート",
+    "description": "そのままダウンロードして、壁紙やアバター、サムネイルなどにお使いいただくことができますが、レイアウトを変更したり、文字を書き換えたりすることで、誰でも簡単にWHATIF風オリジナルデザインを制作していただくことができます。"
+  },
+  "clubPromo": {
+    "eyebrow": "プレミアム会員向け特別コンテンツ",
+    "title": "壁紙ダウンロード",
+    "description": "プレミアム会員になると、The CLUB限定特典の壁紙ダウンロードページへアクセス頂けます。InstagramでのWHATIFサブスクユーザー限定コンテンツThe CLUBの会員ページは、/IMAGINEのプレミアムユーザーもご利用いただけるようにアカウント統合されました。",
+    "tag": "プレミアム限定",
+    "more": "もっと見る（The Clubへ）"
+  },
+  "contact": {
+    "title": "お問い合わせ",
+    "description": "ご質問やご要望がございましたら、お気軽にお問い合わせください。",
+    "backToHome": "← ホームに戻る",
+    "name": "お名前",
+    "namePlaceholder": "山田 太郎",
+    "email": "メールアドレス",
+    "subject": "件名",
+    "subjectPlaceholder": "お問い合わせの件名を入力してください",
+    "messageLabel": "お問い合わせ内容",
+    "messagePlaceholder": "お問い合わせ内容を詳しくご記入ください",
+    "submitButton": "送信",
+    "sending": "送信中...",
+    "successTitle": "送信完了",
+    "successMessage": "お問い合わせありがとうございます。1〜3営業日以内にご返信いたします。",
+    "errorTitle": "送信エラー",
+    "errorMessage": "送信に失敗しました。しばらくしてからもう一度お試しください。",
+    "directEmail": "直接メールで送信",
+    "directEmailDescription": "下記のメールアドレスに直接お問い合わせいただくことも可能です：",
+    "businessHours": "営業時間",
+    "businessHoursDescription": "お問い合わせへの回答は、通常1〜3営業日以内に行います。",
+    "businessHoursNote": "（土日祝日を除く）"
+  }
+}

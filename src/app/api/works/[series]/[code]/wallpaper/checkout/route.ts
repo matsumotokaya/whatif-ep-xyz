@@ -27,18 +27,10 @@ export async function POST(
   }
   const variant = parseVariant(body.variant);
 
+  // Guest checkout is allowed: anonymous visitors go straight to Stripe,
+  // which collects their email. Signed-in users keep the existing flow
+  // (entitlement short-circuit + prefilled email).
   const access = await getClubAccess();
-
-  const loginUrl = `/auth/login?next=${encodeURIComponent(
-    `/works/${series}/${code}/wallpaper?variant=${variant}`
-  )}`;
-
-  if (access.status === "anonymous" || !access.user) {
-    return NextResponse.json(
-      { error: "auth_required", loginUrl },
-      { status: 401 }
-    );
-  }
 
   const pack = await getPublishedWallpaperPack(series, code, variant);
   if (!pack) {
@@ -53,8 +45,9 @@ export async function POST(
 
   // Premium members and prior buyers are already entitled — skip checkout.
   if (
-    canAccessClub(access) ||
-    (await hasPurchasedWallpaper(access.user.id, wallpaperId))
+    access.user &&
+    (canAccessClub(access) ||
+      (await hasPurchasedWallpaper(access.user.id, wallpaperId)))
   ) {
     return NextResponse.json({ alreadyEntitled: true, downloadUrl });
   }
@@ -62,13 +55,17 @@ export async function POST(
   const origin =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || requestOrigin;
 
-  const metadata = {
+  // user_id is only present for signed-in buyers; its absence marks a guest
+  // purchase for the webhook / success fallback.
+  const metadata: Record<string, string> = {
     wallpaper_id: wallpaperId,
-    user_id: access.user.id,
     series_slug: series,
     display_code: code,
     variant_number: String(variant),
   };
+  if (access.user) {
+    metadata.user_id = access.user.id;
+  }
 
   try {
     const session = await getStripe().checkout.sessions.create({
@@ -76,8 +73,11 @@ export async function POST(
       line_items: [
         { price: process.env.STRIPE_WALLPAPER_PRICE_ID, quantity: 1 },
       ],
-      client_reference_id: access.user.id,
-      customer_email: access.user.email ?? undefined,
+      client_reference_id: access.user?.id,
+      // Signed-in buyers get their email prefilled; guests type theirs in
+      // Checkout (Stripe always collects it), and we reuse it for the
+      // download-link email.
+      customer_email: access.user?.email ?? undefined,
       metadata,
       payment_intent_data: { metadata },
       success_url: `${origin}/works/${series}/${code}/wallpaper?variant=${variant}&purchased=1&session_id={CHECKOUT_SESSION_ID}`,

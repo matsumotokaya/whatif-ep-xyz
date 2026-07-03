@@ -60,6 +60,13 @@ const nextConfig: NextConfig = {
         destination: "/works/episode/:number",
         permanent: true,
       },
+      // IMAGINE's old /upgrade route → consolidated /plans page (M4).
+      // Query params (return_to, source) are passed through automatically.
+      {
+        source: "/upgrade",
+        destination: "/plans",
+        permanent: false,
+      },
     ];
   },
 };

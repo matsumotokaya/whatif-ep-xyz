@@ -1,0 +1,132 @@
+{
+  "tabs": {
+    "tool": "工具",
+    "layer": "图层",
+    "selectTool": "选择",
+    "handTool": "抓手"
+  },
+  "page": {
+    "canvasSettings": "画布设置",
+    "canvasSize": "画布尺寸",
+    "backgroundColor": "背景颜色",
+    "noLayers": "暂无图层",
+    "addObjects": "请添加对象"
+  },
+  "canvasSizeSelector": {
+    "allSizes": "其他尺寸...",
+    "customSize": "自定义尺寸",
+    "closeCustomSize": "关闭自定义尺寸",
+    "width": "宽度",
+    "height": "高度",
+    "apply": "应用",
+    "currentSize": "当前",
+    "presets": {
+      "hdLandscape": "HD 横版",
+      "hdPortrait": "HD 竖版",
+      "youtube": "YouTube",
+      "ogp": "OGP Image",
+      "note": "note",
+      "instagramSquare": "Instagram 正方形",
+      "instagramFeed": "Instagram 动态",
+      "twitterHeader": "X 头图"
+    }
+  },
+  "imageUploader": {
+    "uploadImage": "上传图片",
+    "chooseFromLibrary": "从图库选择",
+    "imageLibrary": "图片库",
+    "dragDropHint": "也可以拖拽添加图片",
+    "supportedFormats": "支持 JPG、PNG、GIF"
+  },
+  "object": {
+    "text": "文字",
+    "shapes": "图形",
+    "image": "图片",
+    "addText": "添加文字",
+    "addShape": "选择图形",
+    "templates": "模板"
+  },
+  "shapes": {
+    "rectangle": "矩形",
+    "circle": "圆形",
+    "triangle": "三角形",
+    "star": "星形",
+    "heart": "心形"
+  },
+  "properties": {
+    "title": "属性",
+    "selectObject": "选择对象",
+    "font": "字体",
+    "textSize": "字号",
+    "fontWeight": "字重",
+    "letterSpacing": "字距",
+    "lineHeight": "行高",
+    "textAlign": "文字对齐",
+    "fill": "填充",
+    "stroke": "描边",
+    "strokeOnly": "仅描边",
+    "strokeWidth": "描边宽度",
+    "shadow": "阴影",
+    "shadowBlur": "模糊",
+    "shadowOffsetX": "水平偏移",
+    "shadowOffsetY": "垂直偏移",
+    "shadowOpacity": "不透明度",
+    "imageBlur": "模糊",
+    "generateShadow": "生成阴影",
+    "fitToCanvas": "适应画布",
+    "alignment": "对齐",
+    "centerX": "水平居中",
+    "centerY": "垂直居中",
+    "objectsSelected": "个对象已选中",
+    "mixedColors": "多种颜色",
+    "opacity": "不透明度",
+    "layer": "图层",
+    "bringToFront": "移到最前",
+    "sendToBack": "移到最后",
+    "moveUp": "向前移动",
+    "moveDown": "向后移动",
+    "width": "宽度",
+    "height": "高度",
+    "delete": "删除",
+    "fontCategories": {
+      "latinSans": "🔤 拉丁无衬线",
+      "latinSerif": "🔤 拉丁衬线",
+      "japaneseSans": "📝 日文无衬线",
+      "japaneseSerif": "📝 日文衬线"
+    },
+    "fontWeights": {
+      "thin": "Thin",
+      "extraLight": "Extra Light",
+      "light": "Light",
+      "regular": "Regular",
+      "medium": "Medium",
+      "semiBold": "Semi Bold",
+      "bold": "Bold",
+      "extraBold": "Extra Bold",
+      "black": "Black"
+    }
+  },
+  "textInput": {
+    "placeholder": "输入文字...",
+    "add": "添加文字",
+    "clickCanvas": "点击画布放置"
+  },
+  "download": "下载",
+  "dropImage": "拖放图片",
+  "zoom": "缩放",
+  "save": {
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "已保存",
+    "unsaved": "未保存的更改",
+    "error": "保存失败",
+    "retry": "重试"
+  },
+  "dragToReorder": "拖动排序",
+  "layerVisibility": {
+    "show": "显示",
+    "hide": "隐藏"
+  },
+  "lock": "锁定",
+  "unlock": "解锁"
+}

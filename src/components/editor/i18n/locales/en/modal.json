@@ -1,0 +1,96 @@
+{
+  "editTemplate": {
+    "title": "Edit Template",
+    "templateName": "Template Name",
+    "templateNamePlaceholder": "Enter template name",
+    "planType": "Plan Type",
+    "free": "Free",
+    "premium": "Premium",
+    "displayOrder": "Display Order",
+    "displayOrderPlaceholder": "Lower numbers appear first",
+    "displayOrderHint": "Leave empty for default order (by update date)",
+    "size": "Size",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "deleteTemplate": "Delete Template",
+    "deleteConfirm": "Are you sure? This cannot be undone.",
+    "deleting": "Deleting...",
+    "delete": "Delete",
+    "editButton": "Edit",
+    "errors": {
+      "nameEmpty": "Template name cannot be empty",
+      "saveFailed": "Failed to save template",
+      "deleteFailed": "Failed to delete template"
+    }
+  },
+  "upgrade": {
+    "title": "Premium Only",
+    "description": "Upgrade required to view/edit this design or feature",
+    "features": {
+      "access": {
+        "title": "Access to all Premium designs",
+        "desc": "Unlimited use of high-quality templates"
+      },
+      "theClub": {
+        "title": "Gallery Wallpaper Downloads",
+        "desc": "Download all premium wallpaper packs without limits"
+      },
+      "support": {
+        "title": "Unlimited Design Files",
+        "desc": "Create unlimited design files"
+      },
+      "earlyAccess": {
+        "title": "Design Asset Library Access",
+        "desc": "Unlimited use of premium materials"
+      }
+    },
+    "upgradeButton": "Premium Plan ($3 / month)",
+    "cancel": "Cancel",
+    "comingSoon": "Upgrade feature coming soon",
+    "freePlan": {
+      "name": "Free",
+      "price": "$0",
+      "billing": "Billed Monthly",
+      "active": "Active",
+      "feat1Title": "Free design templates",
+      "feat1Desc": "Access to all free templates",
+      "feat2Title": "Unlimited design files",
+      "feat2Desc": "Create as many designs as you want",
+      "feat3Title": "PNG / JPEG export",
+      "feat3Desc": "Download your creations anytime"
+    },
+    "premiumPlan": {
+      "name": "Premium",
+      "price": "$3",
+      "billing": "Billed Monthly",
+      "upgradeButton": "Upgrade Plan"
+    }
+  },
+  "desktopRecommended": {
+    "title": "Desktop Recommended",
+    "description": "This tool is optimized for editing on larger screens like laptops. Some features may be limited on mobile.",
+    "dontShowAgain": "Don't show again",
+    "gotIt": "Got it"
+  },
+  "imageLibrary": {
+    "title": "Image Library",
+    "tabs": {
+      "default": "Premium Library",
+      "myLibrary": "Uploads"
+    },
+    "upload": "Upload Image",
+    "uploading": "Uploading...",
+    "adminAccess": "👑 Admin Access",
+    "noDefaultImages": "No default images yet",
+    "noUserImages": "Upload images to add to your library",
+    "onlyImages": "Please select image files only",
+    "loginRequired": "Login required",
+    "uploadSuccess": "{{count}} image(s) uploaded",
+    "uploadPartialFail": "{{success}} succeeded, {{fail}} failed",
+    "uploadFailed": "Upload failed",
+    "deleteConfirm": "Delete \"{{name}}\"?",
+    "deleteFailed": "Failed to delete image",
+    "adminDbNotice": "To add or delete images, please manage directly from the database (Supabase Dashboard). Use the image name shown here to identify records."
+  }
+}

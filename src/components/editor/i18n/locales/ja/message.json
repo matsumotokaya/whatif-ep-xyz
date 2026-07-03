@@ -1,0 +1,39 @@
+{
+  "error": {
+    "imageGenerationFailed": "画像生成に失敗しました。もう一度お試しください。",
+    "exportFailed": "画像のエクスポートに失敗しました。",
+    "loginRequired": "ログインが必要です",
+    "bannerCreationFailed": "バナーの作成に失敗しました",
+    "uploadFailed": "アップロードに失敗しました",
+    "onlyImageFiles": "画像ファイルのみ選択してください",
+    "upgradeComingSoon": "アップグレード機能は準備中です",
+    "upgradeError": "アップグレードに失敗しました。もう一度お試しください。",
+    "saveFailed": "保存に失敗しました",
+    "imageLoginRequired": "フリープランのゲスト利用では画像アップロードはできません。ログインするとアップロードできます。",
+    "imageUploadFailed": "画像のアップロードに失敗しました。",
+    "subscriptionPortalFailed": "サブスクリプション管理を開けませんでした。もう一度お試しください。"
+  },
+  "success": {
+    "uploadComplete": "{{count}}個の画像を正常にアップロードしました",
+    "uploadPartial": "{{success}}個成功、{{fail}}個失敗",
+    "upgradeComplete": "アップグレード完了！",
+    "welcomePremium": "IMAGINE Premiumへようこそ！すべてのプレミアム機能が利用可能になりました。",
+    "premiumFeatures": "プレミアム機能",
+    "feature1": "すべてのプレミアムバナーにアクセス",
+    "feature2": "高品質テンプレートを無制限で利用",
+    "feature3": "優先サポート＆新機能への早期アクセス",
+    "redirecting": "{{seconds}}秒後にホームへ移動します..."
+  },
+  "info": {
+    "saveImageGuide": "iPhoneでは共有メニューから「画像を保存」を選ぶとカメラロールに保存できます。",
+    "inAppBrowserGuide": "アプリ内ブラウザで保存できない場合は、Safariで開いて再度お試しください。"
+  },
+  "confirm": {
+    "deleteBanner": "このバナーを削除してもよろしいですか？"
+  },
+  "placeholder": {
+    "defaultBannerText": "IMAGINEでバナーを作成しよう。",
+    "enterText": "テキストを入力...",
+    "untitledBanner": "無題のバナー"
+  }
+}

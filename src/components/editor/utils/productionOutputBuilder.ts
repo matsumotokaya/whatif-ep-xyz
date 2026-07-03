@@ -1,0 +1,540 @@
+// Production output builder for Content Factory publishes, ported from
+// IMAGINE (M4).
+//
+// Differences from the IMAGINE original
+// (imagine/src/utils/productionOutputBuilder.ts):
+// - Output blobs upload to R2 via the presign Edge Function (uploadAsset),
+//   never to Supabase Storage. storage_provider is therefore always 'r2'.
+// - production_outputs rows keep the current "healthy" shape
+//   (provider='r2' / storage_bucket / bare storage_path); consolidating them
+//   into a single storage_key column is deferred to M5 / M3 Phase 4.
+// - Stale-output cleanup routes by each row's storage_provider: R2 objects go
+//   through deleteAssets (presign delete), legacy Supabase objects through
+//   removeFilesFromBucket.
+
+import { getSupabase } from './supabase';
+import { asAssetKey } from '@/lib/asset';
+import { uploadAsset, deleteAssets } from './r2Upload';
+import { removeFilesFromBucket } from './storage';
+import {
+  COVER_SIZE,
+  MOCK_PUBLIC_PATH,
+  ensureCoverFontsReady,
+  loadImageElement,
+  renderCover,
+} from './coverComposer';
+import { ensureCanonicalWorkVariant } from './canonicalWorks';
+import { syncGalleryWorkFromProductionProject, upsertImagineStarterOffer } from './gallerySync';
+import type { WorkSeriesSlug } from './libraryAssets';
+import { templateStorage } from './templateStorage';
+import type { StorageProvider } from './assetUrl';
+import type {
+  ProductionOutputRole,
+  ProductionProjectStatus,
+  ProductionProjectSummary,
+} from '../types/production-project';
+
+const OUTPUT_BUCKET = 'user-images';
+
+type OutputSpec = {
+  role: Exclude<ProductionOutputRole, 'zip'>;
+  sourceRole: ProductionProjectSummary['banners'][number]['role'];
+  width: number;
+  height: number;
+  fileName: string;
+};
+
+const OUTPUT_SPECS: OutputSpec[] = [
+  {
+    role: 'mobile_qhd',
+    sourceRole: 'portrait_master',
+    width: 1440,
+    height: 2560,
+    fileName: 'mobile-qhd.png',
+  },
+  {
+    role: 'mobile_hd',
+    sourceRole: 'portrait_master',
+    width: 1080,
+    height: 1920,
+    fileName: 'mobile-hd.png',
+  },
+  {
+    role: 'pc_qhd',
+    sourceRole: 'landscape_master',
+    width: 2560,
+    height: 1440,
+    fileName: 'pc-qhd.png',
+  },
+  {
+    role: 'pc_hd',
+    sourceRole: 'landscape_master',
+    width: 1920,
+    height: 1080,
+    fileName: 'pc-hd.png',
+  },
+  {
+    role: 'instagram_feed',
+    sourceRole: 'instagram_feed',
+    width: 1080,
+    height: 1350,
+    fileName: 'instagram-feed.png',
+  },
+];
+
+// The package cover is generated headlessly from the mobile_hd wallpaper
+// (see coverComposer), not from an editable draft banner.
+const COVER_OUTPUT = {
+  width: 1600,
+  height: 1600,
+  fileName: 'package-cover.png',
+};
+
+// Lightweight credited feed thumbnail derived from the instagram_feed output.
+// Target ~720px on the long edge, WebP, credit preserved (it is already baked
+// into the instagram_feed pixels). Consumed by the Gallery list grid served
+// `unoptimized` so the full 1080x1350 PNG never hits Vercel Image Optimization.
+const FEED_THUMB = {
+  longEdge: 720,
+  mimeType: 'image/webp',
+  quality: 0.82,
+  fileName: 'feed-thumb.webp',
+};
+
+function loadImageFromUrl(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+    image.src = url;
+  });
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to export PNG blob.'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/png');
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error(`Failed to export ${mimeType} blob.`));
+          return;
+        }
+        resolve(blob);
+      },
+      mimeType,
+      quality,
+    );
+  });
+}
+
+// Downscale an already-rendered credited feed blob into a lightweight thumbnail.
+// Aspect ratio is preserved (the feed is 4:5), so the long edge is clamped to
+// FEED_THUMB.longEdge and the short edge is scaled proportionally.
+async function renderFeedThumbBlob(feedBlob: Blob): Promise<{ blob: Blob; width: number; height: number }> {
+  const feedUrl = URL.createObjectURL(feedBlob);
+  try {
+    const image = await loadImageElement(feedUrl);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    const longEdge = Math.max(sourceWidth, sourceHeight) || FEED_THUMB.longEdge;
+    const scale = Math.min(1, FEED_THUMB.longEdge / longEdge);
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Failed to get 2D canvas context for feed thumbnail.');
+    }
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await canvasToBlob(canvas, FEED_THUMB.mimeType, FEED_THUMB.quality);
+    return { blob, width, height };
+  } finally {
+    URL.revokeObjectURL(feedUrl);
+  }
+}
+
+async function renderOutputBlob(sourceUrl: string, width: number, height: number): Promise<Blob> {
+  const image = await loadImageFromUrl(sourceUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Failed to get 2D canvas context.');
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+  return canvasToPngBlob(canvas);
+}
+
+async function renderCoverBlob(wallpaperBlob: Blob, episodeCode: string): Promise<Blob> {
+  const wallpaperUrl = URL.createObjectURL(wallpaperBlob);
+  try {
+    const [wallpaper, mock] = await Promise.all([
+      loadImageElement(wallpaperUrl),
+      loadImageElement(MOCK_PUBLIC_PATH),
+    ]);
+    await ensureCoverFontsReady();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = COVER_SIZE;
+    canvas.height = COVER_SIZE;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Failed to get 2D canvas context for cover.');
+    }
+
+    renderCover(context, { wallpaper, mock, episodeCode });
+    return canvasToPngBlob(canvas);
+  } finally {
+    URL.revokeObjectURL(wallpaperUrl);
+  }
+}
+
+async function updateProjectStatus(projectId: string, status: ProductionProjectStatus): Promise<void> {
+  const supabase = await getSupabase();
+  const { error } = await supabase
+    .from('production_projects')
+    .update({ status })
+    .eq('id', projectId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function upsertDeliveryPackage(params: {
+  projectId: string;
+  status: 'draft' | 'preparing' | 'ready' | 'published' | 'archived';
+  coverOutputId?: string | null;
+  publishedAt?: string | null;
+}): Promise<void> {
+  const supabase = await getSupabase();
+
+  const { data: existingPackage, error: selectError } = await supabase
+    .from('production_delivery_packages')
+    .select('id')
+    .eq('project_id', params.projectId)
+    .maybeSingle();
+
+  if (selectError) {
+    throw selectError;
+  }
+
+  const payload = {
+    project_id: params.projectId,
+    status: params.status,
+    cover_output_id: params.coverOutputId ?? null,
+    published_at: params.publishedAt ?? null,
+  };
+
+  if (existingPackage?.id) {
+    const { error } = await supabase
+      .from('production_delivery_packages')
+      .update(payload)
+      .eq('id', existingPackage.id);
+
+    if (error) {
+      throw error;
+    }
+
+    return;
+  }
+
+  const { error } = await supabase
+    .from('production_delivery_packages')
+    .insert(payload);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function saveCurrentOutput(params: {
+  userId: string;
+  projectId: string;
+  sourceBannerId: string;
+  role: Exclude<ProductionOutputRole, 'zip'>;
+  width: number;
+  height: number;
+  blob: Blob;
+  fileName: string;
+  mimeType?: string;
+}): Promise<{ id: string }> {
+  const supabase = await getSupabase();
+  const { data: currentOutputs, error: currentOutputsError } = await supabase
+    .from('production_outputs')
+    .select('id, storage_path, storage_provider')
+    .eq('project_id', params.projectId)
+    .eq('role', params.role)
+    .eq('is_current', true);
+
+  if (currentOutputsError) {
+    throw currentOutputsError;
+  }
+
+  // Production outputs use fixed file names (mobile-qhd.png, etc.) and
+  // overwrite in place. The r2-presign Edge Function authorizes the key by its
+  // first path segment after the logical bucket (== auth.uid()), so both the
+  // first publish and every republish are plain presigned PUTs.
+  const mimeType = params.mimeType ?? 'image/png';
+  const filePath = `${params.userId}/production/${params.projectId}/${params.fileName}`;
+  await uploadAsset(asAssetKey(`${OUTPUT_BUCKET}/${filePath}`), params.blob, mimeType);
+
+  const { error: deactivateError } = await supabase
+    .from('production_outputs')
+    .update({ is_current: false })
+    .eq('project_id', params.projectId)
+    .eq('role', params.role)
+    .eq('is_current', true);
+
+  if (deactivateError) {
+    throw deactivateError;
+  }
+
+  const { data: insertedOutput, error: insertError } = await supabase
+    .from('production_outputs')
+    .insert({
+      project_id: params.projectId,
+      source_banner_id: params.sourceBannerId,
+      role: params.role,
+      // Current healthy row shape: provider + logical bucket + bare path.
+      // All new uploads go through the R2 presign, so provider is always 'r2'.
+      storage_provider: 'r2',
+      storage_bucket: OUTPUT_BUCKET,
+      storage_path: filePath,
+      mime_type: mimeType,
+      file_size_bytes: params.blob.size,
+      width: params.width,
+      height: params.height,
+      status: 'ready',
+      is_current: true,
+    })
+    .select('id')
+    .single();
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  // Remove superseded objects whose path differs from the fixed file name
+  // (legacy revisioned outputs). Route by the provider recorded on each row.
+  const staleRows = (currentOutputs ?? []).filter(
+    (output): output is { id: string; storage_path: string; storage_provider: StorageProvider | null } =>
+      Boolean(output.storage_path) && output.storage_path !== filePath,
+  );
+
+  if (staleRows.length > 0) {
+    try {
+      const staleR2Keys = staleRows
+        .filter((row) => row.storage_provider === 'r2')
+        .map((row) => `${OUTPUT_BUCKET}/${row.storage_path}`);
+      const staleSupabasePaths = staleRows
+        .filter((row) => row.storage_provider !== 'r2')
+        .map((row) => row.storage_path);
+
+      if (staleR2Keys.length > 0) {
+        await deleteAssets(staleR2Keys);
+      }
+      if (staleSupabasePaths.length > 0) {
+        await removeFilesFromBucket(OUTPUT_BUCKET, staleSupabasePaths);
+      }
+    } catch (storageError) {
+      console.warn('Failed to remove stale production outputs:', storageError);
+    }
+  }
+
+  return insertedOutput;
+}
+
+export async function buildProductionOutputs(project: ProductionProjectSummary): Promise<{ outputCount: number }> {
+  const supabase = await getSupabase();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) {
+    throw new Error('You must be signed in to build production outputs.');
+  }
+  const userId = authData.user.id;
+
+  await updateProjectStatus(project.project.id, 'in_progress');
+  await upsertDeliveryPackage({
+    projectId: project.project.id,
+    status: 'preparing',
+  });
+
+  let coverOutputId: string | null = null;
+
+  try {
+    let outputCount = 0;
+    let mobileHdBlob: Blob | null = null;
+
+    for (const spec of OUTPUT_SPECS) {
+      const sourceBanner = project.banners.find((banner) => banner.role === spec.sourceRole);
+      if (!sourceBanner?.fullresUrl) {
+        throw new Error(`Missing full-resolution source for ${spec.sourceRole}. Open the draft, save it, then try again.`);
+      }
+
+      const blob = await renderOutputBlob(sourceBanner.fullresUrl, spec.width, spec.height);
+      await saveCurrentOutput({
+        userId,
+        projectId: project.project.id,
+        sourceBannerId: sourceBanner.bannerId,
+        role: spec.role,
+        width: spec.width,
+        height: spec.height,
+        blob,
+        fileName: spec.fileName,
+      });
+
+      if (spec.role === 'mobile_hd') {
+        mobileHdBlob = blob;
+      }
+
+      outputCount += 1;
+
+      // Derive a lightweight credited feed thumbnail from the just-rendered
+      // instagram_feed PNG. The credit is already baked into those pixels, so a
+      // proportional downscale preserves it. Served `unoptimized` by the Gallery.
+      //
+      // This is a non-essential optimization output: wrap it in its own
+      // try/catch so a thumbnail failure is logged and swallowed without rolling
+      // back the publish. Older works simply fall back to the full feed image in
+      // the Gallery, and a feed_thumb can be backfilled later.
+      if (spec.role === 'instagram_feed') {
+        try {
+          const thumb = await renderFeedThumbBlob(blob);
+          await saveCurrentOutput({
+            userId,
+            projectId: project.project.id,
+            sourceBannerId: sourceBanner.bannerId,
+            role: 'feed_thumb',
+            width: thumb.width,
+            height: thumb.height,
+            blob: thumb.blob,
+            fileName: FEED_THUMB.fileName,
+            mimeType: FEED_THUMB.mimeType,
+          });
+          outputCount += 1;
+        } catch (thumbError) {
+          console.error('Failed to generate feed_thumb (non-fatal, publish continues):', thumbError);
+        }
+      }
+    }
+
+    // Generate the package cover headlessly from the HD wallpaper.
+    const portraitBanner = project.banners.find((banner) => banner.role === 'portrait_master');
+    if (mobileHdBlob && portraitBanner) {
+      const episodeCode = `#${project.project.work_display_code}`;
+      const coverBlob = await renderCoverBlob(mobileHdBlob, episodeCode);
+      const savedCover = await saveCurrentOutput({
+        userId,
+        projectId: project.project.id,
+        sourceBannerId: portraitBanner.bannerId,
+        role: 'package_cover',
+        width: COVER_OUTPUT.width,
+        height: COVER_OUTPUT.height,
+        blob: coverBlob,
+        fileName: COVER_OUTPUT.fileName,
+      });
+      coverOutputId = savedCover.id;
+      outputCount += 1;
+    }
+
+    await upsertDeliveryPackage({
+      projectId: project.project.id,
+      status: 'ready',
+      coverOutputId,
+    });
+    await updateProjectStatus(project.project.id, 'ready');
+
+    return { outputCount };
+  } catch (error) {
+    await upsertDeliveryPackage({
+      projectId: project.project.id,
+      status: 'draft',
+    });
+    await updateProjectStatus(project.project.id, project.project.status);
+    throw error;
+  }
+}
+
+export async function publishProductionProject(project: ProductionProjectSummary): Promise<void> {
+  const publishedAt = new Date().toISOString();
+  await ensureCanonicalWorkVariant({
+    workSeriesSlug: project.project.work_series_slug as WorkSeriesSlug,
+    workNumber: project.project.work_number,
+    variantNumber: project.project.variant_number,
+    workTitle: project.project.work_title ?? undefined,
+    workSummary: project.project.work_summary ?? undefined,
+    releasedOn: project.project.released_on ?? undefined,
+    workTags: project.project.work_tags ?? undefined,
+  });
+  const { workId, variantId } = await syncGalleryWorkFromProductionProject(project);
+
+  // Promote the editable drafts into public templates:
+  //  - instagram_feed     -> FREE: the Gallery "Edit in IMAGINE" entry, openable
+  //    by everyone (guests edit without saving, free users can save).
+  //  - portrait_master /
+  //    landscape_master    -> PREMIUM: the wallpaper-sized designs, so premium
+  //    members can freely edit them. These are NOT exposed as Gallery offers —
+  //    only the free feed links out from the Gallery.
+  const feedBanner = project.banners.find((banner) => banner.role === 'instagram_feed');
+  if (!feedBanner) {
+    throw new Error('Missing instagram_feed banner for IMAGINE template promotion.');
+  }
+
+  const templateId = await templateStorage.upsertTemplateFromProductionProject({
+    productionProjectId: project.project.id,
+    bannerId: feedBanner.bannerId,
+    bannerRole: 'instagram_feed',
+    name: feedBanner.name,
+    planType: 'free',
+  });
+
+  if (!templateId) {
+    throw new Error('Failed to promote production project to IMAGINE template.');
+  }
+
+  // Wallpaper-sized premium templates (best-effort; skip a role if its draft is
+  // missing so a partial project can still publish its free feed + offer).
+  for (const role of ['portrait_master', 'landscape_master'] as const) {
+    const wallpaperBanner = project.banners.find((banner) => banner.role === role);
+    if (!wallpaperBanner) continue;
+    await templateStorage.upsertTemplateFromProductionProject({
+      productionProjectId: project.project.id,
+      bannerId: wallpaperBanner.bannerId,
+      bannerRole: role,
+      name: wallpaperBanner.name,
+      planType: 'premium',
+    });
+  }
+
+  await upsertImagineStarterOffer({ workId, variantId, templateId });
+
+  await upsertDeliveryPackage({
+    projectId: project.project.id,
+    status: 'published',
+    publishedAt,
+  });
+  await updateProjectStatus(project.project.id, 'published');
+}

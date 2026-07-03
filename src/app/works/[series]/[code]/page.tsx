@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAdminAccess } from "@/lib/admin/access";
+import { normalizeImagineDeepLink } from "@/lib/imagine-links";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
@@ -52,7 +53,8 @@ function resolveReadyOfferUrl(
   status: string | null | undefined,
   targetUrl: string | null | undefined
 ) {
-  return status === "ready" ? resolveOfferUrl(targetUrl) : null;
+  const url = status === "ready" ? resolveOfferUrl(targetUrl) : null;
+  return url ? normalizeImagineDeepLink(url) : null;
 }
 
 export async function generateMetadata({
