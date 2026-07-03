@@ -249,3 +249,10 @@ app/
 - [ ] `BannerEditor` 本体を `/edit` に接続し、`/edit?template=<id>` で編集開始できる状態にする。
 - [ ] M1 完了後に SSO 撤去・asset key 化の順序を最終確定。
 </content>
+
+## デプロイ前提条件: R2 CORS（2026-07-03 発見）
+
+`whatif-assets`（assets.whatif-ep.xyz）バケットの CORS は当初 `https://app.whatif-ep.xyz` のみ許可だった。統合後は **whatif-ep.xyz と localhost:3710** も許可が必要（エディタが Konva エクスポート用に crossOrigin='anonymous' で画像を読むため。未許可だと背景画像が枠だけになり、canvas 汚染でサムネ生成も失敗）。
+
+Cloudflare R2 → whatif-assets → Settings → CORS Policy に AllowedOrigins:
+`http://localhost:3710` / `https://whatif-ep.xyz` / `https://app.whatif-ep.xyz`、Methods: GET,HEAD。
