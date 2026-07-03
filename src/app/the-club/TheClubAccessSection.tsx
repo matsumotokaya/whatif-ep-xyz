@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 import type { ClubAccessState } from "@/lib/club/access";
 
-const IMAGINE_UPGRADE_URL = "https://app.whatif-ep.xyz/upgrade";
+const IMAGINE_UPGRADE_URL = "/plans";
 
 type AccessCopy = {
   sectionLabel: string;

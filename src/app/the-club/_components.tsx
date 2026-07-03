@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { ClubAccessState } from "@/lib/club/access";
 import type { ClubItem, ClubItemKind } from "@/lib/club/catalog";
 
-const IMAGINE_UPGRADE_URL = "https://app.whatif-ep.xyz/upgrade";
+const IMAGINE_UPGRADE_URL = "/plans";
 
 const kindLabel: Record<ClubItemKind, string> = {
   wallpaper: "Wallpaper",

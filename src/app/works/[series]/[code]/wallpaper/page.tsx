@@ -10,7 +10,7 @@ import {
 import { getWorkBySeriesAndCode } from "@/lib/works";
 import WallpaperPageContent from "./WallpaperPageContent";
 
-const IMAGINE_PLANS_BASE_URL = "https://app.whatif-ep.xyz/plans";
+const IMAGINE_PLANS_BASE_URL = "/plans";
 
 interface WallpaperPageProps {
   params: Promise<{ series: string; code: string }>;
