@@ -28,6 +28,7 @@ import { exportImageFromDataUrl } from '../utils/exportImage';
 import { createSilhouetteBlob } from '../utils/imageShadow';
 import { insertUserImageRecord } from '../utils/libraryAssets';
 import { getFitToCanvasPlacement } from '../utils/canvasPlacement';
+import { migrateElements } from '../utils/elementMigration';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
@@ -524,44 +525,7 @@ export const BannerEditor = () => {
       setCurrentBannerId(banner.id);
 
       // Migrate existing shapes and text to new fill/stroke structure
-      const migratedElements = banner.elements.map((el) => {
-        if (el.type === 'shape') {
-          const shape = el as ShapeElement;
-          return {
-            ...shape,
-            fillEnabled: shape.fillEnabled !== undefined ? shape.fillEnabled : true,
-            stroke: shape.stroke || '#000000',
-            strokeWidth: shape.strokeWidth || 2,
-            strokeEnabled: shape.strokeEnabled !== undefined ? shape.strokeEnabled : false,
-            visible: shape.visible ?? true,
-            locked: shape.locked ?? false,
-          } as ShapeElement;
-        }
-        if (el.type === 'text') {
-          const text = el as TextElement;
-          // Migrate old strokeOnly property to new structure
-          const strokeOnly = (text as any).strokeOnly;
-          return {
-            ...text,
-            fillEnabled: text.fillEnabled !== undefined ? text.fillEnabled : (strokeOnly === undefined ? true : !strokeOnly),
-            stroke: text.stroke || text.fill || '#000000',
-            strokeWidth: text.strokeWidth || Math.max(text.fontSize * 0.03, 2),
-            strokeEnabled: text.strokeEnabled !== undefined ? text.strokeEnabled : (strokeOnly || false),
-            letterSpacing: text.letterSpacing ?? 0,
-            visible: text.visible ?? true,
-            locked: text.locked ?? false,
-          } as TextElement;
-        }
-        if (el.type === 'image') {
-          const image = el as ImageElement;
-          return {
-            ...image,
-            visible: image.visible ?? true,
-            locked: image.locked ?? false,
-          } as ImageElement;
-        }
-        return el;
-      });
+      const migratedElements = migrateElements(banner.elements);
 
       console.log('[BannerEditor] Setting elements to:', migratedElements);
       setElements(migratedElements);
