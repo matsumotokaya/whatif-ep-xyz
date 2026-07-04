@@ -1,9 +1,38 @@
 # EDITOR_REDESIGN.md — エディタ再設計（安定化 + モバイル「ストーリーズモード」）
 
-作成: 2026-07-04
-Status: **設計フェーズ（実装未着手）**
+作成: 2026-07-04 / 最終更新: 2026-07-05
+Status: **E0・E1a・E1b 完了（実装中）。次の起点は §6。**
 対象: `src/components/editor/`（統合済みエディタ、119ファイル）
+ブランチ: `editor/e0-stability`（origin へ push 済み。未マージ = 本番未反映）
 関連: [CONSOLIDATION_PLAN.md](CONSOLIDATION_PLAN.md)（M5/M6は本計画とは独立）/ [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md)
+
+---
+
+## 0. 進捗と次セッションの起点（2026-07-05 更新）
+
+> **次に着手すること = §6「E1c 残り」の Konva commit 集約から。** 続けて E2（モバイル・ストーリーズモード）へ。
+
+### 完了済み（ブランチ `editor/e0-stability`・すべて push 済み）
+
+| MS | commit | 内容 | 検証 |
+|----|--------|------|------|
+| **E0** | `f460b6f` | Canvas単一マウント化 / セーブキュー直列化(`utils/saveQueue.ts`) / batchSave単一update化 / プレビュー生成イベント駆動化 | build緑・Opus差分レビュー済・Vercelプレビューで実機確認済（画像表示OK） |
+| **E1a** | `a720e1b` | vitest導入(リポジトリ初テスト) / 読込時migrationを純関数`utils/elementMigration.ts`へバイト一致抽出 / `CURRENT_SCHEMA_VERSION`定数 | build緑・test 10件 |
+| **E1b** | `5ccddb1` | 純関数コマンドreducer`utils/documentCommands.ts` / undo/redoをJSONディープクローン→**構造共有+coalesce**化(`hooks/useHistory.ts`書換) / `useElementOperations`を薄いラッパー化 | build緑・test 39件・Opus構造共有安全性レビュー済 |
+
+- テストは `npm test`（vitest run）。純粋ロジックのみ対象（コンポーネント挙動テストは無し＝回帰は手動E2Eで確認する方針）。
+- **本番未反映**。プレビューで確認 → 良ければ `main` にマージ、が今後の流れ。
+
+### E1c で見送りを決めた判断（重要・蒸し返さない）
+
+- **ミラーstate廃止（selectedFont等6state）は見送り**。精査の結果これは単なるミラーではなく「次に追加する新規テキストの sticky default」を兼ねており（`BannerEditor.tsx` handleFontChange 系 + handleAddText）、単純に選択要素から derive に置換すると**新規テキストの既定値継承が壊れる**。低価値・挙動変更リスク大のため E1 ではやらない。必要なら E2 のモバイルテキスト編集フロー設計時に、意図的な仕様として作り直す。
+
+### 環境・運用メモ（次セッションで役立つ）
+
+- **Vercelプレビューで画像が枠だけ = R2 CORS×CDNキャッシュ**。R2 `whatif-assets` の CORS AllowedOrigins に `https://*.vercel.app` を追加済み。ただし**CORS修正前にキャッシュされた ACAO 無しレスポンス**が Cloudflare に残ると枠だけになるので、その場合は Cloudflare で**キャッシュパージ**（`whatif-ep.xyz` ゾーン → Purge Everything）。R2は `Vary: Origin` を返すので新規プレビューは以後自動で正しくキャッシュされ再発しない。
+- **Cloudflare MCP をユーザースコープで登録済み**（`cloudflare: https://mcp.cloudflare.com/mcp`、全プロジェクト共通）。ただし `Needs authentication`。対話セッションで `/mcp` → cloudflare を認証すれば、次回から Claude がキャッシュパージ等を直接実行可能。
+- プレビュー確認URL例: `https://whatif-ep-<hash>-kaya-matsumotos-projects.vercel.app/edit?template=<id>`
+- dev: `npm run dev`（http://localhost:3710、スマホ実機は同一LANの `http://<PCのIP>:3710`）。
 
 ---
 
@@ -221,3 +250,50 @@ Status: **設計フェーズ（実装未着手）**
 - 実機テスト: `npm run dev`（port 3710）にLAN経由でスマホから接続して確認
 - E1完了時の回帰確認: デスクトップの 保存 / undo / export / テンプレ保存 / Content Factory publish をE2Eで通す
 - 各マイルストーンのDone基準を満たしてから次へ進む
+
+---
+
+## 6. 残タスクとロードマップ（次セッションはここから）
+
+### いま最初にやること: E1c 残り = Konva→React commit 集約（S・低リスク）
+
+E1c のうち「ミラーstate廃止」は §0 の通り**見送り確定**。「大規模ファイル分割」は §3.1 の方針通り **E2 のモバイルビュー切り出しの中で自然に行う**（単独の churn は避ける）。よって E1c で単独実施するのは **Konva commit 集約のみ**。
+
+- **対象**: `src/components/editor/components/Canvas.tsx` の変形/ドラッグ確定ロジック（`node.scaleX()/width()/rotation()` 等を読み、scale を width に畳み込んで `onElementUpdate`/`onElementsUpdate` でコミットする箇所。旧監査で ~520-560 付近）。Star/Circle の中心↔左上座標変換も各所に散在。
+- **やること**: この「Konva ノード読み出し → CanvasElement への変換（scale畳み込み・座標変換）」を**1つの純粋関数モジュール**（例 `utils/konvaCommit.ts`）に集約し、`applyCommand` に渡す updates を作る。挙動不変・build/test 緑・座標変換の純関数にはテストを付ける。
+- **なぜ先にやるか**: E2 のモバイルの2本指ピンチ/回転が**同じ commit 経路**を使うため、ここを綺麗にしておくと E2 が楽になる。
+
+### E2 — ストーリーズモード MVP（L・ユーザー価値の本丸）
+
+§3.3 が仕様の正本。要点の再掲:
+
+- <768px で**ストーリーズモード**起動、`DesktopRecommendedModal` 廃止。fit-to-screen キャンバス（モバイルのズーム/パン廃止）。
+- タップ選択 + ドラッグ移動 + スナップガイド。**Transformerハンドル廃止 → 要素上の2本指ピンチ/ツイストで拡大縮小・回転**（回転0°/90°スナップ）。
+- **全画面テキスト編集モード**（`visualViewport` 対応でソフトキーボード上に配置。フォントカルーセル・色・S/M/L）。既存のインラインtextareaはモバイルでは使わない。
+- 追加系4ボタン（Aa テキスト / 🖼 スタンプ=画像ライブラリのステッカーグリッド / 🎨 背景プリセット / ✨ エフェクトプリセット）。
+- テンプレ保護は既存 `locked` フラグ活用（ロック要素はタップ選択不可）。
+- **この切り出し = BannerEditor の実質的な分割**になる（モバイルビューを独立コンポーネント化）。
+- 流用資産: `MobileSheet` / `MobileToolbar` / `PropertyPanel` の isMobile / ピンチズーム基盤（§2.3）。
+
+### E3 — スタンプ・背景・エフェクト（M）
+
+- ステッカーシート（画像ライブラリのグリッドUI、プレミアムガード踏襲） / 背景プリセットスウォッチ / エフェクトプリセット（影 なし/弱/強）。
+
+### E4 — 磨き込み・計測（M）
+
+- ジェスチャ調整（実機の誤操作つぶし） / `alert()`撤去→トースト化・本番`console.*`掃除 / モバイル利用計測 / 実機QA（safe-area・キーボード・回転）。
+- **coalesce の既知の軽微点**（E1b）: nudge の coalesceKey が選択変更ではリセットされず、連続する別 nudge セッションが1 undo に merge し得る（非破壊）。気になればここで対応。
+
+### スコープ外（別トラック・本計画では触らない）
+
+- 統合 M5（URL/データ移行・301）/ M6（旧IMAGINE凍結・リポジトリクリーニング）
+- アセット参照再設計の残バックフィル（default-images / user-images）
+- 権限ラダー変更（PRODUCT_ROADMAP Phase 1）
+- 編集可能スロット方式への本格移行（E2 の `locked` を土台に、必要になったら別計画）
+
+### 進め方の合意事項（踏襲すること）
+
+- メインはオーケストレーター、実装は Sonnet サブエージェントへ委譲（トークン効率）。
+- 純粋ロジックには vitest を書く。コンポーネント挙動は手動E2E（プレビュー/実機）。
+- 各サブステップで build + test 緑を確認 → commit → 必要なら push してプレビュー確認。
+- コード内コメントは英語のみ。`root-cause-no-workarounds`（バイパス/フォールバックで誤魔化さない）。
