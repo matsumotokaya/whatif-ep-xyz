@@ -934,11 +934,18 @@ export const BannerEditor = () => {
   };
 
   // Arrow key movement handlers (Photoshop-style: 1px normal, 10px with Shift)
+  // A single shared coalesceKey across all four directions so a nudge
+  // gesture (holding an arrow key, possibly changing direction while held)
+  // collapses into one undo step instead of one entry per keydown-repeat
+  // event. Any other edit in between uses no key / a different key, which
+  // naturally breaks the coalescing chain in useHistory.
+  const NUDGE_COALESCE_KEY = 'nudge';
+
   const handleMoveUp = (distance: number) => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         y: el.y - distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -946,7 +953,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         y: el.y + distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -954,7 +961,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         x: el.x - distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -962,7 +969,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         x: el.x + distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
