@@ -154,14 +154,14 @@ export function useBatchSaveBanner(id: string) {
       fullresDataURL?: string;
     }) => {
       console.log('[useBatchSaveBanner] Saving to DB...', updates);
-      const savedBanner = await bannerStorage.batchSave(id, updates);
+      const result = await bannerStorage.batchSave(id, updates);
       console.log('[useBatchSaveBanner] Save complete');
-      return savedBanner;
+      return result;
     },
-    onSuccess: async (savedBanner) => {
+    onSuccess: async (result) => {
       console.log('[useBatchSaveBanner] 💾 Save successful.');
-      if (savedBanner) {
-        queryClient.setQueryData<Banner>(bannerKeys.detail(id), savedBanner);
+      if (result.banner) {
+        queryClient.setQueryData<Banner>(bannerKeys.detail(id), result.banner);
       }
 
       // Refresh both standard banner lists and the Factory project list.

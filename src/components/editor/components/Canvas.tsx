@@ -33,6 +33,10 @@ export interface CanvasRef {
   exportThumbnail: () => string;
   getNodesMap: () => Map<string, Konva.Node>;
   getLayerNode: () => Konva.Layer | null;
+  // Resolves after the canvas has had a chance to reflect the latest props in
+  // the DOM/Konva node tree and paint. Await this before a synchronous export
+  // so `toDataURL()` snapshots the current state instead of a stale frame.
+  waitForNextRender: () => Promise<void>;
 }
 
 // Bleed area around artboard (canvas units) so elements/transformers
@@ -162,7 +166,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         transformerRefsMap.current.forEach(tr => tr.nodes([]));
         if (multiTransformerRef.current) multiTransformerRef.current.nodes([]);
 
-        layers[0].batchDraw();
+        // Synchronous draw() (not the throttled batchDraw) so the layer's
+        // cached bitmap is repainted BEFORE toDataURL() reads it — otherwise
+        // toDataURL composites a stale frame from before the transformers were
+        // hidden.
+        layers[0].draw();
 
         try {
           const dataURL = stage.toDataURL({
@@ -233,7 +241,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
         transformerRefsMap.current.forEach(tr => tr.nodes([]));
         if (multiTransformerRef.current) multiTransformerRef.current.nodes([]);
-        layers[0].batchDraw();
+        // Synchronous draw() so the repaint lands before toDataURL() reads the
+        // layer bitmap (see exportImage for the full rationale).
+        layers[0].draw();
 
         const dataURL = stage.toDataURL({
           x: BLEED * scale,
@@ -256,6 +266,15 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     },
     getNodesMap: () => nodesRef.current,
     getLayerNode: () => stageRef.current?.getLayers()[0] ?? null,
+    // Two chained rAFs: the first lets React's most recent commit flush into
+    // the Konva node tree, the second guarantees a paint has occurred before we
+    // resolve — so a following synchronous export snapshots current state.
+    waitForNextRender: () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
   }), [scale, selectedElementIds, isEditing, template.width, template.height]);
 
   // Update individual transformers and reset multi-drag when selection changes

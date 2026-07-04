@@ -16,6 +16,17 @@ import {
 
 const BANNER_ASSET_BUCKET = 'user-images';
 
+// Result of batchSave: the saved banner (null when nothing was written) plus
+// any asset-upload errors. Element/canvasColor data may have persisted fine
+// even when an asset upload failed, so these errors are advisory — the caller
+// surfaces them (e.g. a partial-failure save status) and relies on the next
+// preview-save cycle to retry the failed asset.
+export interface BatchSaveResult {
+  banner: Banner | null;
+  thumbnailError?: unknown;
+  fullresError?: unknown;
+}
+
 // Resolve a stored banner asset to a public URL: prefer the key column
 // (M3 R2 target), fall back to the legacy full-URL column (passthrough). Both
 // are cache-busted with the row's updated_at.
@@ -388,6 +399,13 @@ export const bannerStorage = {
   // and full-res images upload to deterministic R2 keys (thumb.jpg / full.png)
   // that overwrite in place, so no stale-asset cleanup is needed and only the
   // key columns are persisted.
+  //
+  // Uploads run first (collecting either their resulting key or their error),
+  // then a SINGLE `update()` persists elements/canvasColor plus whichever asset
+  // keys succeeded. An asset upload failure is NOT swallowed: it is surfaced in
+  // the return value so the caller can reflect a partial-failure state. Because
+  // a failed upload leaves its key column untouched, the next save cycle that
+  // regenerates the asset naturally retries the persist.
   async batchSave(
     id: string,
     updates: {
@@ -396,52 +414,51 @@ export const bannerStorage = {
       thumbnailDataURL?: string;
       fullresDataURL?: string;
     }
-  ): Promise<Banner | null> {
-    const supabase = await getSupabase();
+  ): Promise<BatchSaveResult> {
     // Only update if there are actual changes
-    if (Object.keys(updates).length === 0) return null;
+    if (Object.keys(updates).length === 0) return { banner: null };
+
+    let nextThumbnailKey: string | undefined;
+    let nextFullresKey: string | undefined;
+    let thumbnailError: unknown;
+    let fullresError: unknown;
+
     if (updates.thumbnailDataURL || updates.fullresDataURL) {
+      const supabase = await getSupabase();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        let nextThumbnailKey: string | undefined;
         if (updates.thumbnailDataURL) {
-          const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
-          nextThumbnailKey = await uploadAsset(buildBannerThumbKey(user.id, id), blob, mimeType);
-        }
-
-        let savedBanner = await this.update(id, {
-          elements: updates.elements,
-          canvasColor: updates.canvasColor,
-          thumbnailKey: nextThumbnailKey,
-        });
-
-        if (updates.fullresDataURL) {
-          // Full-resolution PNG is heavier than the list thumbnail, so persist it
-          // separately to avoid blocking preview freshness when the PNG upload fails.
           try {
-            const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
-            const nextFullresKey = await uploadAsset(buildBannerFullKey(user.id, id), blob, mimeType);
-
-            const bannerWithFullres = await this.update(id, {
-              fullresKey: nextFullresKey,
-            });
-
-            if (bannerWithFullres) {
-              savedBanner = bannerWithFullres;
-            }
-          } catch (fullresError) {
-            console.warn('Failed to upload/save banner full-resolution asset:', fullresError);
+            const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
+            nextThumbnailKey = await uploadAsset(buildBannerThumbKey(user.id, id), blob, mimeType);
+          } catch (error) {
+            thumbnailError = error;
+            console.error('Failed to upload banner thumbnail asset:', error);
           }
         }
 
-        return savedBanner;
+        if (updates.fullresDataURL) {
+          try {
+            const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
+            nextFullresKey = await uploadAsset(buildBannerFullKey(user.id, id), blob, mimeType);
+          } catch (error) {
+            fullresError = error;
+            console.error('Failed to upload banner full-resolution asset:', error);
+          }
+        }
       }
     }
 
-    return this.update(id, {
+    // Single DB write. Keys that failed to upload stay `undefined`, so
+    // `update()` leaves those columns untouched and they retry next time.
+    const banner = await this.update(id, {
       elements: updates.elements,
       canvasColor: updates.canvasColor,
+      thumbnailKey: nextThumbnailKey,
+      fullresKey: nextFullresKey,
     });
+
+    return { banner, thumbnailError, fullresError };
   },
 
   // Update banner name

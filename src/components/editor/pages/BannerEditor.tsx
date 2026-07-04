@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useRef, useEffect, useCallback, useMemo, type RefObject } from 'react';
+import { lazy, Suspense, useState, useRef, useEffect, useCallback, type RefObject } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import debounce from 'lodash.debounce';
@@ -31,6 +31,14 @@ import { getFitToCanvasPlacement } from '../utils/canvasPlacement';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
+import { SaveQueue } from '../utils/saveQueue';
+
+// One logical save request. `generateThumbnail` also drives full-res PNG
+// generation; it is OR-merged when requests coalesce so an exit-time request
+// that wants a thumbnail is never downgraded by a later autosave that doesn't.
+interface SaveRequest {
+  generateThumbnail: boolean;
+}
 
 const EditorCanvas = lazy(() => import('../components/Canvas').then((module) => ({ default: module.Canvas })));
 
@@ -309,6 +317,69 @@ export const BannerEditor = () => {
 
   const banner = isGuest ? guestBanner : bannerData;
 
+  // --- Serialized save infrastructure ------------------------------------
+  // Live refs, refreshed every render, so the save queue's executor reads the
+  // CURRENT state at execution time instead of values captured at enqueue time.
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+  const canvasColorRef = useRef(canvasColor);
+  canvasColorRef.current = canvasColor;
+  const saveDepsRef = useRef({ banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t });
+  saveDepsRef.current = { banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t };
+
+  // performSave is defined later; the executor reaches it through this ref so
+  // the queue can be created up here (before performSave) without a stale
+  // closure. Every call reads live refs, so the exact function identity is
+  // irrelevant — but keeping the latest keeps intent clear.
+  const performSaveRef = useRef<(generateThumbnail: boolean) => Promise<void>>(async () => {});
+
+  // Single queue instance for the whole component lifetime. All six save
+  // triggers funnel through it, so at most one save is ever in flight and
+  // concurrent triggers coalesce into one merged request instead of racing.
+  const saveQueueRef = useRef<SaveQueue<SaveRequest> | null>(null);
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = new SaveQueue<SaveRequest>({
+      execute: async (request) => {
+        await performSaveRef.current(request.generateThumbnail);
+      },
+      merge: (previous, incoming) => ({
+        // OR the flag so a pending thumbnail request survives a plain autosave.
+        generateThumbnail: previous.generateThumbnail || incoming.generateThumbnail,
+      }),
+    });
+  }
+
+  // Stable debounced triggers (created once). Because they only touch refs, a
+  // completed save re-writing React Query cache no longer churns their identity
+  // and cancels an outstanding timer (the previous "lost autosave" bug).
+  const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!debouncedSaveRef.current) {
+    debouncedSaveRef.current = debounce(() => {
+      saveQueueRef.current?.enqueue({ generateThumbnail: false });
+    }, 3000);
+  }
+  const debouncedSave = debouncedSaveRef.current;
+
+  const debouncedGuestSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!debouncedGuestSaveRef.current) {
+    debouncedGuestSaveRef.current = debounce(() => {
+      saveQueueRef.current?.enqueue({ generateThumbnail: false });
+    }, 1000);
+  }
+  const debouncedGuestSave = debouncedGuestSaveRef.current;
+
+  // Logged-in only: after edits settle, regenerate previews so thumbnail/full-res
+  // stay fresh during editing (not just at exit). Guests keep exit-only preview
+  // behavior.
+  const idlePreviewSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!idlePreviewSaveRef.current) {
+    idlePreviewSaveRef.current = debounce(() => {
+      if (saveDepsRef.current.isGuest) return;
+      saveQueueRef.current?.enqueue({ generateThumbnail: true });
+    }, 10000);
+  }
+  const idlePreviewSave = idlePreviewSaveRef.current;
+
   useEffect(() => {
     if (!isGuest) return;
 
@@ -495,6 +566,10 @@ export const BannerEditor = () => {
       console.log('[BannerEditor] Setting elements to:', migratedElements);
       setElements(migratedElements);
       setCanvasColor(banner.canvasColor);
+      // Keep the save refs in sync synchronously (before the re-render commits)
+      // so a queued save started right now persists exactly these elements.
+      elementsRef.current = migratedElements;
+      canvasColorRef.current = banner.canvasColor;
       resetHistory(migratedElements);
 
       // Initialize entrance animation tracking
@@ -508,12 +583,9 @@ export const BannerEditor = () => {
       const migratedJSON = JSON.stringify(migratedElements);
       if (originalJSON !== migratedJSON) {
         console.log('[BannerEditor] Migration detected, saving to DB to persist changes');
-        batchSave.mutateAsync({
-          elements: migratedElements,
-          canvasColor: banner.canvasColor,
-        }).catch((error) => {
-          console.error('[BannerEditor] Failed to save migrated data:', error);
-        });
+        // Route through the queue instead of a direct mutateAsync so it cannot
+        // race an autosave; the executor reads the refs set just above.
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
       }
 
       // If new banner with no elements, add default text and save to DB immediately
@@ -539,19 +611,15 @@ export const BannerEditor = () => {
         };
         const newElements = [defaultText];
         setElements(newElements);
+        // Sync the ref before enqueuing so the queued save persists this exact
+        // default text (the executor reads elementsRef, not the pre-commit state).
+        elementsRef.current = newElements;
         resetHistory(newElements);
 
-        // Save default text to DB immediately to maintain consistency
-        batchSave.mutateAsync({
-          elements: newElements,
-          canvasColor: banner.canvasColor,
-        }).then(() => {
-          console.log('[BannerEditor] Default text saved to DB');
-          setHasUnsavedChanges(false); // Already saved
-        }).catch((error) => {
-          console.error('[BannerEditor] Failed to save default text to DB:', error);
-          setHasUnsavedChanges(true); // Mark as unsaved if save fails
-        });
+        // Save default text to DB immediately (via the queue). performSave
+        // handles saveStatus/hasUnsavedChanges on completion.
+        console.log('[BannerEditor] Default text saved to DB');
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
       }
     } else {
       console.log('[BannerEditor] Same banner, keeping local state. BannerID:', banner.id);
@@ -567,33 +635,39 @@ export const BannerEditor = () => {
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const generatePreviewAssets = async () => {
-    if (!canvasRef.current) {
-      return {
-        thumbnailDataURL: undefined,
-        fullresDataURL: undefined,
-      };
+  // Generate preview assets deterministically. Instead of blind setTimeouts,
+  // wait for the canvas to reflect current props and paint (Canvas.waitForNextRender),
+  // then take the synchronous snapshots. An empty/implausibly small dataURL is
+  // treated as a failure for that asset (dropped, not retried with more waits) —
+  // the missing key simply isn't persisted and retries on the next save cycle.
+  const generatePreviewAssets = useCallback(async (): Promise<{
+    thumbnailDataURL: string | undefined;
+    fullresDataURL: string | undefined;
+  }> => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return { thumbnailDataURL: undefined, fullresDataURL: undefined };
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await canvas.waitForNextRender();
 
-    let thumbnailDataURL = canvasRef.current.exportThumbnail() || undefined;
-    let fullresDataURL = canvasRef.current.exportImage() || undefined;
+    const rawThumbnail = canvas.exportThumbnail();
+    const rawFullres = canvas.exportImage();
 
-    if (!thumbnailDataURL || !fullresDataURL) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      thumbnailDataURL = thumbnailDataURL || canvasRef.current.exportThumbnail() || undefined;
-      fullresDataURL = fullresDataURL || canvasRef.current.exportImage() || undefined;
-    }
+    // Mirror handleExport's plausibility guard.
+    const thumbnailDataURL = rawThumbnail && rawThumbnail.length >= 100 ? rawThumbnail : undefined;
+    const fullresDataURL = rawFullres && rawFullres.length >= 100 ? rawFullres : undefined;
 
-    return {
-      thumbnailDataURL,
-      fullresDataURL,
-    };
-  };
+    return { thumbnailDataURL, fullresDataURL };
+  }, []);
 
-  // Core save function
-  const performSave = async (generateThumbnail = false) => {
+  // Core save function. Reads all mutable state from refs so it stays correct
+  // no matter when the queue executes it. Only ever invoked by the save queue.
+  const performSave = useCallback(async (generateThumbnail = false) => {
+    const { banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t } = saveDepsRef.current;
+    const elements = elementsRef.current;
+    const canvasColor = canvasColorRef.current;
+
     if (isGuest) {
       if (!guestTemplate && !guestState?.template) return;
       setSaveStatus('saving');
@@ -661,47 +735,50 @@ export const BannerEditor = () => {
         hasThumbnail: !!thumbnailDataURL,
         hasFullres: !!fullresDataURL,
       });
-      await batchSave.mutateAsync({
+      const result = await batchSave.mutateAsync({
         elements,
         canvasColor,
         thumbnailDataURL,
         fullresDataURL,
       });
 
+      // Element/canvasColor data persisted (result.banner is set). If an asset
+      // upload failed, surface a partial-failure state; the missing key wasn't
+      // written so the next preview save retries it.
       setHasUnsavedChanges(false);
-      setSaveStatus('saved');
-      console.log('[BannerEditor] ✅ Save successful');
+      if (result?.thumbnailError || result?.fullresError) {
+        setSaveStatus('error');
+        setLastSaveError(t('message:error.saveFailed'));
+      } else {
+        setSaveStatus('saved');
+        console.log('[BannerEditor] ✅ Save successful');
+      }
     } catch (error) {
       console.error('[BannerEditor] Save failed:', error);
       setSaveStatus('error');
       setLastSaveError(error instanceof Error ? error.message : t('message:error.saveFailed'));
       // Don't show alert for auto-save failures, just show in status indicator
     }
-  };
+  }, [generatePreviewAssets, guestStorageKey]);
 
-  // Debounced auto-save (3 seconds after last change for better performance)
-  const debouncedSave = useMemo(
-    () => debounce(() => {
-      performSave(false); // No thumbnail for auto-saves
-    }, 3000), // Increased from 2000ms to 3000ms
-    [elements, canvasColor, banner, id, isGuest]
-  );
+  // Keep the executor's indirection pointed at the latest performSave.
+  performSaveRef.current = performSave;
 
-  const debouncedGuestSave = useMemo(
-    () => debounce(() => {
-      performSave(false);
-    }, 1000),
-    [elements, canvasColor, guestName, guestTemplate, isGuest]
-  );
-
-  // Immediate save for important actions
+  // Immediate save for important actions: cancel pending debounces, enqueue, and
+  // flush so the save runs now (and awaits full drain, coalescing any pending work).
   const immediateSave = useCallback(async () => {
     debouncedSave.cancel();
     debouncedGuestSave.cancel();
-    await performSave(false); // No thumbnail for immediate saves to improve performance
-  }, [elements, canvasColor, banner, id, isGuest, debouncedGuestSave, performSave]);
+    saveQueueRef.current?.enqueue({ generateThumbnail: false });
+    await saveQueueRef.current?.flush();
+  }, [debouncedSave, debouncedGuestSave]);
 
-  // Mark as dirty and trigger auto-save when elements actually change
+  // Mark as dirty and trigger auto-save when elements actually change.
+  // `banner` is intentionally read from a ref (not a dep): a completed save
+  // re-writes the React Query cache and churns the banner reference, and having
+  // it as a dep here used to tear this effect down and cancel a pending
+  // debounce — dropping the save. lodash debounce already coalesces rapid
+  // changes, so no per-change cancel is needed (cancel happens on unmount).
   useEffect(() => {
     if (isGuest) return;
     const currentElementsStr = JSON.stringify(elements);
@@ -713,6 +790,7 @@ export const BannerEditor = () => {
       return;
     }
 
+    const banner = saveDepsRef.current.banner;
     // Only save if elements actually changed
     if (currentElementsStr !== prevElementsRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Elements actually changed, triggering auto-save');
@@ -720,12 +798,10 @@ export const BannerEditor = () => {
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
+      // Keep previews fresh during editing (logged-in path only).
+      idlePreviewSave();
     }
-
-    return () => {
-      debouncedSave.cancel();
-    };
-  }, [elements, banner, currentBannerId, debouncedSave, isGuest]);
+  }, [elements, currentBannerId, isGuest, debouncedSave, idlePreviewSave]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -746,19 +822,22 @@ export const BannerEditor = () => {
     }
   }, [elements, canvasColor, debouncedGuestSave, isGuest]);
 
-  // Mark as dirty and trigger auto-save when canvas color actually changes
+  // Mark as dirty and trigger auto-save when canvas color actually changes.
+  // `banner` read from ref (see the elements effect for the churn rationale).
   useEffect(() => {
     if (isGuest) return;
     if (!isMountedRef.current) return;
 
+    const banner = saveDepsRef.current.banner;
     if (canvasColor !== prevCanvasColorRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Canvas color changed, triggering auto-save');
       prevCanvasColorRef.current = canvasColor;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
+      idlePreviewSave();
     }
-  }, [canvasColor, banner, currentBannerId, debouncedSave, isGuest]);
+  }, [canvasColor, currentBannerId, isGuest, debouncedSave, idlePreviewSave]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -774,26 +853,33 @@ export const BannerEditor = () => {
 
   // Save before leaving page (if there are unsaved changes)
   useEffect(() => {
-    const handleBeforeUnload = async (_e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
-        // Cancel any pending saves
+        // Cancel any pending debounces, then enqueue the current state and flush
+        // it through the queue. Best-effort only: browsers may not await this
+        // handler, so the in-flight network call is all we can reliably kick off
+        // (this is a pre-existing browser limitation, not something we solve here).
         debouncedSave.cancel();
         debouncedGuestSave.cancel();
-
-        // Try to save synchronously (best effort)
-        // Note: Modern browsers may not allow async operations in beforeunload
-        performSave(false);
-
-        // Don't show confirmation dialog since we're auto-saving
-        // If save is critical, uncomment these lines:
-        // e.preventDefault();
-        // e.returnValue = '';
+        idlePreviewSave.cancel();
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
+        void saveQueueRef.current?.flush();
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges, isGuest, debouncedGuestSave, debouncedSave, performSave]);
+  }, [hasUnsavedChanges, debouncedGuestSave, debouncedSave, idlePreviewSave]);
+
+  // Cancel outstanding debounced saves on unmount (the only place they need
+  // cancelling now that per-change teardown is gone).
+  useEffect(() => {
+    return () => {
+      debouncedSave.cancel();
+      debouncedGuestSave.cancel();
+      idlePreviewSave.cancel();
+    };
+  }, [debouncedSave, debouncedGuestSave, idlePreviewSave]);
 
 
 
@@ -1557,13 +1643,16 @@ export const BannerEditor = () => {
     setIsNavigating(true);
 
     try {
-      // Save any pending changes with thumbnail before navigating
-      if (isGuest) {
-        debouncedGuestSave.cancel();
-      } else {
-        debouncedSave.cancel();
-      }
-      await performSave(true); // Always generate thumbnail when leaving editor (both guest and logged-in)
+      // Save any pending changes WITH thumbnail before navigating. Cancel the
+      // debounces and idle-preview timer, then enqueue an exit save and flush.
+      // If an autosave is pending/in-flight, the queue coalesces (generateThumbnail
+      // is OR-merged), so we get a single save that reads the latest elements and
+      // still produces the thumbnail — no double save, no stale snapshot.
+      debouncedSave.cancel();
+      debouncedGuestSave.cancel();
+      idlePreviewSave.cancel();
+      saveQueueRef.current?.enqueue({ generateThumbnail: true });
+      await saveQueueRef.current?.flush();
       navigate(editorReturnTo);
     } catch (error) {
       console.error('[BannerEditor] Failed to save before navigating:', error);
@@ -1630,122 +1719,35 @@ export const BannerEditor = () => {
       />
 
 
-      {/* Desktop Layout */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
-        <Sidebar
-          canvasColor={canvasColor}
-          canvasWidth={banner.template.width}
-          canvasHeight={banner.template.height}
-          onSelectColor={setCanvasColor}
-          onCanvasSizeChange={handleCanvasSizeChange}
-          onAddText={handleAddText}
-          onAddShape={handleAddShape}
-          onAddImage={handleAddImage}
-          elements={elements}
-          selectedElementIds={selectedElementIds}
-          onSelectElement={handleSelectElement}
-          onReorderElements={handleReorderElements}
-          onToggleLock={handleToggleLock}
-          onToggleVisibility={handleToggleVisibility}
-          textPlacementMode={textPlacementMode}
-          panMode={panMode}
-          onPanModeChange={setPanMode}
-        />
+      {/* Editor layout: single EditorCanvas mount. Only the surrounding chrome
+          (sidebar, toolbars, panels) is swapped responsively via CSS so that
+          two Konva Stages never compete for the same canvasRef. */}
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden relative">
+        {/* Desktop sidebar */}
+        <div className="hidden md:flex">
+          <Sidebar
+            canvasColor={canvasColor}
+            canvasWidth={banner.template.width}
+            canvasHeight={banner.template.height}
+            onSelectColor={setCanvasColor}
+            onCanvasSizeChange={handleCanvasSizeChange}
+            onAddText={handleAddText}
+            onAddShape={handleAddShape}
+            onAddImage={handleAddImage}
+            elements={elements}
+            selectedElementIds={selectedElementIds}
+            onSelectElement={handleSelectElement}
+            onReorderElements={handleReorderElements}
+            onToggleLock={handleToggleLock}
+            onToggleVisibility={handleToggleVisibility}
+            textPlacementMode={textPlacementMode}
+            panMode={panMode}
+            onPanModeChange={setPanMode}
+          />
+        </div>
 
-        <main
-          ref={mainRef}
-          className="flex-1 overflow-hidden bg-[#151515] flex items-center justify-center"
-          style={{ touchAction: 'none', cursor: textPlacementMode ? 'text' : (panMode || isPanning) ? (isPanning ? 'grabbing' : 'grab') : 'default' }}
-          onMouseDown={handlePanMouseDown}
-          onMouseMove={handlePanMouseMove}
-          onMouseUp={handlePanMouseUp}
-          onMouseLeave={handlePanMouseUp}
-          onTouchStart={handleMainTouchStart}
-          onClick={(e) => {
-            if (wasPanningRef.current) {
-              wasPanningRef.current = false;
-              return;
-            }
-            const target = e.target as HTMLElement;
-            const isCanvasStage = target.tagName === 'CANVAS';
-            if (!isCanvasStage) {
-              handleSelectElement([]);
-            }
-          }}
-        >
-          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }} className="relative">
-            <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
-              <EditorCanvas
-                  ref={canvasRef}
-                  template={banner.template}
-                  elements={elements}
-                  scale={safeZoom / 100}
-                  canvasColor={canvasColor}
-                  fileName={`${banner.name}.png`}
-                  onTextChange={handleTextChange}
-                  selectedElementIds={selectedElementIds}
-                  onSelectElement={handleSelectElement}
-                  onElementUpdate={handleElementUpdate}
-                  onElementsUpdate={handleElementsUpdate}
-                  onImageDrop={handleImageDrop}
-                  onImageLoad={handleImageLoad}
-                  entranceAnimationPhase={animationPhase}
-                  textPlacementMode={textPlacementMode}
-                  onPlaceText={handleCanvasPlaceText}
-                  onEditingChange={setIsCanvasEditing}
-                  onBackgroundTouchStart={handleCanvasPanTouchStart}
-                  onTransformingChange={handleTransformingChange}
-                />
-            </Suspense>
-            {(animationPhase === 'loading' || animationPhase === 'animating') && (
-              <LoadingOverlay
-                elements={elements}
-                template={banner.template}
-                scale={safeZoom / 100}
-                phase={animationPhase}
-                canvasColor={canvasColor}
-              />
-            )}
-          </div>
-        </main>
-
-        <PropertyPanel
-          selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
-          onColorChange={handlePropertyColorChange}
-          onFontChange={handleFontChange}
-          onSizeChange={handleSizeChange}
-          onWeightChange={handleWeightChange}
-          onLetterSpacingChange={handleLetterSpacingChange}
-          onLineHeightChange={handleLineHeightChange}
-          onAlignChange={handleAlignChange}
-          onOpacityChange={handleOpacityChange}
-          onBringToFront={handleBringToFront}
-          onSendToBack={handleSendToBack}
-          onFillEnabledChange={handleFillEnabledChange}
-          onStrokeChange={handleStrokeChange}
-          onStrokeWidthChange={handleStrokeWidthChange}
-          onStrokeEnabledChange={handleStrokeEnabledChange}
-          onShadowEnabledChange={handleShadowEnabledChange}
-          onShadowColorChange={handleShadowColorChange}
-          onShadowBlurChange={handleShadowBlurChange}
-          onShadowOffsetXChange={handleShadowOffsetXChange}
-          onShadowOffsetYChange={handleShadowOffsetYChange}
-          onShadowOpacityChange={handleShadowOpacityChange}
-          onImageBlurChange={handleImageBlurChange}
-          onGenerateShadow={handleGenerateShadow}
-          isGeneratingShadow={isGeneratingShadow}
-          onFitToCanvas={handleFitToCanvas}
-          selectedCount={selectedElementIds.length}
-          selectedElements={elements.filter(el => selectedElementIds.includes(el.id))}
-          onCenterHorizontal={handleCenterHorizontal}
-          onCenterVertical={handleCenterVertical}
-        />
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="flex md:hidden flex-1 flex-col overflow-hidden relative">
         {/* Mobile floating toolbar: Select / Pan / Undo */}
-        <div className="absolute top-3 right-3 z-40 flex gap-2">
+        <div className="md:hidden absolute top-3 right-3 z-40 flex gap-2">
           <button
             onClick={() => { setPanMode(false); setTextPlacementMode(false); }}
             className={`w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center shadow-lg active:scale-95 transition-all ${!panMode && !textPlacementMode ? 'bg-white/90 text-gray-900' : 'bg-black/50 text-white'}`}
@@ -1829,26 +1831,8 @@ export const BannerEditor = () => {
           </div>
         </main>
 
-        {/* Mobile Toolbar - Floating buttons + Drawer */}
-        <MobileToolbar
-          canvasColor={canvasColor}
-          onSelectColor={setCanvasColor}
-          onAddText={handleAddText}
-          onAddShape={handleAddShape}
-          onAddImage={handleAddImage}
-          elements={elements}
-          selectedElementIds={selectedElementIds}
-          onSelectElement={handleSelectElement}
-          onReorderElements={handleReorderElements}
-          onToggleLock={handleToggleLock}
-          onToggleVisibility={handleToggleVisibility}
-          textPlacementMode={textPlacementMode}
-          panMode={panMode}
-          onPanModeChange={setPanMode}
-        />
-
-        {/* Mobile PropertyPanel - Hidden during inline text editing */}
-        {!isCanvasEditing && (
+        {/* Desktop property panel */}
+        <div className="hidden md:flex">
           <PropertyPanel
             selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
             onColorChange={handlePropertyColorChange}
@@ -1876,12 +1860,69 @@ export const BannerEditor = () => {
             isGeneratingShadow={isGeneratingShadow}
             onFitToCanvas={handleFitToCanvas}
             selectedCount={selectedElementIds.length}
+            selectedElements={elements.filter(el => selectedElementIds.includes(el.id))}
             onCenterHorizontal={handleCenterHorizontal}
             onCenterVertical={handleCenterVertical}
-            isMobile={true}
-            onClose={() => handleSelectElement([])}
-            onDelete={handleDelete}
           />
+        </div>
+
+        {/* Mobile Toolbar - Tab bar + Drawer */}
+        <div className="md:hidden">
+          <MobileToolbar
+            canvasColor={canvasColor}
+            onSelectColor={setCanvasColor}
+            onAddText={handleAddText}
+            onAddShape={handleAddShape}
+            onAddImage={handleAddImage}
+            elements={elements}
+            selectedElementIds={selectedElementIds}
+            onSelectElement={handleSelectElement}
+            onReorderElements={handleReorderElements}
+            onToggleLock={handleToggleLock}
+            onToggleVisibility={handleToggleVisibility}
+            textPlacementMode={textPlacementMode}
+            panMode={panMode}
+            onPanModeChange={setPanMode}
+          />
+        </div>
+
+        {/* Mobile PropertyPanel - Hidden during inline text editing */}
+        {!isCanvasEditing && (
+          <div className="md:hidden">
+            <PropertyPanel
+              selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
+              onColorChange={handlePropertyColorChange}
+              onFontChange={handleFontChange}
+              onSizeChange={handleSizeChange}
+              onWeightChange={handleWeightChange}
+              onLetterSpacingChange={handleLetterSpacingChange}
+              onLineHeightChange={handleLineHeightChange}
+              onAlignChange={handleAlignChange}
+              onOpacityChange={handleOpacityChange}
+              onBringToFront={handleBringToFront}
+              onSendToBack={handleSendToBack}
+              onFillEnabledChange={handleFillEnabledChange}
+              onStrokeChange={handleStrokeChange}
+              onStrokeWidthChange={handleStrokeWidthChange}
+              onStrokeEnabledChange={handleStrokeEnabledChange}
+              onShadowEnabledChange={handleShadowEnabledChange}
+              onShadowColorChange={handleShadowColorChange}
+              onShadowBlurChange={handleShadowBlurChange}
+              onShadowOffsetXChange={handleShadowOffsetXChange}
+              onShadowOffsetYChange={handleShadowOffsetYChange}
+              onShadowOpacityChange={handleShadowOpacityChange}
+              onImageBlurChange={handleImageBlurChange}
+              onGenerateShadow={handleGenerateShadow}
+              isGeneratingShadow={isGeneratingShadow}
+              onFitToCanvas={handleFitToCanvas}
+              selectedCount={selectedElementIds.length}
+              onCenterHorizontal={handleCenterHorizontal}
+              onCenterVertical={handleCenterVertical}
+              isMobile={true}
+              onClose={() => handleSelectElement([])}
+              onDelete={handleDelete}
+            />
+          </div>
         )}
       </div>
 
