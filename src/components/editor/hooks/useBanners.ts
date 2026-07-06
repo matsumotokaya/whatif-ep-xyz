@@ -48,16 +48,21 @@ function syncBannerIntoListCaches(queryClient: QueryClient, banner: Banner): voi
   );
 }
 
-// Get all banners
-export function useBanners() {
+// Get all banners for the authenticated user. The query is keyed by user id so
+// auth resolution cannot cache an anonymous [] result into a signed-in session.
+export function useBanners(userId?: string | null, enabled = true) {
   return useQuery({
-    queryKey: bannerKeys.lists(),
+    queryKey: bannerKeys.list(userId || 'guest'),
     queryFn: async () => {
+      if (!userId) {
+        return [];
+      }
       console.log('[useBanners] 🔍 Fetching banners from database...');
       const banners = await bannerStorage.getAll(false); // Disable old cache, use React Query cache
       console.log('[useBanners] ✅ Fetched', banners.length, 'banners');
       return banners;
     },
+    enabled: enabled && !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 }

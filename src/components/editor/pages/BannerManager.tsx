@@ -52,7 +52,7 @@ export const BannerManager = () => {
   const guestBanner = useMemo(() => (isGuest ? readGuestBannerListItem() : null), [isGuest]);
 
   // React Query hooks
-  const { data: banners = [], isLoading } = useBanners();
+  const { data: banners = [], isLoading } = useBanners(user?.id, !authLoading && !!user);
   const createBanner = useCreateBanner();
   const deleteBanner = useDeleteBanner();
   const duplicateBanner = useDuplicateBanner();
