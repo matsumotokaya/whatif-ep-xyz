@@ -134,6 +134,7 @@ export const BannerEditor = () => {
   const prevElementsRef = useRef<CanvasElement[] | null>(null);
   const prevCanvasColorRef = useRef<string>('');
   const isMountedRef = useRef(false);
+  const previewDirtyRef = useRef(false);
 
   // Entrance animation callbacks
   const handleImageLoad = useCallback((id: string, status: 'loaded' | 'error') => {
@@ -365,6 +366,7 @@ export const BannerEditor = () => {
     if (!isGuest) return;
 
     if (guestState) {
+      previewDirtyRef.current = false;
       setGuestTemplate(guestState.template);
       setGuestName(guestState.name);
       const guestElements = guestState.elements || [];
@@ -391,6 +393,7 @@ export const BannerEditor = () => {
     try {
       const stored = localStorage.getItem(guestStorageKey);
       if (stored) {
+        previewDirtyRef.current = false;
         const parsed = JSON.parse(stored) as {
           name: string;
           template: Template;
@@ -507,6 +510,7 @@ export const BannerEditor = () => {
       console.log('[BannerEditor] Previous bannerId:', currentBannerId);
       console.log('[BannerEditor] Banner elements from DB:', banner.elements.length, 'elements');
       setCurrentBannerId(banner.id);
+      previewDirtyRef.current = false;
 
       // Migrate existing shapes and text to new fill/stroke structure
       const migratedElements = banner.elements.map((el) => {
@@ -675,6 +679,9 @@ export const BannerEditor = () => {
         localStorage.setItem(guestStorageKey, JSON.stringify(snapshot));
         setGuestUpdatedAt(updatedAt);
         setHasUnsavedChanges(false);
+        if (generateThumbnail && (thumbnailDataURL || fullresDataURL)) {
+          previewDirtyRef.current = false;
+        }
         setSaveStatus('saved');
         console.log('[BannerEditor Guest] Save complete');
       } catch (error) {
@@ -722,6 +729,9 @@ export const BannerEditor = () => {
         setSaveStatus('error');
         setLastSaveError(t('message:error.saveFailed'));
       } else {
+        if (generateThumbnail && (thumbnailDataURL || fullresDataURL)) {
+          previewDirtyRef.current = false;
+        }
         setSaveStatus('saved');
         console.log('[BannerEditor] ✅ Save successful');
       }
@@ -738,11 +748,12 @@ export const BannerEditor = () => {
   // explicit save/leave actions so list thumbnails are refreshed before exit.
   const flushQueuedSave = useCallback(async (generateThumbnail: boolean) => {
     const currentBanner = saveDepsRef.current.banner;
-    const needsInitialPreview = generateThumbnail && (
+    const previewNeedsRefresh = generateThumbnail && (
+      previewDirtyRef.current ||
       saveDepsRef.current.isGuest ||
       (!!currentBanner && (!currentBanner.thumbnailUrl || !currentBanner.fullresUrl))
     );
-    const hasPendingWork = hasUnsavedChanges || saveQueueRef.current?.isBusy || needsInitialPreview;
+    const hasPendingWork = hasUnsavedChanges || saveQueueRef.current?.isBusy || previewNeedsRefresh;
 
     if (!hasPendingWork) return;
 
@@ -774,6 +785,7 @@ export const BannerEditor = () => {
     if (elements !== prevElementsRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Elements actually changed, triggering auto-save');
       prevElementsRef.current = elements;
+      previewDirtyRef.current = true;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
@@ -793,6 +805,7 @@ export const BannerEditor = () => {
 
     if (elements !== prevGuestElementsRef.current) {
       prevGuestElementsRef.current = elements;
+      previewDirtyRef.current = true;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedGuestSave();
@@ -808,6 +821,7 @@ export const BannerEditor = () => {
     if (canvasColor !== prevCanvasColorRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Canvas color changed, triggering auto-save');
       prevCanvasColorRef.current = canvasColor;
+      previewDirtyRef.current = true;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
@@ -821,6 +835,7 @@ export const BannerEditor = () => {
 
     if (canvasColor !== prevGuestCanvasColorRef.current) {
       prevGuestCanvasColorRef.current = canvasColor;
+      previewDirtyRef.current = true;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedGuestSave();
