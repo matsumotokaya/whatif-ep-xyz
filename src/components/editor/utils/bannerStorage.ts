@@ -57,6 +57,25 @@ interface DbBannerListItem {
   display_order?: number | null;
 }
 
+const derivePreviewStatus = (db: {
+  thumbnail_key?: string | null;
+  thumbnail_url?: string | null;
+  template?: { thumbnail?: string | null } | null;
+}): Banner['previewStatus'] => {
+  if (db.thumbnail_key || db.thumbnail_url) return 'ready';
+  return 'pending';
+};
+
+const derivePreviewSource = (db: {
+  thumbnail_key?: string | null;
+  thumbnail_url?: string | null;
+  template?: { thumbnail?: string | null } | null;
+}): Banner['previewSource'] => {
+  if (db.thumbnail_key || db.thumbnail_url) return 'generated';
+  if (db.template?.thumbnail) return 'template';
+  return 'none';
+};
+
 const resolveBannerThumbnail = (db: {
   thumbnail_key?: string | null;
   thumbnail_url?: string | null;
@@ -82,6 +101,9 @@ const dbToBanner = (db: DbBanner): Banner => ({
   fullresUrl: resolveBannerAsset(db.fullres_key, db.fullres_url, db.updated_at),
   createdAt: db.created_at,
   updatedAt: db.updated_at,
+  previewStatus: derivePreviewStatus(db),
+  previewSource: derivePreviewSource(db),
+  previewError: null,
 });
 
 const dbToBannerListItem = (db: DbBannerListItem): BannerListItem => ({
@@ -93,6 +115,9 @@ const dbToBannerListItem = (db: DbBannerListItem): BannerListItem => ({
   width: db.template?.width,
   height: db.template?.height,
   displayOrder: db.display_order ?? undefined,
+  previewStatus: derivePreviewStatus(db),
+  previewSource: derivePreviewSource(db),
+  previewError: null,
 });
 
 // Collect storage delete targets for a banner from its stored asset columns,

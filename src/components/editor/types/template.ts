@@ -103,6 +103,9 @@ export interface Banner {
   // Relative asset keys (write side, M3). New writes populate these.
   thumbnailKey?: string;
   fullresKey?: string;
+  previewStatus?: 'pending' | 'ready' | 'failed';
+  previewSource?: 'none' | 'template' | 'generated';
+  previewError?: string | null;
 }
 
 export interface BannerListItem {
@@ -114,4 +117,7 @@ export interface BannerListItem {
   width?: number;
   height?: number;
   displayOrder?: number;
+  previewStatus?: 'pending' | 'ready' | 'failed';
+  previewSource?: 'none' | 'template' | 'generated';
+  previewError?: string | null;
 }
