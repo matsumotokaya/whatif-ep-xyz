@@ -61,68 +61,36 @@ const ImageRendererComponent = ({
   };
 
   useEffect(() => {
-    const loadImage = async () => {
-      const img = new window.Image();
+    const img = new window.Image();
+    const resolvedSrc = resolveElementSrc(imageElement.src);
 
-      // element.src is a relative asset key (M3); resolve it to a URL at load
-      // time. Full URLs / data: / blob: pass through unchanged.
-      const resolvedSrc = resolveElementSrc(imageElement.src);
+    if (!resolvedSrc) {
+      setImage(null);
+      onImageLoad?.(imageElement.id, 'error');
+      return;
+    }
 
-      // Check if this is a Supabase Storage URL
-      const isSupabaseUrl = resolvedSrc.includes('supabase');
+    img.decoding = 'async';
+    if (!resolvedSrc.startsWith('blob:') && !resolvedSrc.startsWith('data:')) {
+      img.crossOrigin = 'anonymous';
+    }
 
-      if (isSupabaseUrl && !resolvedSrc.startsWith('blob:')) {
-        // If it's a Supabase URL, download it as Blob to avoid CORS issues
-        try {
-          // Extract bucket name and path from URL
-          const url = new URL(resolvedSrc);
-          const pathParts = url.pathname.split('/');
-          const bucketIndex = pathParts.findIndex(part => part === 'object' || part === 'public') + 1;
-          const bucketName = pathParts[bucketIndex];
-          const storagePath = pathParts.slice(bucketIndex + 1).join('/');
-
-          console.log('Loading Supabase image:', { bucketName, storagePath });
-
-          const { getSupabase } = await import('../../utils/supabase');
-          const supabase = await getSupabase();
-          const { data, error } = await supabase.storage.from(bucketName).download(storagePath);
-
-          if (error) {
-            console.error('Error downloading image from Supabase:', error);
-            // Fallback to direct load with CORS
-            img.crossOrigin = 'anonymous';
-            img.src = resolvedSrc;
-          } else {
-            // Create Blob URL
-            const blobUrl = URL.createObjectURL(data);
-            img.src = blobUrl;
-          }
-        } catch (error) {
-          console.error('Error processing Supabase URL:', error);
-          // Fallback to direct load with CORS
-          img.crossOrigin = 'anonymous';
-          img.src = resolvedSrc;
-        }
-      } else {
-        // For non-Supabase URLs or already Blob URLs, load normally
-        if (!resolvedSrc.startsWith('blob:')) {
-          img.crossOrigin = 'anonymous';
-        }
-        img.src = resolvedSrc;
-      }
-
-      img.onload = () => {
-        setImage(img);
-        onImageLoad?.(imageElement.id, 'loaded');
-      };
-      img.onerror = (error) => {
-        console.error('Failed to load image:', imageElement.src, error);
-        onImageLoad?.(imageElement.id, 'error');
-      };
+    img.onload = () => {
+      setImage(img);
+      onImageLoad?.(imageElement.id, 'loaded');
     };
+    img.onerror = (error) => {
+      console.error('Failed to load image:', imageElement.src, resolvedSrc, error);
+      setImage(null);
+      onImageLoad?.(imageElement.id, 'error');
+    };
+    img.src = resolvedSrc;
 
-    loadImage();
-  }, [imageElement.src]);
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [imageElement.id, imageElement.src, onImageLoad]);
 
   useEffect(() => {
     const node = localNodeRef.current;
