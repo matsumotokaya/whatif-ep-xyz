@@ -1550,23 +1550,7 @@ export const BannerEditor = () => {
     }
   };
 
-  const isBannerLoading = !isGuest && (isLoading || !banner);
-  if (isBannerLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-[#1e1e1e]">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          <p className="mt-4 text-gray-600">{t('common:status.loading')}</p>
-        </div>
-      </div>
-    );
-  }
-  if (!banner) {
-    return null;
-  }
-
   const handleInternalNavigation = useCallback(async (target: string) => {
-    // Prevent multiple clicks
     if (isNavigating) return;
 
     setIsNavigating(true);
@@ -1588,6 +1572,21 @@ export const BannerEditor = () => {
   const handleBackToManager = useCallback(async () => {
     await handleInternalNavigation(editorReturnTo);
   }, [editorReturnTo, handleInternalNavigation]);
+
+  const isBannerLoading = !isGuest && (isLoading || !banner);
+  if (isBannerLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#1e1e1e]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <p className="mt-4 text-gray-600">{t('common:status.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+  if (!banner) {
+    return null;
+  }
 
   const handleSaveAsTemplate = () => {
     // Only allow admins to save as template
