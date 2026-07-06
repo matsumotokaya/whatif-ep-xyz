@@ -405,3 +405,15 @@ Gallery 側は制作を持たず、配布情報だけを持つ。
 3. Gallery 側での単品販売ページを持つか、The Club / Imagine に寄せるか
 4. IMAGINE に追加する production 用テーブルを先に作るか
 5. 最初の `master design` をどう命名・管理するか
+
+## 現在地と残タスク（旧 ROADMAP.md より統合・2026-06-20 時点）
+
+「受け入れの器」は完成済み。これ以降の主題は **中身（量産）／収益動線（サブスク）／IMAGINE 連携の自動化**。
+
+- **器の完成状況**: `series-aware` ギャラリー（`/works/:series`）稼働、DB は最終形スキーマ（`works` / `work_variants` / `work_offers` / `production_*`）投入済み。壁紙セールス LP（カバー＋透かしプレビュー＋premium gating）＋ zip ダウンロードまで実装済み。公開判定は published な `production_projects` の実在から導出（手動同期不要）。
+- **量産の現状値（ボトルネック）**: 全 464 works に対し published パックは **`episode 0439-1` の 1 件のみ**。残りは feed もパックも未出力。この Pipeline（Phase 2 以降の recipe 派生・cover 自動生成・zip 自動化）で量産率を上げるのが最優先。
+- **収益動線**: 壁紙**単品購入（$1, Stripe `mode:"payment"`）は実装済み（2026-06-27）**。未整理は「単品 vs サブスク（The Club premium＝ダウンロードし放題）の出し分け」と「`work_offers` の wallpaper と The Club カタログの一本化」。`production_delivery_packages` に `price_usd` / `is_subscription_included` の枠あり。
+- **小粒タスク**:
+  - 一覧カードの壁紙バッジ（`WorkCard` の `wallpaperOffer` バッジは `work_offers` 依存で現状非表示）。出すなら `work_offers` の wallpaper インデックス化を検討。
+  - 複数 variant を持つ作品の variant picker と、variant 単位の壁紙オファー運用。
+  - 他シリーズ（`reel` / `experiment` / `remix`）のデータ投入は episode 運用が固まってから。

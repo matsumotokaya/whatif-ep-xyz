@@ -1,7 +1,11 @@
 # IMAGINE Cutover Milestones
 
-> 最終更新: 2026-07-06
+> 最終更新: 2026-07-07
 > 目的: `whatif-ep.xyz` への IMAGINE 統合を最後までやり切り、`app.whatif-ep.xyz` を安全に停止するための実行計画。
+
+> **進捗（2026-07-07 更新）**: **M1〜M4 は main にマージ済み**（`724319b Merge renewal/single-app … M1-M4+壁紙ゲスト購入` + 後続のエディタ安定化コミット群）。`whatif-ep.xyz` 単一アプリが本番稼働。M3 のサムネ/保存安定化も main に着地済み（`serialize saves` / `persist preview refresh` / `immutable asset keys` 等）。
+> **残るのは M5（本番 redirect: `app.whatif-ep.xyz` 301・`/banner`→`/edit` 互換）と M6（旧 IMAGINE 停止）**、および Stage D 破壊片付け・`create-checkout-session` 呼び出し元検証（中リスク）・i18n 統一（react-i18next→LanguageContext）。
+> なお現在のアクティブな開発本線は**エディタ再設計（E0/E1 は main 着地済み、E1c/E2 が次）**で、ブランチ `editor/e0-stability`・正本 `docs/EDITOR_REDESIGN.md`（同ブランチ）。以下 M1〜M4 の記述は実施済みの参照履歴として残す。
 
 ## Current State
 
@@ -189,11 +193,15 @@
 
 ## Immediate Next Task
 
-次のセッションで最初にやること:
+（M1〜M4 は完了・main マージ済み。以下は残タスク）
 
-1. `M2` のコード変更
-2. user-facing な `app.whatif-ep.xyz` 参照を Gallery 側から除去
-3. その後に `M3` として `/edit` のサムネ生成不具合を実測確認
+**カットオーバー残（M5/M6）**:
+
+1. `M5` `app.whatif-ep.xyz` → `whatif-ep.xyz` の 301、`/banner?template=` / `/banner/:id` / `/upgrade` 互換ルール確定、本番 deep link 実地確認
+2. `M6` 旧 Vite デプロイ停止、`src/lib/imagine-links.ts` の runtime shim を「保険」まで格下げ、Stage D 破壊片付け
+3. セキュリティ: `create-checkout-session` の呼び出し元検証（中リスク）、admin 直 Supabase 操作の RLS 確認
+
+**開発本線（別ワークストリーム）**: エディタ再設計 E1c（Konva commit 集約）→ E2（ストーリーズモード MVP）。正本 `docs/EDITOR_REDESIGN.md`（ブランチ `editor/e0-stability`）。
 
 ## Notes
 

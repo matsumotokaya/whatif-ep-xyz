@@ -122,7 +122,7 @@ app/
   - 補助 ref（`sessionRef` / `adoptingSharedSessionRef`）
   - 残る認証経路は「`supabase.auth.getSession()` + `onAuthStateChange`」のみ（@supabase/ssr のクッキーセッションが唯一の正本。middleware.ts の `getUser()` によるリフレッシュは従来どおり）。
 - `.env.example` から `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` ブロックを削除（本変数は Gallery では不要になった。Vercel env に残っていても未参照）。
-- ドキュメント追随: `README.md`（lib ツリーから ssoCookie.ts 除去・2026-06-25 Session Note と auth hardening 項へ撤去追記）、`docs/ROADMAP.md`（SSO 項に M2 撤去の更新註記）。
+- ドキュメント追随: `README.md`（lib ツリーから ssoCookie.ts 除去・2026-06-25 Session Note と auth hardening 項へ撤去追記）、`docs/ROADMAP.md`（SSO 項に M2 撤去の更新註記。※ROADMAP.md は後の統合整理で削除済み）。
 
 **変更しなかったもの（意図的）:**
 

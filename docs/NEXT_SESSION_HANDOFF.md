@@ -1,7 +1,11 @@
 # Next Session Handoff（IMAGINE Cutover）
 
-> 最終更新: 2026-07-06
+> 最終更新: 2026-07-07
 > 目的: 次回セッションで認識ズレなく、`whatif-ep.xyz` への IMAGINE 統合を完了させるための再開メモ。
+
+> ⚠️ **状態更新（2026-07-07）**: 下記「M3」依頼文は**実施済み**。**M1〜M4 は main にマージ済み**で `whatif-ep.xyz` 単一アプリが本番稼働、サムネ/保存安定化も着地済み。
+> **カットオーバー残は M5/M6**（`app.whatif-ep.xyz` 301・`/banner`→`/edit` 互換・旧 IMAGINE 停止・Stage D 片付け・`create-checkout-session` 呼び出し元検証）。詳細と実行順は `docs/CUTOVER_MILESTONES.md` の「Immediate Next Task」を正本とする。
+> **現在のアクティブ開発本線は別ワークストリームのエディタ再設計**（E0/E1 は main 着地済み、次は E1c/E2）。正本 `docs/EDITOR_REDESIGN.md`・ブランチ `editor/e0-stability`。以下は M3 当時の再開メモとして保存。
 
 ## 次回そのまま使う依頼文
 

@@ -3,7 +3,7 @@
 最終更新: 2026-07-02
 Status: **Phase 0 決定済み・Phase 1 着手前**
 
-> 本書は [RENEWAL_PLAN.md](./RENEWAL_PLAN.md)（2026-06-16、データモデル中心）の後継となるプロダクト全体の正本。
+> 本書はプロダクト全体の正本（旧 `RENEWAL_PLAN.md`〈2026-06-16、データモデル中心〉を統合・置換。work / variant / offer のデータモデルは既に実装・稼働済み）。
 > 技術統合の実行計画は [CONSOLIDATION_PLAN.md](./CONSOLIDATION_PLAN.md)（M1〜M6）をそのまま Phase 1 として組み込む。
 > 作業ブランチ: `renewal/single-app`（大改修前スナップショット: main `6caab29`）
 
