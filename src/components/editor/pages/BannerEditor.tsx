@@ -1550,7 +1550,7 @@ export const BannerEditor = () => {
     }
   };
 
-  const handleInternalNavigation = useCallback(async (target: string) => {
+  const handleInternalNavigation = async (target: string) => {
     if (isNavigating) return;
 
     setIsNavigating(true);
@@ -1567,11 +1567,11 @@ export const BannerEditor = () => {
     } finally {
       setIsNavigating(false);
     }
-  }, [flushQueuedSave, isNavigating, navigate, t]);
+  };
 
-  const handleBackToManager = useCallback(async () => {
+  const handleBackToManager = async () => {
     await handleInternalNavigation(editorReturnTo);
-  }, [editorReturnTo, handleInternalNavigation]);
+  };
 
   const isBannerLoading = !isGuest && (isLoading || !banner);
   if (isBannerLoading) {
