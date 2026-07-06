@@ -12,7 +12,7 @@ type NavItemKey = "episodes" | "imagine" | "club" | "store" | "about";
 
 const navItems = [
   { key: "episodes" as NavItemKey, href: "/works/episode" },
-  { key: "imagine" as NavItemKey, href: "https://app.whatif-ep.xyz/", external: true },
+  { key: "imagine" as NavItemKey, href: "/edit" },
   { key: "club" as NavItemKey, href: "/the-club" },
   { key: "store" as NavItemKey, href: "https://whatif.stores.jp", external: true },
   { key: "about" as NavItemKey, href: "/about" },

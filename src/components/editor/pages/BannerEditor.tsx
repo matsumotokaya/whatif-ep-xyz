@@ -694,12 +694,27 @@ export const BannerEditor = () => {
     [elements, canvasColor, guestName, guestTemplate, isGuest]
   );
 
-  // Immediate save for important actions
-  const immediateSave = useCallback(async () => {
+  // Flush the save pipeline immediately. `generateThumbnail` is used for
+  // explicit save/leave actions so list thumbnails are refreshed before exit.
+  const flushQueuedSave = useCallback(async (generateThumbnail: boolean) => {
+    const needsInitialPreview = generateThumbnail && (
+      isGuest ||
+      (!!banner && (!banner.thumbnailUrl || !banner.fullresUrl))
+    );
+    const hasPendingWork = hasUnsavedChanges || needsInitialPreview;
+
+    if (!hasPendingWork) return;
+
     debouncedSave.cancel();
     debouncedGuestSave.cancel();
-    await performSave(false); // No thumbnail for immediate saves to improve performance
-  }, [elements, canvasColor, banner, id, isGuest, debouncedGuestSave, performSave]);
+    await performSave(generateThumbnail);
+  }, [hasUnsavedChanges, isGuest, banner, debouncedSave, debouncedGuestSave, performSave]);
+
+  // Immediate save for important editor mutations that do not need fresh
+  // preview assets yet.
+  const immediateSave = useCallback(async () => {
+    await flushQueuedSave(false);
+  }, [flushQueuedSave]);
 
   // Mark as dirty and trigger auto-save when elements actually change
   useEffect(() => {
@@ -799,7 +814,7 @@ export const BannerEditor = () => {
 
   // Manual save handler (for save button)
   const handleSave = async () => {
-    await immediateSave();
+    await flushQueuedSave(true);
   };
 
   // Copy (with localStorage for cross-banner support)
@@ -1550,31 +1565,29 @@ export const BannerEditor = () => {
     return null;
   }
 
-  const handleBackToManager = async () => {
+  const handleInternalNavigation = useCallback(async (target: string) => {
     // Prevent multiple clicks
     if (isNavigating) return;
 
     setIsNavigating(true);
 
     try {
-      // Save any pending changes with thumbnail before navigating
-      if (isGuest) {
-        debouncedGuestSave.cancel();
-      } else {
-        debouncedSave.cancel();
-      }
-      await performSave(true); // Always generate thumbnail when leaving editor (both guest and logged-in)
-      navigate(editorReturnTo);
+      await flushQueuedSave(true);
+      navigate(target);
     } catch (error) {
       console.error('[BannerEditor] Failed to save before navigating:', error);
       const confirmLeave = window.confirm(t('banner:saveFailedConfirm'));
       if (confirmLeave) {
-        navigate(editorReturnTo);
+        navigate(target);
       }
     } finally {
       setIsNavigating(false);
     }
-  };
+  }, [flushQueuedSave, isNavigating, navigate, t]);
+
+  const handleBackToManager = useCallback(async () => {
+    await handleInternalNavigation(editorReturnTo);
+  }, [editorReturnTo, handleInternalNavigation]);
 
   const handleSaveAsTemplate = () => {
     // Only allow admins to save as template
@@ -1622,6 +1635,7 @@ export const BannerEditor = () => {
     <div className="h-[100svh] flex flex-col bg-[#1e1e1e]">
       <Header
         onBackToManager={handleBackToManager}
+        onInternalNavigate={handleInternalNavigation}
         bannerName={banner.name}
         bannerId={isGuest ? undefined : banner.id}
         onBannerNameChange={isGuest ? undefined : handleBannerNameChange}
@@ -1892,7 +1906,7 @@ export const BannerEditor = () => {
         onExport={handleExport}
         saveStatus={saveStatus}
         lastSaveError={lastSaveError}
-        onRetry={immediateSave}
+        onRetry={handleSave}
       />
 
       {/* Guest-only notice: download is fine, saving needs login */}

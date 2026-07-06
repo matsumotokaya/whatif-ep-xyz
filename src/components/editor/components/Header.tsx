@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from '@/components/editor/lib/router';
+import { useNavigate } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import { AuthButton } from './AuthButton';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -7,6 +7,7 @@ import { ReleaseNotesModal } from './ReleaseNotesModal';
 
 interface HeaderProps {
   onBackToManager?: () => void;
+  onInternalNavigate?: (href: string) => Promise<void> | void;
   bannerName?: string;
   bannerId?: string;
   onBannerNameChange?: (newName: string) => void;
@@ -14,8 +15,10 @@ interface HeaderProps {
   isAdmin?: boolean;
 }
 
-export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChange, onSaveAsTemplate, isAdmin }: HeaderProps) => {
+export const Header = ({ onBackToManager, onInternalNavigate, bannerName, bannerId, onBannerNameChange, onSaveAsTemplate, isAdmin }: HeaderProps) => {
   const { t } = useTranslation(['banner', 'common', 'auth']);
+  const navigate = useNavigate();
+  const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'contact@whatif-ep.xyz';
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
@@ -59,22 +62,18 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
   };
 
   const serviceLinks = [
-    { label: 'IMAGINE', href: '/', external: false },
+    { label: 'IMAGINE', href: '/edit', external: false },
     { label: t('common:galleryLink'), href: '/works/episode', external: false },
     { label: t('banner:myBannersTab'), href: '/mydesign', external: false },
-    { label: 'WHATIF-EP.XYZ', href: 'https://whatif-ep.xyz/', external: true },
-    { label: 'The Club', href: 'https://whatif-ep.xyz/the-club', external: true },
+    { label: 'WHATIF-EP.XYZ', href: '/', external: false },
+    { label: 'The Club', href: '/the-club', external: false },
     { label: t('common:footer.shop'), href: 'https://whatif.stores.jp/', external: true },
   ];
 
   const pageLinks = [
     { label: t('common:footer.aboutUs'), href: '/about', external: false },
-    { label: t('common:footer.contact'), href: '/contact', external: false },
-    { label: t('common:footer.legalInfo'), href: '/legal/specified-commercial-transactions-act', external: false },
-    { label: t('common:footer.privacyPolicy'), href: '/legal/privacy', external: false },
-    { label: t('common:footer.termsOfService'), href: '/legal/terms', external: false },
-    { label: t('common:footer.securityPolicy'), href: '/legal/security', external: false },
-    { label: t('common:footer.company'), href: 'https://whatif-ep.xyz/', external: true },
+    { label: t('common:footer.contact'), href: `mailto:${contactEmail}`, external: true },
+    { label: t('common:footer.company'), href: '/', external: false },
   ];
 
   const socialLinks = [
@@ -82,6 +81,15 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
     { label: 'Threads (@whatif.ep)', href: 'https://www.threads.net/@whatif.ep' },
     { label: 'Discord', href: 'https://discord.gg/cW2uUGUR' },
   ];
+
+  const handleInternalNavigation = async (href: string) => {
+    setIsMenuOpen(false);
+    if (onInternalNavigate) {
+      await onInternalNavigate(href);
+      return;
+    }
+    navigate(href);
+  };
 
   return (
     <>
@@ -98,7 +106,9 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
               <span className="text-white text-xs md:text-sm font-medium whitespace-nowrap">{t('banner:saveAndBack')}</span>
             </button>
           ) : (
-            <Link to="/"><img src="/logo_imagine_white.svg" alt="imagine" className="h-6 md:h-7 flex-shrink-0" /></Link>
+            <button type="button" onClick={() => void handleInternalNavigation('/')} className="flex-shrink-0">
+              <img src="/logo_imagine_white.svg" alt="imagine" className="h-6 md:h-7 flex-shrink-0" />
+            </button>
           )}
           {bannerName && (
             <>
@@ -147,13 +157,14 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
         </div>
 
         <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-          <Link
-            to="/works/episode"
+          <button
+            type="button"
+            onClick={() => void handleInternalNavigation('/works/episode')}
             className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">imagesmode</span>
             <span>{t('common:galleryLink')}</span>
-          </Link>
+          </button>
           <button
             onClick={() => setIsReleaseNotesOpen(true)}
             className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
@@ -218,14 +229,14 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
                       {link.label}
                     </a>
                   ) : (
-                    <Link
+                    <button
+                      type="button"
                       key={link.label}
-                      to={link.href}
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={() => void handleInternalNavigation(link.href)}
                       className="rounded-lg border border-gray-800 px-3 py-2 text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
                     >
                       {link.label}
-                    </Link>
+                    </button>
                   )
                 )}
               </div>
@@ -247,14 +258,14 @@ export const Header = ({ onBackToManager, bannerName, bannerId, onBannerNameChan
                       {link.label}
                     </a>
                   ) : (
-                    <Link
+                    <button
+                      type="button"
                       key={link.label}
-                      to={link.href}
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={() => void handleInternalNavigation(link.href)}
                       className="rounded-lg border border-gray-800 px-3 py-2 text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
                     >
                       {link.label}
-                    </Link>
+                    </button>
                   )
                 )}
               </div>
