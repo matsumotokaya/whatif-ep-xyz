@@ -30,7 +30,6 @@ function resolveReturnTarget(rawTarget: string | null) {
     const allowedOrigins = new Set([
       window.location.origin,
       'https://whatif-ep.xyz',
-      'https://app.whatif-ep.xyz',
       'http://localhost:3710',
     ]);
 

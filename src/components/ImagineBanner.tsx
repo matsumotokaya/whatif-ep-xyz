@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 const BANNER_DISMISS_KEY = "whatif_imagine_banner_dismissed_v1";
 const SCROLL_TRIGGER_PX = 24;
@@ -38,13 +39,7 @@ export function ImagineBanner() {
       }`}
     >
       <div className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
-        <a
-          href="https://app.whatif-ep.xyz/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open Imagine"
-          className="block"
-        >
+        <Link href="/edit" aria-label="Open Imagine" className="block">
           <Image
             src="/img/banner_imagine_001.png"
             alt="Try /IMAGINE - Free design service by WHATIF"
@@ -53,7 +48,7 @@ export function ImagineBanner() {
             className="h-auto w-full"
             priority
           />
-        </a>
+        </Link>
 
         <button
           type="button"

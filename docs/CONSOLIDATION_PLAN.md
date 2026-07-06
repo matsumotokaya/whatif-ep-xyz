@@ -147,6 +147,76 @@ app/
 - 本番の旧 IMAGINE 併存期間中、ユーザーには「Gallery でログインしても app.whatif-ep.xyz に引き継がれない」状態が発生する（M5/M6 のリダイレクト移行で解消する前提）。
 - Vercel env の `NEXT_PUBLIC_SSO_COOKIE_DOMAIN` は未参照になったので、M6 の片付けで削除する。既存ブラウザに残る `wf-sso-token` クッキーは Gallery からは無害（誰も読まない）だが、削除コードも撤去したため自然失効（Max-Age 30日）待ち。
 
+#### M2 follow-up（2026-07-06, user-facing cutover）
+
+旧 IMAGINE サブドメインへ直接飛ぶ Gallery 側の user-facing 導線を除去した。
+
+- `src/components/Header.tsx`: `/IMAGINE` メニューを `https://app.whatif-ep.xyz/` から `/edit` へ変更
+- `src/components/ImagineBanner.tsx`: バナーリンクを外部サブドメインから内部 `/edit` へ変更
+- `src/app/account/page.tsx`: legacy `app.whatif-ep.xyz/contact` fallback を廃止し、`NEXT_PUBLIC_CONTACT_URL` が旧ホストを指す場合は無効化。fallback は `contact@whatif-ep.xyz`
+- `src/components/editor/pages/PlansPage.tsx` / `PaymentSuccess.tsx`: `return_to` の allowed origins から `https://app.whatif-ep.xyz` を削除
+- `src/components/editor/components/Header.tsx`: editor 側メニューの same-origin 項目を内部リンク化し、未移植 `/contact` / `/legal/*` を除去。contact は `mailto:contact@whatif-ep.xyz`
+
+確認:
+
+- `npm run build`: 成功
+
+残り:
+
+- DB 上の旧 `app.whatif-ep.xyz/banner?template=` は M4/M5 で更新
+- `src/lib/imagine-links.ts` の runtime 正規化は互換のため残置
+- 次の優先事項は M3（thumbnail 生成と R2 CORS の実測）
+
+#### M3 findings（2026-07-06, thumbnail / CORS triage）
+
+local `/edit` の headless 実測で、template 編集時の canvas export が CORS で壊れていないことを確認した。
+
+確認したこと:
+
+- `assets.whatif-ep.xyz` は `Origin: http://localhost:3710` と `Origin: https://whatif-ep.xyz` に対して `Access-Control-Allow-Origin` を返す
+- guest で `/edit?template=7ac6f759-9613-40a3-bfbf-b67104715a49`（R2 `default-images` ベースの free template）を開き、「保存して一覧に戻る」で thumbnail / fullres export が成功
+- guest で `/edit?template=ed2f8904-7f24-443b-acdb-d61cab66c839`（`user-images` ベースの legacy template）を開いても thumbnail / fullres export が成功
+- `banalist_guest_banner` localStorage には `thumbnailUrl` と `fullresUrl` の data URL が保存される
+- console に `Thumbnail dataURL length` と `Export dataURL length` が出ており、`canvas taint` 由来の例外は未再現
+
+実測から言えること:
+
+- **現在のローカルコードでは CORS は主因ではない**
+- `resolveElementSrc` + `ImageRenderer` + `Canvas.exportThumbnail/exportImage` の組み合わせは、少なくとも guest フローでは正常
+- したがって、まだ残る「thumbnail が出ない」症状があるなら、原因候補は **認証あり保存経路**（`batchSave` → `r2-presign` → `banners.thumbnail_key` 更新）か、あるいは **template と banner の期待値差** に絞られる
+
+追加で見えたこと:
+
+- shared DB の `templates.thumbnail_key` 251 件はすべて legacy 形（`user-images/.../thumbnails/...` 180件 / `default-images/templates/<legacy-id>.jpg` 71件）で、`default-images/templates/{templateId}/thumb.jpg` の新 deterministic key は **0件**
+- 見えた範囲の `banners.thumbnail_key` も旧 `user-images/.../thumbnails/...` 形式で、新 `user-images/{uid}/banners/{bannerId}/thumb.jpg` は未確認
+- つまり、新 save path はコードには入っているが、shared DB 上ではまだ十分に踏まれていない可能性が高い
+
+未確認:
+
+- anonymous sign-in は disabled（422）なので、自動スクリプトでは認証あり save path を踏めなかった
+- 次の確認は **実アカウントでの `/edit` → 変更 → idle preview save / exit save → `banners.thumbnail_key` 更新** の E2E
+
+#### M3 fix follow-up（2026-07-06, save-flow gap closure）
+
+CORS ではなく、**エディタ離脱経路ごとの save 挙動差** が thumbnail 未生成の主因になり得ることを確認し、save-flow を補強した。
+
+- `src/components/editor/pages/BannerEditor.tsx`
+  - 手動 save (`Ctrl+S` / retry) を `generateThumbnail: true` の flush 経路へ変更
+  - editor header からの same-origin 遷移でも、離脱前に preview 生成付き save を走らせる `handleInternalNavigation` を追加
+  - preview 未作成の banner / guest design は、未保存変更がなくても離脱時に初回 thumbnail/fullres を生成するよう調整
+- `src/components/editor/components/Header.tsx`
+  - editor 内部リンクを optional な `onInternalNavigate` 経由で遷移できるよう変更
+  - これにより `saveAndBack` ボタン以外の header 遷移でも preview save を挟める
+
+確認:
+
+- `npm run build`: 成功
+
+まだ未確認:
+
+- shared 本番相当データに対する **認証あり E2E**（実アカウントで template を開く → 変更 → header 遷移 or 手動 save → `banners.thumbnail_key` が `user-images/{uid}/banners/{bannerId}/thumb.jpg` に更新されるか）
+- ブラウザの戻るボタンやタブ close は SPA 内部遷移と別経路なので、ここは引き続き best-effort
+
 ### M3: 保存・アップロード・画像参照を key 方式へ切替
 
 - `asset-reference-redesign` の単一 asset module を Gallery 側に実装。
