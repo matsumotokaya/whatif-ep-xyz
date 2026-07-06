@@ -33,6 +33,7 @@ export interface CanvasRef {
   exportThumbnail: () => string;
   getNodesMap: () => Map<string, Konva.Node>;
   getLayerNode: () => Konva.Layer | null;
+  waitForNextRender: () => Promise<void>;
 }
 
 // Bleed area around artboard (canvas units) so elements/transformers
@@ -148,7 +149,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           multiTransformerRef.current.nodes(selectedNodes);
         }
 
-        layers[0].batchDraw();
+        layers[0].draw();
       };
 
       const exportStage = (
@@ -162,7 +163,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         transformerRefsMap.current.forEach(tr => tr.nodes([]));
         if (multiTransformerRef.current) multiTransformerRef.current.nodes([]);
 
-        layers[0].batchDraw();
+        layers[0].draw();
 
         try {
           const dataURL = stage.toDataURL({
@@ -256,6 +257,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     },
     getNodesMap: () => nodesRef.current,
     getLayerNode: () => stageRef.current?.getLayers()[0] ?? null,
+    waitForNextRender: () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
   }), [scale, selectedElementIds, isEditing, template.width, template.height]);
 
   // Update individual transformers and reset multi-drag when selection changes

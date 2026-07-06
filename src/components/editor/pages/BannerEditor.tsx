@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useRef, useEffect, useCallback, useMemo, type RefObject } from 'react';
+import { lazy, Suspense, useState, useRef, useEffect, useCallback, type RefObject } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import debounce from 'lodash.debounce';
@@ -31,6 +31,11 @@ import { getFitToCanvasPlacement } from '../utils/canvasPlacement';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
+import { SaveQueue } from '../utils/saveQueue';
+
+interface SaveRequest {
+  generateThumbnail: boolean;
+}
 
 const EditorCanvas = lazy(() => import('../components/Canvas').then((module) => ({ default: module.Canvas })));
 
@@ -309,6 +314,53 @@ export const BannerEditor = () => {
 
   const banner = isGuest ? guestBanner : bannerData;
 
+  // Live refs read by the serialized save queue so the executor always works
+  // against the latest editor state rather than values captured at enqueue time.
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+  const canvasColorRef = useRef(canvasColor);
+  canvasColorRef.current = canvasColor;
+  const saveDepsRef = useRef({ banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t });
+  saveDepsRef.current = { banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t };
+  const performSaveRef = useRef<(generateThumbnail: boolean) => Promise<void>>(async () => {});
+
+  const saveQueueRef = useRef<SaveQueue<SaveRequest> | null>(null);
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = new SaveQueue<SaveRequest>({
+      execute: async (request) => {
+        await performSaveRef.current(request.generateThumbnail);
+      },
+      merge: (previous, incoming) => ({
+        generateThumbnail: previous.generateThumbnail || incoming.generateThumbnail,
+      }),
+    });
+  }
+
+  const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!debouncedSaveRef.current) {
+    debouncedSaveRef.current = debounce(() => {
+      saveQueueRef.current?.enqueue({ generateThumbnail: false });
+    }, 3000);
+  }
+  const debouncedSave = debouncedSaveRef.current;
+
+  const debouncedGuestSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!debouncedGuestSaveRef.current) {
+    debouncedGuestSaveRef.current = debounce(() => {
+      saveQueueRef.current?.enqueue({ generateThumbnail: false });
+    }, 1000);
+  }
+  const debouncedGuestSave = debouncedGuestSaveRef.current;
+
+  const idlePreviewSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!idlePreviewSaveRef.current) {
+    idlePreviewSaveRef.current = debounce(() => {
+      if (saveDepsRef.current.isGuest) return;
+      saveQueueRef.current?.enqueue({ generateThumbnail: true });
+    }, 10000);
+  }
+  const idlePreviewSave = idlePreviewSaveRef.current;
+
   useEffect(() => {
     if (!isGuest) return;
 
@@ -495,6 +547,8 @@ export const BannerEditor = () => {
       console.log('[BannerEditor] Setting elements to:', migratedElements);
       setElements(migratedElements);
       setCanvasColor(banner.canvasColor);
+      elementsRef.current = migratedElements;
+      canvasColorRef.current = banner.canvasColor;
       resetHistory(migratedElements);
 
       // Initialize entrance animation tracking
@@ -508,12 +562,7 @@ export const BannerEditor = () => {
       const migratedJSON = JSON.stringify(migratedElements);
       if (originalJSON !== migratedJSON) {
         console.log('[BannerEditor] Migration detected, saving to DB to persist changes');
-        batchSave.mutateAsync({
-          elements: migratedElements,
-          canvasColor: banner.canvasColor,
-        }).catch((error) => {
-          console.error('[BannerEditor] Failed to save migrated data:', error);
-        });
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
       }
 
       // If new banner with no elements, add default text and save to DB immediately
@@ -539,19 +588,11 @@ export const BannerEditor = () => {
         };
         const newElements = [defaultText];
         setElements(newElements);
+        elementsRef.current = newElements;
         resetHistory(newElements);
 
-        // Save default text to DB immediately to maintain consistency
-        batchSave.mutateAsync({
-          elements: newElements,
-          canvasColor: banner.canvasColor,
-        }).then(() => {
-          console.log('[BannerEditor] Default text saved to DB');
-          setHasUnsavedChanges(false); // Already saved
-        }).catch((error) => {
-          console.error('[BannerEditor] Failed to save default text to DB:', error);
-          setHasUnsavedChanges(true); // Mark as unsaved if save fails
-        });
+        console.log('[BannerEditor] Default text saved to DB');
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
       }
     } else {
       console.log('[BannerEditor] Same banner, keeping local state. BannerID:', banner.id);
@@ -567,33 +608,33 @@ export const BannerEditor = () => {
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const generatePreviewAssets = async () => {
-    if (!canvasRef.current) {
-      return {
-        thumbnailDataURL: undefined,
-        fullresDataURL: undefined,
-      };
+  const generatePreviewAssets = useCallback(async (): Promise<{
+    thumbnailDataURL: string | undefined;
+    fullresDataURL: string | undefined;
+  }> => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return { thumbnailDataURL: undefined, fullresDataURL: undefined };
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await canvas.waitForNextRender();
 
-    let thumbnailDataURL = canvasRef.current.exportThumbnail() || undefined;
-    let fullresDataURL = canvasRef.current.exportImage() || undefined;
-
-    if (!thumbnailDataURL || !fullresDataURL) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      thumbnailDataURL = thumbnailDataURL || canvasRef.current.exportThumbnail() || undefined;
-      fullresDataURL = fullresDataURL || canvasRef.current.exportImage() || undefined;
-    }
+    const rawThumbnail = canvas.exportThumbnail();
+    const rawFullres = canvas.exportImage();
 
     return {
-      thumbnailDataURL,
-      fullresDataURL,
+      thumbnailDataURL: rawThumbnail && rawThumbnail.length >= 100 ? rawThumbnail : undefined,
+      fullresDataURL: rawFullres && rawFullres.length >= 100 ? rawFullres : undefined,
     };
-  };
+  }, []);
 
-  // Core save function
-  const performSave = async (generateThumbnail = false) => {
+  // Core save function. Reads current state from refs so queued saves never run
+  // against stale values captured at debounce/enqueue time.
+  const performSave = useCallback(async (generateThumbnail = false) => {
+    const { banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t } = saveDepsRef.current;
+    const elements = elementsRef.current;
+    const canvasColor = canvasColorRef.current;
+
     if (isGuest) {
       if (!guestTemplate && !guestState?.template) return;
       setSaveStatus('saving');
@@ -661,7 +702,7 @@ export const BannerEditor = () => {
         hasThumbnail: !!thumbnailDataURL,
         hasFullres: !!fullresDataURL,
       });
-      await batchSave.mutateAsync({
+      const result = await batchSave.mutateAsync({
         elements,
         canvasColor,
         thumbnailDataURL,
@@ -669,46 +710,41 @@ export const BannerEditor = () => {
       });
 
       setHasUnsavedChanges(false);
-      setSaveStatus('saved');
-      console.log('[BannerEditor] ✅ Save successful');
+      if ((result as { thumbnailError?: unknown; fullresError?: unknown } | null)?.thumbnailError ||
+          (result as { thumbnailError?: unknown; fullresError?: unknown } | null)?.fullresError) {
+        setSaveStatus('error');
+        setLastSaveError(t('message:error.saveFailed'));
+      } else {
+        setSaveStatus('saved');
+        console.log('[BannerEditor] ✅ Save successful');
+      }
     } catch (error) {
       console.error('[BannerEditor] Save failed:', error);
       setSaveStatus('error');
       setLastSaveError(error instanceof Error ? error.message : t('message:error.saveFailed'));
-      // Don't show alert for auto-save failures, just show in status indicator
     }
-  };
+  }, [generatePreviewAssets, guestStorageKey]);
 
-  // Debounced auto-save (3 seconds after last change for better performance)
-  const debouncedSave = useMemo(
-    () => debounce(() => {
-      performSave(false); // No thumbnail for auto-saves
-    }, 3000), // Increased from 2000ms to 3000ms
-    [elements, canvasColor, banner, id, isGuest]
-  );
-
-  const debouncedGuestSave = useMemo(
-    () => debounce(() => {
-      performSave(false);
-    }, 1000),
-    [elements, canvasColor, guestName, guestTemplate, isGuest]
-  );
+  performSaveRef.current = performSave;
 
   // Flush the save pipeline immediately. `generateThumbnail` is used for
   // explicit save/leave actions so list thumbnails are refreshed before exit.
   const flushQueuedSave = useCallback(async (generateThumbnail: boolean) => {
+    const currentBanner = saveDepsRef.current.banner;
     const needsInitialPreview = generateThumbnail && (
-      isGuest ||
-      (!!banner && (!banner.thumbnailUrl || !banner.fullresUrl))
+      saveDepsRef.current.isGuest ||
+      (!!currentBanner && (!currentBanner.thumbnailUrl || !currentBanner.fullresUrl))
     );
-    const hasPendingWork = hasUnsavedChanges || needsInitialPreview;
+    const hasPendingWork = hasUnsavedChanges || saveQueueRef.current?.isBusy || needsInitialPreview;
 
     if (!hasPendingWork) return;
 
     debouncedSave.cancel();
     debouncedGuestSave.cancel();
-    await performSave(generateThumbnail);
-  }, [hasUnsavedChanges, isGuest, banner, debouncedSave, debouncedGuestSave, performSave]);
+    idlePreviewSave.cancel();
+    saveQueueRef.current?.enqueue({ generateThumbnail });
+    await saveQueueRef.current?.flush();
+  }, [hasUnsavedChanges, debouncedSave, debouncedGuestSave, idlePreviewSave]);
 
   // Immediate save for important editor mutations that do not need fresh
   // preview assets yet.
@@ -716,7 +752,7 @@ export const BannerEditor = () => {
     await flushQueuedSave(false);
   }, [flushQueuedSave]);
 
-  // Mark as dirty and trigger auto-save when elements actually change
+  // Mark as dirty and trigger auto-save when elements actually change.
   useEffect(() => {
     if (isGuest) return;
     const currentElementsStr = JSON.stringify(elements);
@@ -728,19 +764,16 @@ export const BannerEditor = () => {
       return;
     }
 
-    // Only save if elements actually changed
+    const banner = saveDepsRef.current.banner;
     if (currentElementsStr !== prevElementsRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Elements actually changed, triggering auto-save');
       prevElementsRef.current = currentElementsStr;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
-    }
-
-    return () => {
-      debouncedSave.cancel();
+      idlePreviewSave();
     };
-  }, [elements, banner, currentBannerId, debouncedSave, isGuest]);
+  }, [elements, currentBannerId, isGuest, debouncedSave, idlePreviewSave]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -761,19 +794,21 @@ export const BannerEditor = () => {
     }
   }, [elements, canvasColor, debouncedGuestSave, isGuest]);
 
-  // Mark as dirty and trigger auto-save when canvas color actually changes
+  // Mark as dirty and trigger auto-save when canvas color actually changes.
   useEffect(() => {
     if (isGuest) return;
     if (!isMountedRef.current) return;
 
+    const banner = saveDepsRef.current.banner;
     if (canvasColor !== prevCanvasColorRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Canvas color changed, triggering auto-save');
       prevCanvasColorRef.current = canvasColor;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
+      idlePreviewSave();
     }
-  }, [canvasColor, banner, currentBannerId, debouncedSave, isGuest]);
+  }, [canvasColor, currentBannerId, isGuest, debouncedSave, idlePreviewSave]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -787,30 +822,29 @@ export const BannerEditor = () => {
     }
   }, [canvasColor, debouncedGuestSave, isGuest]);
 
-  // Save before leaving page (if there are unsaved changes)
+  // Save before leaving page (best effort only).
   useEffect(() => {
-    const handleBeforeUnload = async (_e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
-        // Cancel any pending saves
         debouncedSave.cancel();
         debouncedGuestSave.cancel();
-
-        // Try to save synchronously (best effort)
-        // Note: Modern browsers may not allow async operations in beforeunload
-        performSave(false);
-
-        // Don't show confirmation dialog since we're auto-saving
-        // If save is critical, uncomment these lines:
-        // e.preventDefault();
-        // e.returnValue = '';
+        idlePreviewSave.cancel();
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
+        void saveQueueRef.current?.flush();
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges, isGuest, debouncedGuestSave, debouncedSave, performSave]);
+  }, [hasUnsavedChanges, debouncedGuestSave, debouncedSave, idlePreviewSave]);
 
-
+  useEffect(() => {
+    return () => {
+      debouncedSave.cancel();
+      debouncedGuestSave.cancel();
+      idlePreviewSave.cancel();
+    };
+  }, [debouncedSave, debouncedGuestSave, idlePreviewSave]);
 
   // Manual save handler (for save button)
   const handleSave = async () => {
