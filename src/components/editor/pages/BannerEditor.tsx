@@ -119,7 +119,7 @@ export const BannerEditor = () => {
   const mainRef = useRef<HTMLDivElement>(null);
   const guestCreatedAtRef = useRef<string>(new Date().toISOString());
   const guestMountedRef = useRef(false);
-  const prevGuestElementsRef = useRef<string>('');
+  const prevGuestElementsRef = useRef<CanvasElement[] | null>(null);
   const prevGuestCanvasColorRef = useRef<string>('');
 
   // Track current banner ID to detect banner switches
@@ -131,7 +131,7 @@ export const BannerEditor = () => {
   const isInitialLoadRef = useRef(false);
 
   // Track previous values to detect actual changes
-  const prevElementsRef = useRef<string>('');
+  const prevElementsRef = useRef<CanvasElement[] | null>(null);
   const prevCanvasColorRef = useRef<string>('');
   const isMountedRef = useRef(false);
 
@@ -370,6 +370,8 @@ export const BannerEditor = () => {
       const guestElements = guestState.elements || [];
       setElements(guestElements);
       setCanvasColor(guestState.canvasColor || '#FFFFFF');
+      prevGuestElementsRef.current = guestElements;
+      prevGuestCanvasColorRef.current = guestState.canvasColor || '#FFFFFF';
       resetHistory(guestElements);
       // Initialize entrance animation tracking
       const imageCount = guestElements.filter(el => el.type === 'image').length;
@@ -402,6 +404,8 @@ export const BannerEditor = () => {
         const parsedElements = parsed.elements || [];
         setElements(parsedElements);
         setCanvasColor(parsed.canvasColor || '#FFFFFF');
+        prevGuestElementsRef.current = parsedElements;
+        prevGuestCanvasColorRef.current = parsed.canvasColor || '#FFFFFF';
         resetHistory(parsedElements);
         // Initialize entrance animation tracking
         const imageCount = parsedElements.filter(el => el.type === 'image').length;
@@ -549,6 +553,8 @@ export const BannerEditor = () => {
       setCanvasColor(banner.canvasColor);
       elementsRef.current = migratedElements;
       canvasColorRef.current = banner.canvasColor;
+      prevElementsRef.current = migratedElements;
+      prevCanvasColorRef.current = banner.canvasColor;
       resetHistory(migratedElements);
 
       // Initialize entrance animation tracking
@@ -589,6 +595,7 @@ export const BannerEditor = () => {
         const newElements = [defaultText];
         setElements(newElements);
         elementsRef.current = newElements;
+        prevElementsRef.current = newElements;
         resetHistory(newElements);
 
         console.log('[BannerEditor] Default text saved to DB');
@@ -755,19 +762,18 @@ export const BannerEditor = () => {
   // Mark as dirty and trigger auto-save when elements actually change.
   useEffect(() => {
     if (isGuest) return;
-    const currentElementsStr = JSON.stringify(elements);
 
     // Skip on initial mount
     if (!isMountedRef.current) {
       isMountedRef.current = true;
-      prevElementsRef.current = currentElementsStr;
+      prevElementsRef.current = elements;
       return;
     }
 
     const banner = saveDepsRef.current.banner;
-    if (currentElementsStr !== prevElementsRef.current && banner && currentBannerId === banner.id) {
+    if (elements !== prevElementsRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Elements actually changed, triggering auto-save');
-      prevElementsRef.current = currentElementsStr;
+      prevElementsRef.current = elements;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedSave();
@@ -777,17 +783,16 @@ export const BannerEditor = () => {
 
   useEffect(() => {
     if (!isGuest) return;
-    const currentElementsStr = JSON.stringify(elements);
 
     if (!guestMountedRef.current) {
       guestMountedRef.current = true;
-      prevGuestElementsRef.current = currentElementsStr;
+      prevGuestElementsRef.current = elements;
       prevGuestCanvasColorRef.current = canvasColor;
       return;
     }
 
-    if (currentElementsStr !== prevGuestElementsRef.current) {
-      prevGuestElementsRef.current = currentElementsStr;
+    if (elements !== prevGuestElementsRef.current) {
+      prevGuestElementsRef.current = elements;
       setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedGuestSave();

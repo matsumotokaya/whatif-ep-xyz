@@ -13,12 +13,7 @@ export const useElementOperations = ({
   // Update a single element with partial updates
   // Using functional update pattern to avoid closure issues
   const updateElement = (id: string, updates: Partial<CanvasElement>) => {
-    console.log('[updateElement] Updating element:', id, 'with updates:', updates);
-
     setElements((prevElements) => {
-      console.log('[updateElement] Current elements count:', prevElements.length);
-      console.log('[updateElement] Current element IDs:', prevElements.map(el => el.id));
-
       const newElements = prevElements.map((el) => {
         if (el.id === id) {
           // Type-safe merge based on element type
@@ -35,9 +30,6 @@ export const useElementOperations = ({
         }
         return el;
       });
-
-      console.log('[updateElement] New elements count:', newElements.length);
-      console.log('[updateElement] New element IDs:', newElements.map(el => el.id));
 
       // Save to history with the new elements
       saveToHistory(newElements);

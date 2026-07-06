@@ -17,7 +17,5 @@ export function useRecentProductionProjects(limit = 48, enabled = true) {
     queryFn: async () => loadRecentProductionProjects(limit),
     enabled,
     staleTime: 5 * 60 * 1000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
   });
 }

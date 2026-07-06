@@ -39,8 +39,6 @@ export function useBanners() {
       return banners;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes cache
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
   });
 }
 
@@ -62,8 +60,6 @@ export function useFactoryBannerIds(enabled = true) {
     },
     enabled,
     staleTime: 5 * 60 * 1000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
   });
 }
 
