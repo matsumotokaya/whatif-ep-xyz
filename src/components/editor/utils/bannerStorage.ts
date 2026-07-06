@@ -53,9 +53,23 @@ interface DbBannerListItem {
   thumbnail_key?: string | null;
   fullres_key?: string | null;
   updated_at: string;
-  template?: { width?: number; height?: number } | null;
+  template?: { width?: number; height?: number; thumbnail?: string | null } | null;
   display_order?: number | null;
 }
+
+const resolveBannerThumbnail = (db: {
+  thumbnail_key?: string | null;
+  thumbnail_url?: string | null;
+  updated_at: string;
+  template?: { thumbnail?: string | null } | null;
+}): string | undefined => {
+  return (
+    resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at) ||
+    (db.template?.thumbnail
+      ? resolveAsset(db.template.thumbnail, { legacyBucket: 'user-images' }) || undefined
+      : undefined)
+  );
+};
 
 // Convert DB format to Banner format
 const dbToBanner = (db: DbBanner): Banner => ({
@@ -64,7 +78,7 @@ const dbToBanner = (db: DbBanner): Banner => ({
   template: db.template,
   elements: db.elements,
   canvasColor: db.canvas_color,
-  thumbnailUrl: resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at),
+  thumbnailUrl: resolveBannerThumbnail(db),
   fullresUrl: resolveBannerAsset(db.fullres_key, db.fullres_url, db.updated_at),
   createdAt: db.created_at,
   updatedAt: db.updated_at,
@@ -73,7 +87,7 @@ const dbToBanner = (db: DbBanner): Banner => ({
 const dbToBannerListItem = (db: DbBannerListItem): BannerListItem => ({
   id: db.id,
   name: db.name,
-  thumbnailUrl: resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at),
+  thumbnailUrl: resolveBannerThumbnail(db),
   fullresUrl: resolveBannerAsset(db.fullres_key, db.fullres_url, db.updated_at),
   updatedAt: db.updated_at,
   width: db.template?.width,
@@ -146,6 +160,7 @@ export const bannerStorage = {
         template: editorTemplate,
         elements,
         canvas_color: template.canvasColor,
+        thumbnail_url: editorTemplate.thumbnail ?? template.thumbnailUrl ?? null,
       })
       .select()
       .single();
