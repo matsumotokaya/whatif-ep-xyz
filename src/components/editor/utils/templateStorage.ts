@@ -1,7 +1,7 @@
 import { getSupabase } from './supabase';
 import type { CanvasElement, TemplateRecord } from '../types/template';
-import { uploadAsset } from './r2Upload';
-import { buildTemplateThumbKey, resolveAsset, type AssetKey } from '@/lib/asset';
+import { deleteAssets, uploadAsset } from './r2Upload';
+import { buildTemplateThumbKey, createAssetRevision, resolveAsset, type AssetKey } from '@/lib/asset';
 
 interface DbTemplate {
   id: string;
@@ -112,10 +112,16 @@ export const templateStorage = {
   },
 
   // Persist a template's thumbnail key after it has been uploaded to the
-  // template's own deterministic R2 key (used by the manual save + Publish
-  // paths where the template id is only known after insert/upsert).
+  // template's own immutable R2 key (used by the manual save + Publish paths
+  // where the template id is only known after insert/upsert).
   async setTemplateThumbnailKey(id: string, thumbnailKey: string): Promise<void> {
     const supabase = await getSupabase();
+    const { data: existing } = await supabase
+      .from('templates')
+      .select('thumbnail_key')
+      .eq('id', id)
+      .single();
+
     const { error } = await supabase
       .from('templates')
       .update({ thumbnail_key: thumbnailKey })
@@ -124,6 +130,16 @@ export const templateStorage = {
     if (error) {
       console.error('Error setting template thumbnail key:', error);
       throw error;
+    }
+
+    const previousKey = existing?.thumbnail_key;
+    const ownTemplatePrefix = `default-images/templates/${id}/thumb/`;
+    if (previousKey && previousKey !== thumbnailKey && previousKey.startsWith(ownTemplatePrefix)) {
+      try {
+        await deleteAssets([previousKey]);
+      } catch (cleanupError) {
+        console.warn('Failed to remove stale template thumbnail asset:', cleanupError);
+      }
     }
   },
 
@@ -201,7 +217,7 @@ export const templateStorage = {
           if (!response.ok) throw new Error(`fetch ${response.status}`);
           const blob = await response.blob();
           const key = await uploadAsset(
-            buildTemplateThumbKey(templateId),
+            buildTemplateThumbKey(templateId, createAssetRevision()),
             blob,
             blob.type || 'image/jpeg',
           );

@@ -11,7 +11,7 @@
 // build the URL only at render time. This module owns:
 //   - the key convention (logical bucket prefix + path)
 //   - resolution (key -> URL) with a migration-period passthrough / fallback
-//   - deterministic key generators (overwrite-in-place, no random revisions)
+//   - immutable key generators for preview assets
 //
 // Target state: a single R2 bucket served from assets.whatif-ep.xyz, where the
 // logical bucket name (`user-images` / `default-images`) is the key prefix.
@@ -178,22 +178,30 @@ export function resolveElementSrc(
   return resolveAsset(src, { version, legacyBucket: "user-images" });
 }
 
-// --- Deterministic key generators (overwrite-in-place, no random revision) ---
+export function createAssetRevision(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
 
-export function buildBannerThumbKey(uid: string, bannerId: string): AssetKey {
-  return `user-images/${uid}/banners/${bannerId}/thumb.jpg` as AssetKey;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function buildBannerFullKey(uid: string, bannerId: string): AssetKey {
-  return `user-images/${uid}/banners/${bannerId}/full.png` as AssetKey;
+// Preview assets should use immutable keys so CDN/browser caches never need to
+// be "fought" with overwrite-in-place semantics.
+export function buildBannerThumbKey(uid: string, bannerId: string, revision: string): AssetKey {
+  return `user-images/${uid}/banners/${bannerId}/thumb/${revision}.jpg` as AssetKey;
+}
+
+export function buildBannerFullKey(uid: string, bannerId: string, revision: string): AssetKey {
+  return `user-images/${uid}/banners/${bannerId}/full/${revision}.png` as AssetKey;
 }
 
 export function buildUserUploadKey(uid: string, assetId: string, ext: string): AssetKey {
   return `user-images/${uid}/uploads/${assetId}.${ext}` as AssetKey;
 }
 
-export function buildTemplateThumbKey(templateId: string): AssetKey {
-  return `default-images/templates/${templateId}/thumb.jpg` as AssetKey;
+export function buildTemplateThumbKey(templateId: string, revision: string): AssetKey {
+  return `default-images/templates/${templateId}/thumb/${revision}.jpg` as AssetKey;
 }
 
 export function buildLibraryAssetKey(assetId: string, ext: string): AssetKey {

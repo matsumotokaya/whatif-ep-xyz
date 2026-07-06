@@ -22,7 +22,7 @@ import { GUEST_STORAGE_KEY } from '../utils/guestDesign';
 import { useOpenTemplate } from '../hooks/useOpenTemplate';
 import { isDataUrlImage, dataUrlToBlob, getExtensionFromMime } from '../utils/storage';
 import { uploadAsset } from '../utils/r2Upload';
-import { buildUserUploadKey, buildTemplateThumbKey, resolveElementSrc } from '@/lib/asset';
+import { buildUserUploadKey, buildTemplateThumbKey, createAssetRevision, resolveElementSrc } from '@/lib/asset';
 import { templateStorage } from '../utils/templateStorage';
 import { exportImageFromDataUrl } from '../utils/exportImage';
 import { createSilhouetteBlob } from '../utils/imageShadow';
@@ -1673,7 +1673,11 @@ export const BannerEditor = () => {
 
       if (templateId) {
         const { blob, mimeType } = dataUrlToBlob(thumbnailDataUrl);
-        const key = await uploadAsset(buildTemplateThumbKey(templateId), blob, mimeType);
+        const key = await uploadAsset(
+          buildTemplateThumbKey(templateId, createAssetRevision()),
+          blob,
+          mimeType,
+        );
         await templateStorage.setTemplateThumbnailKey(templateId, key);
       }
 

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { bannerStorage } from '../utils/bannerStorage';
 import { getSupabase } from '../utils/supabase';
-import type { Banner, CanvasElement, Template } from '../types/template';
+import type { Banner, BannerListItem, CanvasElement, Template } from '../types/template';
 import { invalidateProductionProjectQueries } from './useProductionProjects';
 
 // Query keys
@@ -26,6 +26,26 @@ async function invalidateBannerRelatedQueries(queryClient: QueryClient): Promise
     invalidateBannerCollectionQueries(queryClient),
     invalidateProductionProjectQueries(queryClient),
   ]);
+}
+
+function syncBannerIntoListCaches(queryClient: QueryClient, banner: Banner): void {
+  queryClient.setQueriesData<BannerListItem[]>(
+    { queryKey: bannerKeys.lists() },
+    (previous) => {
+      if (!previous) return previous;
+      return previous.map((item) =>
+        item.id === banner.id
+          ? {
+              ...item,
+              name: banner.name,
+              updatedAt: banner.updatedAt,
+              thumbnailUrl: banner.thumbnailUrl,
+              fullresUrl: banner.fullresUrl,
+            }
+          : item
+      );
+    },
+  );
 }
 
 // Get all banners
@@ -158,6 +178,7 @@ export function useBatchSaveBanner(id: string) {
       console.log('[useBatchSaveBanner] 💾 Save successful.');
       if (savedBanner) {
         queryClient.setQueryData<Banner>(bannerKeys.detail(id), savedBanner);
+        syncBannerIntoListCaches(queryClient, savedBanner);
       }
 
       // Refresh both standard banner lists and the Factory project list.

@@ -9,6 +9,7 @@ export {
   asAssetKey,
   resolveAsset,
   resolveElementSrc,
+  createAssetRevision,
   buildBannerThumbKey,
   buildBannerFullKey,
   buildUserUploadKey,

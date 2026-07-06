@@ -8,6 +8,7 @@ import {
 } from './storage';
 import { uploadAsset, deleteAssets } from './r2Upload';
 import {
+  createAssetRevision,
   buildBannerThumbKey,
   buildBannerFullKey,
   isAssetKey,
@@ -100,6 +101,28 @@ const collectBannerDeleteTargets = (row: {
   };
   consider(row.thumbnail_key, row.thumbnail_url);
   consider(row.fullres_key, row.fullres_url);
+  return { r2Keys, supabasePaths };
+};
+
+const collectReplacedBannerAssetTargets = (
+  previous: { key?: string | null; url?: string | null },
+  nextKey: string,
+): { r2Keys: string[]; supabasePaths: string[] } => {
+  const r2Keys: string[] = [];
+  const supabasePaths: string[] = [];
+
+  if (previous.key && isAssetKey(previous.key)) {
+    if (previous.key !== nextKey) {
+      r2Keys.push(previous.key);
+    }
+    return { r2Keys, supabasePaths };
+  }
+
+  const path = extractStoragePathFromPublicUrl(previous.url ?? '', BANNER_ASSET_BUCKET);
+  if (path) {
+    supabasePaths.push(path);
+  }
+
   return { r2Keys, supabasePaths };
 };
 
@@ -373,21 +396,49 @@ export const bannerStorage = {
     await this.update(id, { canvasColor });
   },
 
-  // Save thumbnail. Uploads to a deterministic R2 key (overwrite-in-place) and
-  // stores the key; the URL is composed at read time via resolveAsset.
+  // Save thumbnail. Uploads to a fresh immutable R2 key and stores the key;
+  // the URL is composed at read time via resolveAsset.
   async saveThumbnail(id: string, thumbnailDataURL: string): Promise<void> {
     const supabase = await getSupabase();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const { data: existing } = await supabase
+      .from('banners')
+      .select('thumbnail_key, thumbnail_url')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single();
     const { blob, mimeType } = dataUrlToBlob(thumbnailDataURL);
-    const key = await uploadAsset(buildBannerThumbKey(user.id, id), blob, mimeType);
+    const key = await uploadAsset(buildBannerThumbKey(user.id, id, createAssetRevision()), blob, mimeType);
     await this.update(id, { thumbnailKey: key });
+
+    const staleTargets = collectReplacedBannerAssetTargets(
+      {
+        key: existing?.thumbnail_key,
+        url: existing?.thumbnail_url,
+      },
+      key,
+    );
+    if (staleTargets.r2Keys.length > 0) {
+      try {
+        await deleteAssets(staleTargets.r2Keys);
+      } catch (storageError) {
+        console.warn('Failed to remove stale banner thumbnail R2 assets:', storageError);
+      }
+    }
+    if (staleTargets.supabasePaths.length > 0) {
+      try {
+        await removeFilesFromBucket(BANNER_ASSET_BUCKET, staleTargets.supabasePaths);
+      } catch (storageError) {
+        console.warn('Failed to remove stale banner thumbnail Supabase assets:', storageError);
+      }
+    }
   },
 
-  // Batch save multiple properties at once (optimized for auto-save). Thumbnail
-  // and full-res images upload to deterministic R2 keys (thumb.jpg / full.png)
-  // that overwrite in place, so no stale-asset cleanup is needed and only the
-  // key columns are persisted.
+  // Batch save multiple properties at once (optimized for auto-save). Preview
+  // assets upload to immutable keys so the DB row becomes the source of truth
+  // for "which preview is current", instead of caches needing overwrite
+  // invalidation semantics.
   async batchSave(
     id: string,
     updates: {
@@ -403,10 +454,21 @@ export const bannerStorage = {
     if (updates.thumbnailDataURL || updates.fullresDataURL) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        const { data: existingAssets } = await supabase
+          .from('banners')
+          .select('thumbnail_key, thumbnail_url, fullres_key, fullres_url')
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .single();
+
         let nextThumbnailKey: string | undefined;
         if (updates.thumbnailDataURL) {
           const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
-          nextThumbnailKey = await uploadAsset(buildBannerThumbKey(user.id, id), blob, mimeType);
+          nextThumbnailKey = await uploadAsset(
+            buildBannerThumbKey(user.id, id, createAssetRevision()),
+            blob,
+            mimeType,
+          );
         }
 
         let savedBanner = await this.update(id, {
@@ -420,7 +482,11 @@ export const bannerStorage = {
           // separately to avoid blocking preview freshness when the PNG upload fails.
           try {
             const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
-            const nextFullresKey = await uploadAsset(buildBannerFullKey(user.id, id), blob, mimeType);
+            const nextFullresKey = await uploadAsset(
+              buildBannerFullKey(user.id, id, createAssetRevision()),
+              blob,
+              mimeType,
+            );
 
             const bannerWithFullres = await this.update(id, {
               fullresKey: nextFullresKey,
@@ -429,8 +495,54 @@ export const bannerStorage = {
             if (bannerWithFullres) {
               savedBanner = bannerWithFullres;
             }
+
+            const staleFullresTargets = collectReplacedBannerAssetTargets(
+              {
+                key: existingAssets?.fullres_key,
+                url: existingAssets?.fullres_url,
+              },
+              nextFullresKey,
+            );
+            if (staleFullresTargets.r2Keys.length > 0) {
+              try {
+                await deleteAssets(staleFullresTargets.r2Keys);
+              } catch (storageError) {
+                console.warn('Failed to remove stale banner full-resolution R2 assets:', storageError);
+              }
+            }
+            if (staleFullresTargets.supabasePaths.length > 0) {
+              try {
+                await removeFilesFromBucket(BANNER_ASSET_BUCKET, staleFullresTargets.supabasePaths);
+              } catch (storageError) {
+                console.warn('Failed to remove stale banner full-resolution Supabase assets:', storageError);
+              }
+            }
           } catch (fullresError) {
             console.warn('Failed to upload/save banner full-resolution asset:', fullresError);
+          }
+        }
+
+        if (nextThumbnailKey) {
+          const staleThumbnailTargets = collectReplacedBannerAssetTargets(
+            {
+              key: existingAssets?.thumbnail_key,
+              url: existingAssets?.thumbnail_url,
+            },
+            nextThumbnailKey,
+          );
+          if (staleThumbnailTargets.r2Keys.length > 0) {
+            try {
+              await deleteAssets(staleThumbnailTargets.r2Keys);
+            } catch (storageError) {
+              console.warn('Failed to remove stale banner thumbnail R2 assets:', storageError);
+            }
+          }
+          if (staleThumbnailTargets.supabasePaths.length > 0) {
+            try {
+              await removeFilesFromBucket(BANNER_ASSET_BUCKET, staleThumbnailTargets.supabasePaths);
+            } catch (storageError) {
+              console.warn('Failed to remove stale banner thumbnail Supabase assets:', storageError);
+            }
           }
         }
 
