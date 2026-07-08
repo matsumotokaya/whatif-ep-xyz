@@ -1,11 +1,15 @@
-# IMAGINE Cutover Milestones
+# ARCHIVED: IMAGINE Cutover Milestones
 
-> 最終更新: 2026-07-07
+> Archived: 2026-07-08
+> 現在の正本: `README.md`（現行運用） / `docs/ARCHITECTURE_OVERVIEW.md`（現行構成） / `docs/PRODUCT_ROADMAP.md`（プロダクト方針）
+
 > 目的: `whatif-ep.xyz` への IMAGINE 統合を最後までやり切り、`app.whatif-ep.xyz` を安全に停止するための実行計画。
 
-> **進捗（2026-07-07 更新）**: **M1〜M4 は main にマージ済み**（`724319b Merge renewal/single-app … M1-M4+壁紙ゲスト購入` + 後続のエディタ安定化コミット群）。`whatif-ep.xyz` 単一アプリが本番稼働。M3 のサムネ/保存安定化も main に着地済み（`serialize saves` / `persist preview refresh` / `immutable asset keys` 等）。
-> **残るのは M5（本番 redirect: `app.whatif-ep.xyz` 301）と M6（旧 IMAGINE 停止）**。旧 deep link は厳密保存せず、legacy host へのアクセスは **ギャラリートップへ集約**する。Stage D 片付け・`work_offers.target_url` の canonical cleanup・`create-checkout-session` 呼び出し元検証は、**legacy 停止をブロックしない後追い作業**として分離する。
-> なお現在のアクティブな開発本線は**エディタ再設計（E0/E1 は main 着地済み、E1c/E2 が次）**で、ブランチ `editor/e0-stability`・正本 `docs/EDITOR_REDESIGN.md`（同ブランチ）。以下 M1〜M4 の記述は実施済みの参照履歴として残す。
+> **進捗（2026-07-08 更新）**: **M1〜M4 は main にマージ済み**（`724319b Merge renewal/single-app … M1-M4+壁紙ゲスト購入` + 後続のエディタ安定化コミット群）。`whatif-ep.xyz` 単一アプリが本番稼働。M3 のサムネ/保存安定化も main に着地済み（`serialize saves` / `persist preview refresh` / `immutable asset keys` 等）。
+> **M5 は完了**。`next.config.ts` の host 条件 301 は実装済み、`npm run build` と `M5_REQUEST_BASE=http://127.0.0.1:3000 npm run check:m5-redirects` は 2026-07-08 に成功確認済み。さらに production で `curl -I https://app.whatif-ep.xyz/` / `/banner?template=test-template` / `/upgrade?source=gallery` が `301` を返し、`npm run check:m5-redirects` も live host に対して PASS。
+> **`work_offers.target_url` の legacy cleanup は本番 DB で確認済み**。service-role での 2026-07-08 確認では `https://app.whatif-ep.xyz/%` 行は 0 件、`imagine_starter` は 59 件すべて `/edit...`。
+> **M6 も完了**。旧 IMAGINE の Vercel project は 2026-07-08 に `Archive / Delete` 済み。停止後も `app.whatif-ep.xyz` の `/` `/banner?template=test-template` `/upgrade?source=gallery` は `301` を維持し、`npm run check:m5-redirects` も PASS。
+> **移行は完了**。残るのは後追い cleanup のみ。なお現在のアクティブな開発本線は**エディタ再設計（E0/E1 は main 着地済み、E1c/E2 が次）**で、ブランチ `editor/e0-stability`・正本 `docs/EDITOR_REDESIGN.md`（同ブランチ）。以下 M1〜M4 の記述は実施済みの参照履歴として残す。
 
 ## Current State
 
@@ -22,13 +26,22 @@
 
 `npm run build` は通るため、単一アプリ化の本体はかなり入っている。
 
-一方で、**カットオーバーは未完了**。旧 IMAGINE を停止できない理由は、まだ以下が残っているため。
+カットオーバーは完了。旧 IMAGINE の停止まで完了しており、残るのは後追い cleanup のみ。
 
-- user-facing 導線の cutover 自体は完了したが、**legacy host 自体の停止**はまだ
-- `app.whatif-ep.xyz` をギャラリートップへ集約する 301 はコード化済みで、残りは **本番反映と停止**
 - DB 上に旧 IMAGINE deep link が残っている前提で runtime 正規化している
 - asset key 移行の残バックフィル / Stage D 片付けが終わっていない
-- 本番 redirect / DNS / 停止手順がまだ入っていない
+- stale env / docs / runtime shim の後追い整理がまだ
+
+## Status Snapshot
+
+| 項目 | 状態 |
+|---|---|
+| M5 redirect 実装 (`next.config.ts`) | 完了 |
+| M5 build / local preflight | 完了 |
+| `app.whatif-ep.xyz` production 301 | 完了 |
+| M6 旧 Vite 停止 | 完了 |
+| `work_offers.target_url` cleanup | 完了 |
+| Stage D / security / stale env | 後追い |
 
 ## Done Definition
 
@@ -51,16 +64,18 @@
 
 ### 2. Data migration still pending
 
-- `work_offers.target_url` の旧 `app.whatif-ep.xyz/banner?template=` 行
 - M3 asset key backfill の Stage C / Stage D
 - 旧 IMAGINE 側が full URL 前提で動いていた期間の残存データ
 
+補足:
+
+- `work_offers.target_url` の旧 `app.whatif-ep.xyz/banner?template=` 行は 2026-07-08 時点の本番 DB で **0 件**
+- `imagine_starter` は相対 `"/edit?template=..."` に揃っているため、この項目は blocker から外す
+
 ### 3. Production operations still pending
 
-- `app.whatif-ep.xyz` → `whatif-ep.xyz` 301
-- `app.whatif-ep.xyz/banner?template=...` と `/upgrade` がギャラリートップへ着地する本番確認
 - R2 CORS の最終設定確認
-- 旧 IMAGINE の停止手順と rollback 方針
+- rollback 記録の最終化
 
 ### 4. Security / cleanup follow-ups
 
@@ -156,6 +171,11 @@
 - 旧 IMAGINE host からギャラリートップに確実に着地する
 - 新規導線はすべて `whatif-ep.xyz` のみを使う
 
+現状:
+
+- 完了
+- 2026-07-08 に production `curl -I` 3本と `npm run check:m5-redirects` で確認済み
+
 ### M6. Legacy IMAGINE Retirement
 
 目的:
@@ -174,27 +194,30 @@
 - 旧 IMAGINE repo は凍結対象としてのみ残る
 - 本番確認結果が記録されている
 
+現状:
+
+- 完了
+- 2026-07-08 に旧 IMAGINE の Vercel project を `Archive / Delete`
+- 停止後も `app.whatif-ep.xyz` の 301 と `npm run check:m5-redirects` PASS を確認済み
+
 ## Active Execution Order
 
 現在の残タスクの実行順:
 
-1. `M5` Production redirect cutover
-2. `M6` Legacy IMAGINE retirement
-3. セキュリティ / stale env / docs 片付け（後追いでよい）
+1. セキュリティ / stale env / docs 片付け（後追いでよい）
 
 この順番にする理由:
 
 - 先に 301 を入れないと、旧 IMAGINE 停止でリンク切れを作る
 - 停止後に stale env / docs / runtime shim の片付けをすると、rollback 判断がしやすい
-- `work_offers.target_url` と asset key 片付けは「本番 redirect が正常」という前提確認の後でよく、legacy 停止の blocker にしない
+- asset key 片付けは「本番 redirect が正常」という前提確認の後でよく、legacy 停止の blocker にしない
 
 ## Fast Path
 
 ユーザー数が少なく、多少のリスクより「早く旧 IMAGINE を止める」を優先する場合は、M5/M6 は次の最小手順で閉じてよい。
 
-1. `next.config.ts` を deploy
-2. `app.whatif-ep.xyz/banner?template=...` と `/upgrade` がギャラリートップへ飛ぶことを本番で手確認
-3. 問題なければ旧 Vite を止める
+1. `app.whatif-ep.xyz/banner?template=...` と `/upgrade` がギャラリートップへ飛ぶことを本番で確認
+2. 問題なければ旧 Vite を止める
 
 実行コマンド:
 
@@ -207,7 +230,6 @@ M5_REQUEST_BASE=http://127.0.0.1:3000 npm run check:m5-redirects
 
 この fast path では、以下は **後回し** でよい:
 
-- `work_offers.target_url` の DB canonical cleanup
 - Stage D の破壊片付け
 - `src/lib/imagine-links.ts` の削除
 - stale env / stale docs の整理
@@ -224,18 +246,9 @@ M5_REQUEST_BASE=http://127.0.0.1:3000 npm run check:m5-redirects
 
 ### M5 本番 cutover
 
-1. `next.config.ts` の host 条件 redirect を production へ deploy
-   - `has: [{ type: 'host', value: 'app.whatif-ep.xyz' }]`
-   - `/:path*` → `https://whatif-ep.xyz`
-   - legacy host の全アクセスをギャラリートップへ集約する
-   - status は `301`（`permanent: true` の 308 ではなく `statusCode: 301` を使用）
-2. `app.whatif-ep.xyz/:path*` を `https://whatif-ep.xyz` へ host-level 301
-3. legacy host の代表URLを実地確認
-   - 最低限: `/banner?template=...` と `/upgrade`
-   - 余裕があれば `node scripts/check-m5-redirects.mjs` で host-level 301 を確認
-   - ローカル preflight は `npm run build && npm run start` 後に `M5_REQUEST_BASE=http://127.0.0.1:3000 node scripts/check-m5-redirects.mjs`
-4. 問題なければ M5 完了
-5. `scripts/m5_work_offers_target_url_cutover.sql` は **後追い cleanup** として実施してよい
+1. 完了（2026-07-08）
+2. production `curl -I` 3本と `npm run check:m5-redirects` が PASS
+3. `scripts/m5_work_offers_target_url_cutover.sql` は **履歴 / 監査用** として残してよい（2026-07-08 時点の本番 DB では対象行 0 件）
 
 本番確認コマンド:
 
@@ -247,10 +260,10 @@ npm run check:m5-redirects
 
 ### M6 停止
 
-1. 旧 Vite デプロイ停止
-2. rollback 手順と DNS 状態を記録
-3. stale env / stale docs / runtime shim は必要に応じて後追い整理
-4. 旧 IMAGINE repo を凍結対象として明記
+1. 完了（2026-07-08）
+2. 旧 Vite デプロイ停止済み
+3. 停止後の `curl -I` 3本と `npm run check:m5-redirects` は PASS
+4. stale env / stale docs / runtime shim は必要に応じて後追い整理
 
 停止直後の確認コマンド:
 
@@ -274,9 +287,7 @@ curl -I 'https://app.whatif-ep.xyz/upgrade?source=gallery'
 
 **カットオーバー残（M5/M6）**:
 
-1. `M5` `app.whatif-ep.xyz` → `whatif-ep.xyz` の 301 を本番反映し、`/banner?template=` と `/upgrade` がトップへ飛ぶことだけ確認する
-2. `M6` 旧 Vite デプロイ停止
-3. cleanup は後追いで閉じる（DB canonical / Stage D / security / stale env）
+1. cleanup を後追いで閉じる（Stage D / security / stale env）
 
 **開発本線（別ワークストリーム）**: エディタ再設計 E1c（Konva commit 集約）→ E2（ストーリーズモード MVP）。正本 `docs/EDITOR_REDESIGN.md`（ブランチ `editor/e0-stability`）。
 
@@ -285,4 +296,4 @@ curl -I 'https://app.whatif-ep.xyz/upgrade?source=gallery'
 - `docs/README.md` を docs の入口とし、Current / Archive の区分をここに集約する
 - `docs/archive/CONSOLIDATION_PLAN.md` は統合設計と M1〜M4 の履歴として保持する
 - 本ドキュメントは「停止までの実行順」と「完了条件」の正本
-- `docs/NEXT_SESSION_HANDOFF.md` は次回再開の短縮版としてこの文書を参照する
+- `docs/archive/NEXT_SESSION_HANDOFF.md` は当時の再開用短縮版としてこの文書を参照する

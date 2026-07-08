@@ -1,22 +1,20 @@
 # WHATIF Docs Map
 
-最終更新: 2026-07-07
+最終更新: 2026-07-08
 
 このディレクトリは **Current / Archive** の2層だけで運用する。
-再開時に全部を読む前提をやめ、まず現在の正本だけを読む。
+移行プロジェクトは完了済みなので、再開時に cutover 文書を読む前提はもう置かない。
 
 ## Current
 
-毎回まず読むのはこの4つだけ:
+毎回まず読むのはこの3つだけ:
 
-1. [CUTOVER_MILESTONES.md](./CUTOVER_MILESTONES.md)
-   - 現在地、残タスク、実行順、runbook の正本
-2. [NEXT_SESSION_HANDOFF.md](./NEXT_SESSION_HANDOFF.md)
-   - 次回再開用の短縮版
-3. [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
+1. [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
    - プロダクト方針、価値、価格の正本
-4. [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)
-   - 横断地図。構成を忘れたときだけ読む
+2. [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)
+   - 現行アーキテクチャの横断地図。構成を忘れたときだけ読む
+3. [WALLPAPER_PIPELINE_PLAN.md](./WALLPAPER_PIPELINE_PLAN.md)
+   - 壁紙運用・量産・収益動線まわりの残タスク
 
 補足:
 
@@ -25,8 +23,12 @@
 
 ## Archive
 
-以下は **現役の計画書ではなく履歴**。通常の再開では読まない。
+以下は **完了したプロジェクトの履歴**。通常の再開では読まない。
 
+- [archive/CUTOVER_MILESTONES.md](./archive/CUTOVER_MILESTONES.md)
+  - Gallery + IMAGINE 統合 cutover の完了記録
+- [archive/NEXT_SESSION_HANDOFF.md](./archive/NEXT_SESSION_HANDOFF.md)
+  - 統合プロジェクト終盤の再開メモ
 - [archive/CONSOLIDATION_PLAN.md](./archive/CONSOLIDATION_PLAN.md)
   - 統合設計と M1〜M4 の実施履歴
 - [archive/EDITOR_INTEGRATION_POC.md](./archive/EDITOR_INTEGRATION_POC.md)
@@ -48,7 +50,7 @@
 アーカイブ時のルール:
 
 - 冒頭に `ARCHIVED` を付ける
-- Current のどれが正本かを1行で明記する
+- 現在どの文書を見るべきかを1行で明記する
 - Current 側の参照を張り替える
 
 削除してよい条件:
