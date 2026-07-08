@@ -224,6 +224,7 @@ export const bannerStorage = {
     const { data, error } = await supabase
       .from('banners')
       .select('id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, updated_at, template, display_order')
+      .order('updated_at', { ascending: false })
       .order('display_order', { ascending: true });
 
     if (error) {
