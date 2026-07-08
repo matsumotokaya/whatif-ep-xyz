@@ -7,7 +7,8 @@
 //   never to Supabase Storage. storage_provider is therefore always 'r2'.
 // - production_outputs rows keep the current "healthy" shape
 //   (provider='r2' / storage_bucket / bare storage_path); consolidating them
-//   into a single storage_key column is deferred to M5 / M3 Phase 4.
+//   into a single storage_key column remains a follow-up from the M3 asset
+//   cleanup work.
 // - Stale-output cleanup routes by each row's storage_provider: R2 objects go
 //   through deleteAssets (presign delete), legacy Supabase objects through
 //   removeFilesFromBucket.

@@ -8,7 +8,7 @@
 // (useNavigate / useLocation / useParams / useSearchParams / Link) on top of
 // the Next.js App Router.
 //
-// TODO(post-M5): remove this shim once the ported pages are rewritten
+// Follow-up cleanup: remove this shim once the ported pages are rewritten
 // directly against next/navigation.
 
 import {

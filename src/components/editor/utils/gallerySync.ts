@@ -4,16 +4,15 @@
 // - `imagine_starter` offers now write a RELATIVE target_url
 //   (`/edit?template=<id>`) instead of `https://app.whatif-ep.xyz/banner?...`.
 //   The editor lives on the same origin as the Gallery, so the offer link is
-//   internal navigation. Existing rows still holding the old absolute URL are
-//   bulk-updated in M5.
+//   internal navigation.
 // - Output URL resolution goes through the single asset module (resolveAsset)
 //   instead of the removed provider-based resolveAssetUrl.
 //
-// NOTE(M5): work_variants.original_storage_key / thumbnail_storage_key still
+// NOTE(cleanup): work_variants.original_storage_key / thumbnail_storage_key still
 // receive a RESOLVED absolute URL here. The Gallery-side variant resolver
 // (src/lib/work-images.ts) treats bare keys as r2-legacy bucket keys, so a
 // `user-images/...` R2-assets key cannot be stored yet without changing that
-// resolver. Moving work_variants to provider-aware keys is deferred to M5
+// resolver. Moving work_variants to provider-aware keys remains a follow-up
 // together with the production_outputs storage_key consolidation.
 
 import { getSupabase } from './supabase';
