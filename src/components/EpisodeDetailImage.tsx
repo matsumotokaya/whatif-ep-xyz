@@ -70,6 +70,7 @@ export function EpisodeDetailImage({
   const [index, setIndex] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const upgradedRef = useRef(false);
   const src = candidates[index] ?? "";
   const editable = Boolean(imagineUrl);
 
@@ -82,6 +83,10 @@ export function EpisodeDetailImage({
       setIsLoading(false);
     }
   }, [src]);
+
+  useEffect(() => {
+    upgradedRef.current = false;
+  }, [candidates]);
 
   const openImagine = useCallback(() => {
     if (imagineUrl) window.open(imagineUrl, "_blank", "noopener,noreferrer");
@@ -126,7 +131,31 @@ export function EpisodeDetailImage({
           setIsLoading(true);
           setIndex((current) => current + 1);
         }}
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => {
+          setIsLoading(false);
+
+          // Paint a lightweight preview first, then upgrade once the heavier
+          // source finishes in the background. This keeps detail navigation
+          // responsive without permanently locking the page to the preview.
+          if (index !== 0 || candidates.length < 2 || upgradedRef.current) {
+            return;
+          }
+
+          const nextSrc = candidates[1];
+          if (!nextSrc || nextSrc === src) {
+            return;
+          }
+
+          upgradedRef.current = true;
+          const preload = new window.Image();
+          preload.onload = () => {
+            setIndex(1);
+          };
+          preload.onerror = () => {
+            upgradedRef.current = false;
+          };
+          preload.src = nextSrc;
+        }}
       />
 
       {editable && (

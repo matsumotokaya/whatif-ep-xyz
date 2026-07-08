@@ -165,6 +165,26 @@ export interface WorkListItem {
   hasStarterOffer: boolean;
 }
 
+export interface WorkListPage {
+  items: WorkListItem[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export interface WorkTagFilter {
+  id: string;
+  label: string;
+  count: number;
+}
+
+export interface WorkFilterMeta {
+  total: number;
+  maxSequence: number;
+  tagFilters: WorkTagFilter[];
+}
+
 // Minimal DTO for the detail-page "other wallpapers" strip: a published
 // wallpaper pack's cover image plus the info needed to link to its page.
 export interface WallpaperCoverItem {

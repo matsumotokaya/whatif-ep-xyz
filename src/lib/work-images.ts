@@ -47,6 +47,26 @@ export function getVariantDisplayImageCandidates(
   return [...new Set(candidates)];
 }
 
+export function getVariantDetailImageCandidates(
+  variant: Pick<
+    WorkVariant,
+    | "feedThumbUrl"
+    | "feedImageUrl"
+    | "thumbnailStorageKey"
+    | "originalStorageKey"
+    | "updatedAt"
+  >
+): string[] {
+  const candidates = [
+    variant.feedThumbUrl ?? null,
+    variant.feedImageUrl ?? null,
+    ...getVariantThumbnailCandidates(variant),
+    variant.originalStorageKey ? buildAssetUrl(variant.originalStorageKey, variant.updatedAt) : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return [...new Set(candidates)];
+}
+
 export function getWorkPrimaryImageCandidates(work: Work): string[] {
   if (!work.primaryVariant) return [];
   return getVariantThumbnailCandidates(work.primaryVariant);

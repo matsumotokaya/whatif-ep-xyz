@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import {
   getGallerySeries,
   getSeriesDisplayName,
-  getWorkCountBySeries,
-  getWorkCardsBySeries,
+  getWorkCardsPageBySeries,
+  getWorkFilterMetaBySeries,
 } from "@/lib/works";
 import { getPurchasedDisplayCodes } from "@/lib/wallpaper-purchases";
 import { getSavedWorkIds } from "@/lib/work-saves";
@@ -40,10 +40,10 @@ export default async function WorksSeriesPage({
   const initialSelectedTagId = Array.isArray(tagParam) ? tagParam[0] : tagParam;
 
   // Catalog data (cached via unstable_cache) — fast, forms the static shell.
-  const [seriesOptions, works, total] = await Promise.all([
+  const [seriesOptions, initialPage, filterMeta] = await Promise.all([
     getGallerySeries(),
-    getWorkCardsBySeries(series, "newest"),
-    getWorkCountBySeries(series),
+    getWorkCardsPageBySeries(series),
+    getWorkFilterMetaBySeries(series),
   ]);
 
   const selectedSeries = seriesOptions.find((item) => item.slug === series);
@@ -63,15 +63,15 @@ export default async function WorksSeriesPage({
         </h1>
         <h2 className="sr-only">{selectedSeries.name}</h2>
         <p className="mt-1 text-sm text-muted">
-          {selectedSeries.name} / {total} works
+          {selectedSeries.name} / {filterMeta.total} works
         </p>
       </div>
 
       <WorksPageClient
         series={seriesOptions}
         selectedSeriesSlug={series}
-        works={works}
-        total={total}
+        initialPage={initialPage}
+        filterMeta={filterMeta}
         purchasedCodesPromise={purchasedCodesPromise}
         savedWorkIdsPromise={savedWorkIdsPromise}
         initialSelectedTagId={initialSelectedTagId ?? null}

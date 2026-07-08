@@ -1,41 +1,30 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import type { WorkListItem } from "@/lib/types";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { WorkCard } from "./WorkCard";
 
-const ITEMS_PER_PAGE = 20;
-
 interface WorkGalleryProps {
-  initialWorks: WorkListItem[];
-  allWorks: WorkListItem[];
-  total: number;
+  works: WorkListItem[];
+  hasMore: boolean;
+  isLoading?: boolean;
+  onLoadMore?: () => void;
   /** Display codes the signed-in user has purchased (one-time wallpaper buys). */
   purchasedCodes?: Set<string>;
 }
 
 export function WorkGallery({
-  initialWorks,
-  allWorks,
-  total,
+  works,
+  hasMore,
+  isLoading = false,
+  onLoadMore,
   purchasedCodes,
 }: WorkGalleryProps) {
-  const [works, setWorks] = useState<WorkListItem[]>(initialWorks);
-  const [isLoading, setIsLoading] = useState(false);
-  const hasMore = works.length < allWorks.length;
-
-  const loadMore = useCallback(() => {
-    setIsLoading(true);
-    const nextPage = allWorks.slice(works.length, works.length + ITEMS_PER_PAGE);
-    setWorks((prev) => [...prev, ...nextPage]);
-    setIsLoading(false);
-  }, [allWorks, works.length]);
-
   const sentinelRef = useInfiniteScroll({
     hasMore,
     isLoading,
-    onLoadMore: loadMore,
+    onLoadMore: onLoadMore ?? (() => {}),
   });
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -65,22 +54,8 @@ export function WorkGallery({
     return () => observer.disconnect();
   }, [works.length]);
 
-  const progress = total > 0 ? (works.length / total) * 100 : 0;
-
   return (
     <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
-          <div
-            className="h-full rounded-full bg-foreground/30 transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="shrink-0 text-xs tabular-nums text-muted">
-          {works.length} / {total}
-        </p>
-      </div>
-
       <div
         ref={gridRef}
         className="grid grid-cols-3 gap-1.5 sm:gap-2 md:grid-cols-4 md:gap-3 lg:grid-cols-5"
@@ -90,7 +65,7 @@ export function WorkGallery({
             key={work.id}
             data-card
             className="opacity-0"
-            style={{ animationDelay: `${(index % ITEMS_PER_PAGE) * 30}ms` }}
+            style={{ animationDelay: `${(index % 20) * 30}ms` }}
           >
             <WorkCard
               work={work}

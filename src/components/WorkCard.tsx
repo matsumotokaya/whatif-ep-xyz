@@ -74,6 +74,7 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
   return (
     <Link
       href={`/works/${work.seriesSlug}/${work.displayCode}`}
+      prefetch={false}
       className="hover-lift group relative block overflow-hidden rounded-xl border border-border bg-surface"
       style={style}
     >

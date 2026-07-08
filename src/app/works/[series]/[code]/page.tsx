@@ -5,7 +5,10 @@ import { getAdminAccess } from "@/lib/admin/access";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
-import { getVariantDisplayImageCandidates } from "@/lib/work-images";
+import {
+  getVariantDetailImageCandidates,
+  getVariantDisplayImageCandidates,
+} from "@/lib/work-images";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
 import { getClubAccess } from "@/lib/club/access";
 import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
@@ -121,13 +124,13 @@ export default async function WorkDetailPage({
   // Catalog data (cached) — fast, forms the static shell.
   const [seriesOptions, adjacent, wallpaperPack, nearbyWallpapers] = await Promise.all([
     getGallerySeries(),
-    getAdjacentWorks(series, work.id),
+    getAdjacentWorks(series, work.sequenceNumber),
     getPublishedWallpaperPack(
       work.seriesSlug,
       work.displayCode,
       currentVariant.variantNumber
     ),
-    getNearbyWallpapers(work.seriesSlug, work.id, 9),
+    getNearbyWallpapers(work.seriesSlug, work.id, work.sequenceNumber, 9),
   ]);
 
   // User-specific data makes Supabase auth round-trips. Start the work but do
@@ -152,7 +155,7 @@ export default async function WorkDetailPage({
       })
     : Promise.resolve(false);
 
-  const imageCandidates = getVariantDisplayImageCandidates(currentVariant);
+  const imageCandidates = getVariantDetailImageCandidates(currentVariant);
   const releasedOn = formatDate(work.releasedOn ?? work.createdAt);
   const updatedOn = formatDate(work.updatedAt);
   const publishedOn = formatDate(work.publishedAt);

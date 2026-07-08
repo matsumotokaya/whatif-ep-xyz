@@ -10,12 +10,15 @@ import {
 } from "@/lib/wallpaper";
 import type {
   GallerySeries,
+  WorkFilterMeta,
   WallpaperCoverItem,
   Work,
+  WorkListPage,
   WorkListItem,
   WorkOffer,
   WorkOfferRow,
   WorkTag,
+  WorkTagFilter,
   WorkTagRow,
   WorkRow,
   WorkSeriesRow,
@@ -88,6 +91,7 @@ const OFFER_COLUMNS = [
 ].join(", ");
 
 const CHUNK_SIZE = 100;
+export const WORKS_PAGE_SIZE = 20;
 
 function isMissingTableError(error: { message?: string } | null | undefined): boolean {
   const message = error?.message ?? "";
@@ -207,6 +211,143 @@ function mapWork(
   };
 }
 
+async function enrichWorks(
+  supabase: ReturnType<typeof createAnonClient>,
+  series: WorkSeriesRow,
+  workRows: WorkRow[]
+): Promise<Work[]> {
+  if (workRows.length === 0) return [];
+
+  const workIds = workRows.map((row) => row.id);
+  const workIdChunks = chunkArray(workIds, CHUNK_SIZE);
+
+  const [variantChunks, offerChunks, tagMapChunks, tagRows, feedImageMap, feedThumbMap] =
+    await Promise.all([
+      Promise.all(
+        workIdChunks.map(async (chunk) => {
+          const { data, error } = await supabase
+            .from("work_variants")
+            .select(VARIANT_COLUMNS)
+            .in("work_id", chunk)
+            .in("status", ["ready", "preparing"])
+            .order("sort_order", { ascending: true })
+            .order("variant_number", { ascending: true });
+
+          if (error) {
+            throw new Error(`Failed to load work variants: ${error.message}`);
+          }
+
+          return (data ?? []) as unknown as WorkVariantRow[];
+        })
+      ),
+      Promise.all(
+        workIdChunks.map(async (chunk) => {
+          const { data, error } = await supabase
+            .from("work_offers")
+            .select(OFFER_COLUMNS)
+            .in("work_id", chunk)
+            .order("sort_order", { ascending: true })
+            .order("offer_type", { ascending: true });
+
+          if (error) {
+            throw new Error(`Failed to load work offers: ${error.message}`);
+          }
+
+          return (data ?? []) as unknown as WorkOfferRow[];
+        })
+      ),
+      Promise.all(
+        workIdChunks.map(async (chunk) => {
+          const { data, error } = await supabase
+            .from("work_tag_map")
+            .select("work_id, tag_id")
+            .in("work_id", chunk);
+
+          if (error) {
+            if (isMissingTableError(error)) {
+              return [];
+            }
+            throw new Error(`Failed to load work tag map: ${error.message}`);
+          }
+
+          return (data ?? []) as { work_id: string; tag_id: string }[];
+        })
+      ),
+      (async () => {
+        const { data, error } = await supabase
+          .from("work_tags")
+          .select("id, slug, label, tag_type")
+          .order("label", { ascending: true });
+
+        if (error) {
+          if (isMissingTableError(error)) {
+            return [];
+          }
+          throw new Error(`Failed to load work tags: ${error.message}`);
+        }
+
+        return (data ?? []) as unknown as WorkTagRow[];
+      })(),
+      getSeriesFeedImageMap(series.slug),
+      getSeriesFeedThumbMap(series.slug),
+    ]);
+
+  const variantRows = variantChunks.flat();
+  const offerRows = offerChunks.flat();
+  const tagMapRows = tagMapChunks.flat();
+  const offersByVariantId = new Map<string, WorkOffer[]>();
+  const offersByWorkId = new Map<string, WorkOffer[]>();
+  const tagsById = new Map(tagRows.map((row) => [row.id, mapTag(row)]));
+  const tagsByWorkId = new Map<string, WorkTag[]>();
+
+  for (const row of offerRows) {
+    const offer = mapOffer(row);
+    if (offer.variantId) {
+      const bucket = offersByVariantId.get(offer.variantId) ?? [];
+      bucket.push(offer);
+      offersByVariantId.set(offer.variantId, bucket);
+    } else {
+      const bucket = offersByWorkId.get(offer.workId) ?? [];
+      bucket.push(offer);
+      offersByWorkId.set(offer.workId, bucket);
+    }
+  }
+
+  const variantsByWorkId = new Map<string, WorkVariant[]>();
+  for (const row of variantRows) {
+    const variant = mapVariant(row, offersByVariantId.get(row.id) ?? []);
+    const bucket = variantsByWorkId.get(row.work_id) ?? [];
+    bucket.push(variant);
+    variantsByWorkId.set(row.work_id, bucket);
+  }
+
+  for (const row of tagMapRows) {
+    const tag = tagsById.get(row.tag_id);
+    if (!tag) continue;
+    const bucket = tagsByWorkId.get(row.work_id) ?? [];
+    bucket.push(tag);
+    tagsByWorkId.set(row.work_id, bucket);
+  }
+
+  return workRows.map((row) => {
+    const work = mapWork(
+      row,
+      series,
+      variantsByWorkId.get(row.id) ?? [],
+      offersByWorkId.get(row.id) ?? [],
+      tagsByWorkId.get(row.id) ?? []
+    );
+    work.variants.forEach((variant) => {
+      const key = `${work.displayCode}:${variant.variantNumber}`;
+      variant.feedImageUrl = feedImageMap.get(key) ?? null;
+      variant.feedThumbUrl = feedThumbMap.get(key) ?? null;
+    });
+    work.feedImageUrl = work.primaryVariant?.feedImageUrl ?? null;
+    work.feedThumbUrl = work.primaryVariant?.feedThumbUrl ?? null;
+    return work;
+  });
+}
+
 // ─── Cached: public series list ──────────────────────────────────────────────
 // Tags: ['works', 'work_series']  revalidate: 3600s
 const _cachedSeriesRows = unstable_cache(
@@ -275,134 +416,7 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
 
     const workRows = (worksData ?? []) as unknown as WorkRow[];
     if (workRows.length === 0) return [];
-
-    const workIds = workRows.map((row) => row.id);
-    const workIdChunks = chunkArray(workIds, CHUNK_SIZE);
-
-    const [variantChunks, offerChunks, tagMapChunks, tagRows, feedImageMap, feedThumbMap] = await Promise.all([
-      Promise.all(
-        workIdChunks.map(async (chunk) => {
-          const { data, error } = await supabase
-            .from("work_variants")
-            .select(VARIANT_COLUMNS)
-            .in("work_id", chunk)
-            .in("status", ["ready", "preparing"])
-            .order("sort_order", { ascending: true })
-            .order("variant_number", { ascending: true });
-
-          if (error) {
-            throw new Error(`Failed to load work variants: ${error.message}`);
-          }
-
-          return (data ?? []) as unknown as WorkVariantRow[];
-        })
-      ),
-      Promise.all(
-        workIdChunks.map(async (chunk) => {
-          const { data, error } = await supabase
-            .from("work_offers")
-            .select(OFFER_COLUMNS)
-            .in("work_id", chunk)
-            .order("sort_order", { ascending: true })
-            .order("offer_type", { ascending: true });
-
-          if (error) {
-            throw new Error(`Failed to load work offers: ${error.message}`);
-          }
-
-          return (data ?? []) as unknown as WorkOfferRow[];
-        })
-      ),
-      Promise.all(
-        workIdChunks.map(async (chunk) => {
-          const { data, error } = await supabase
-            .from("work_tag_map")
-            .select("work_id, tag_id")
-            .in("work_id", chunk);
-
-          if (error) {
-            if (isMissingTableError(error)) {
-              return [];
-            }
-            throw new Error(`Failed to load work tag map: ${error.message}`);
-          }
-
-          return (data ?? []) as { work_id: string; tag_id: string }[];
-        })
-      ),
-      (async () => {
-        const { data, error } = await supabase
-          .from("work_tags")
-          .select("id, slug, label, tag_type")
-          .order("label", { ascending: true });
-
-        if (error) {
-          if (isMissingTableError(error)) {
-            return [];
-          }
-          throw new Error(`Failed to load work tags: ${error.message}`);
-        }
-
-        return (data ?? []) as unknown as WorkTagRow[];
-      })(),
-      getSeriesFeedImageMap(seriesSlug),
-      getSeriesFeedThumbMap(seriesSlug),
-    ]);
-
-    const variantRows = variantChunks.flat();
-    const offerRows = offerChunks.flat();
-    const tagMapRows = tagMapChunks.flat();
-    const offersByVariantId = new Map<string, WorkOffer[]>();
-    const offersByWorkId = new Map<string, WorkOffer[]>();
-    const tagsById = new Map(tagRows.map((row) => [row.id, mapTag(row)]));
-    const tagsByWorkId = new Map<string, WorkTag[]>();
-
-    for (const row of offerRows) {
-      const offer = mapOffer(row);
-      if (offer.variantId) {
-        const bucket = offersByVariantId.get(offer.variantId) ?? [];
-        bucket.push(offer);
-        offersByVariantId.set(offer.variantId, bucket);
-      } else {
-        const bucket = offersByWorkId.get(offer.workId) ?? [];
-        bucket.push(offer);
-        offersByWorkId.set(offer.workId, bucket);
-      }
-    }
-
-    const variantsByWorkId = new Map<string, WorkVariant[]>();
-    for (const row of variantRows) {
-      const variant = mapVariant(row, offersByVariantId.get(row.id) ?? []);
-      const bucket = variantsByWorkId.get(row.work_id) ?? [];
-      bucket.push(variant);
-      variantsByWorkId.set(row.work_id, bucket);
-    }
-
-    for (const row of tagMapRows) {
-      const tag = tagsById.get(row.tag_id);
-      if (!tag) continue;
-      const bucket = tagsByWorkId.get(row.work_id) ?? [];
-      bucket.push(tag);
-      tagsByWorkId.set(row.work_id, bucket);
-    }
-
-    return workRows.map((row) => {
-      const work = mapWork(
-        row,
-        series,
-        variantsByWorkId.get(row.id) ?? [],
-        offersByWorkId.get(row.id) ?? [],
-        tagsByWorkId.get(row.id) ?? []
-      );
-      work.variants.forEach((variant) => {
-        const key = `${work.displayCode}:${variant.variantNumber}`;
-        variant.feedImageUrl = feedImageMap.get(key) ?? null;
-        variant.feedThumbUrl = feedThumbMap.get(key) ?? null;
-      });
-      work.feedImageUrl = work.primaryVariant?.feedImageUrl ?? null;
-      work.feedThumbUrl = work.primaryVariant?.feedThumbUrl ?? null;
-      return work;
-    });
+    return enrichWorks(supabase, series, workRows);
   },
   // keyParts prefix — actual cache key includes the seriesSlug argument
   ["works:visible-by-series"],
@@ -413,6 +427,52 @@ const _cachedLoadVisibleWorksBySeries = unstable_cache(
 const getVisibleWorksBySeries = cache(
   async (seriesSlug: string): Promise<Work[]> => {
     return _cachedLoadVisibleWorksBySeries(seriesSlug);
+  }
+);
+
+const _cachedLoadVisibleWorkBySeriesAndCode = unstable_cache(
+  async (seriesSlug: string, code: string): Promise<Work | null> => {
+    const supabase = createAnonClient();
+
+    const { data: seriesData, error: seriesError } = await supabase
+      .from("work_series")
+      .select(SERIES_COLUMNS)
+      .eq("slug", seriesSlug)
+      .eq("is_public", true)
+      .maybeSingle();
+
+    if (seriesError) {
+      throw new Error(`Failed to load series: ${seriesError.message}`);
+    }
+
+    const series = seriesData as unknown as WorkSeriesRow | null;
+    if (!series) return null;
+
+    const { data: workData, error: workError } = await supabase
+      .from("works")
+      .select(WORK_COLUMNS)
+      .eq("series_id", series.id)
+      .eq("display_code", code)
+      .eq("status", "published")
+      .maybeSingle();
+
+    if (workError) {
+      throw new Error(`Failed to load work: ${workError.message}`);
+    }
+
+    const workRow = workData as unknown as WorkRow | null;
+    if (!workRow) return null;
+
+    const works = await enrichWorks(supabase, series, [workRow]);
+    return works[0] ?? null;
+  },
+  ["works:visible-by-series-and-code"],
+  { tags: ["works"], revalidate: 3600 }
+);
+
+const getVisibleWorkBySeriesAndCode = cache(
+  async (seriesSlug: string, code: string): Promise<Work | null> => {
+    return _cachedLoadVisibleWorkBySeriesAndCode(seriesSlug, code);
   }
 );
 
@@ -458,6 +518,46 @@ const _cachedGallerySeries = unstable_cache(
 
 export const getGallerySeries = cache(_cachedGallerySeries);
 
+const _cachedWorkCountBySeries = unstable_cache(
+  async (seriesSlug: string): Promise<number> => {
+    const supabase = createAnonClient();
+
+    const { data: seriesData, error: seriesError } = await supabase
+      .from("work_series")
+      .select("id")
+      .eq("slug", seriesSlug)
+      .eq("is_public", true)
+      .maybeSingle();
+
+    if (seriesError) {
+      throw new Error(`Failed to load series: ${seriesError.message}`);
+    }
+
+    const series = seriesData as { id: string } | null;
+    if (!series) return 0;
+
+    const { count, error } = await supabase
+      .from("works")
+      .select("id", { count: "exact", head: true })
+      .eq("series_id", series.id)
+      .eq("status", "published");
+
+    if (error) {
+      throw new Error(`Failed to count works: ${error.message}`);
+    }
+
+    return count ?? 0;
+  },
+  ["works:count-by-series"],
+  { tags: ["works"], revalidate: 3600 }
+);
+
+const getCachedWorkCountBySeries = cache(
+  async (seriesSlug: string): Promise<number> => {
+    return _cachedWorkCountBySeries(seriesSlug);
+  }
+);
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function getWorksBySeries(
@@ -472,26 +572,69 @@ export async function getWorkBySeriesAndCode(
   seriesSlug: string,
   code: string
 ): Promise<Work | undefined> {
-  const works = await getVisibleWorksBySeries(seriesSlug);
-  return works.find((work) => work.displayCode === code);
+  const work = await getVisibleWorkBySeriesAndCode(seriesSlug, code);
+  return work ?? undefined;
 }
 
 export async function getAdjacentWorks(
   seriesSlug: string,
-  workId: string
-): Promise<{ prev: Work | undefined; next: Work | undefined }> {
-  const works = await getVisibleWorksBySeries(seriesSlug);
-  const index = works.findIndex((work) => work.id === workId);
+  sequenceNumber: number
+): Promise<{
+  prev: { id: string; displayCode: string } | undefined;
+  next: { id: string; displayCode: string } | undefined;
+}> {
+  const supabase = createAnonClient();
+  const series = await getSeriesBySlug(seriesSlug);
+  if (!series) {
+    return { prev: undefined, next: undefined };
+  }
+
+  const [prevResult, nextResult] = await Promise.all([
+    supabase
+      .from("works")
+      .select("id, display_code")
+      .eq("series_id", series.id)
+      .eq("status", "published")
+      .lt("sequence_number", sequenceNumber)
+      .order("sequence_number", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("works")
+      .select("id, display_code")
+      .eq("series_id", series.id)
+      .eq("status", "published")
+      .gt("sequence_number", sequenceNumber)
+      .order("sequence_number", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (prevResult.error) {
+    throw new Error(`Failed to load previous work: ${prevResult.error.message}`);
+  }
+  if (nextResult.error) {
+    throw new Error(`Failed to load next work: ${nextResult.error.message}`);
+  }
 
   return {
-    prev: index > 0 ? works[index - 1] : undefined,
-    next: index >= 0 && index < works.length - 1 ? works[index + 1] : undefined,
+    prev: prevResult.data
+      ? {
+          id: prevResult.data.id as string,
+          displayCode: prevResult.data.display_code as string,
+        }
+      : undefined,
+    next: nextResult.data
+      ? {
+          id: nextResult.data.id as string,
+          displayCode: nextResult.data.display_code as string,
+        }
+      : undefined,
   };
 }
 
 export async function getWorkCountBySeries(seriesSlug: string): Promise<number> {
-  const works = await getVisibleWorksBySeries(seriesSlug);
-  return works.length;
+  return getCachedWorkCountBySeries(seriesSlug);
 }
 
 export async function getPrimarySeriesSlug(): Promise<string> {
@@ -533,6 +676,67 @@ function toWorkListItem(work: Work): WorkListItem {
   };
 }
 
+function applyWorkCardFilters(
+  works: WorkListItem[],
+  {
+    rangeStart,
+    rangeEnd,
+    tagSlug,
+    wallpaperOnly,
+    ids,
+  }: {
+    rangeStart?: number;
+    rangeEnd?: number;
+    tagSlug?: string | null;
+    wallpaperOnly?: boolean;
+    ids?: string[];
+  }
+): WorkListItem[] {
+  const idSet = ids && ids.length > 0 ? new Set(ids) : null;
+
+  return works.filter((work) => {
+    if (idSet && !idSet.has(work.id)) return false;
+    if (typeof rangeStart === "number" && work.sequenceNumber < rangeStart) return false;
+    if (typeof rangeEnd === "number" && work.sequenceNumber > rangeEnd) return false;
+    if (wallpaperOnly && !work.hasWallpaperOffer) return false;
+    if (tagSlug && !work.tags.some((tag) => tag.slug === tagSlug)) return false;
+    return true;
+  });
+}
+
+function buildWorkFilterMeta(works: WorkListItem[]): WorkFilterMeta {
+  let maxSequence = 0;
+  const tags = new Map<string, WorkTagFilter>();
+
+  for (const work of works) {
+    if (work.sequenceNumber > maxSequence) {
+      maxSequence = work.sequenceNumber;
+    }
+
+    for (const tag of work.tags) {
+      const existing = tags.get(tag.slug);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        tags.set(tag.slug, {
+          id: tag.slug,
+          label: tag.label,
+          count: 1,
+        });
+      }
+    }
+  }
+
+  return {
+    total: works.length,
+    maxSequence,
+    tagFilters: [...tags.values()].sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.label.localeCompare(b.label);
+    }),
+  };
+}
+
 // ─── Lightweight card DTO list ────────────────────────────────────────────────
 // Returns one ordered list of WorkListItem (newest-first by default).
 // Payload is ~85 % smaller than the full Work per item because variants/offers
@@ -546,6 +750,56 @@ export async function getWorkCardsBySeries(
   return ordered.map(toWorkListItem);
 }
 
+export async function getWorkFilterMetaBySeries(
+  seriesSlug: string
+): Promise<WorkFilterMeta> {
+  const works = await getWorkCardsBySeries(seriesSlug, "newest");
+  return buildWorkFilterMeta(works);
+}
+
+export async function getWorkCardsPageBySeries(
+  seriesSlug: string,
+  options: {
+    sort?: "newest" | "oldest";
+    offset?: number;
+    limit?: number;
+    rangeStart?: number;
+    rangeEnd?: number;
+    tagSlug?: string | null;
+    wallpaperOnly?: boolean;
+    ids?: string[];
+  } = {}
+): Promise<WorkListPage> {
+  const {
+    sort = "newest",
+    offset = 0,
+    limit = WORKS_PAGE_SIZE,
+    rangeStart,
+    rangeEnd,
+    tagSlug,
+    wallpaperOnly,
+    ids,
+  } = options;
+
+  const works = await getWorkCardsBySeries(seriesSlug, sort);
+  const filtered = applyWorkCardFilters(works, {
+    rangeStart,
+    rangeEnd,
+    tagSlug,
+    wallpaperOnly,
+    ids,
+  });
+  const items = filtered.slice(offset, offset + limit);
+
+  return {
+    items,
+    total: filtered.length,
+    offset,
+    limit,
+    hasMore: offset + items.length < filtered.length,
+  };
+}
+
 // ─── Nearby wallpapers (detail-page "other wallpapers" strip) ─────────────────
 // Returns up to `count` published wallpaper packs near the given work in the
 // series order, excluding the work itself. Only works whose primary variant has
@@ -556,34 +810,83 @@ export async function getWorkCardsBySeries(
 export async function getNearbyWallpapers(
   seriesSlug: string,
   workId: string,
+  sequenceNumber: number,
   count = 9
 ): Promise<WallpaperCoverItem[]> {
-  const [works, coverMap] = await Promise.all([
-    getVisibleWorksBySeries(seriesSlug),
+  const supabase = createAnonClient();
+  const series = await getSeriesBySlug(seriesSlug);
+  if (!series) return [];
+
+  const windowRadius = Math.max(count * 4, 24);
+  const [worksResult, coverMap] = await Promise.all([
+    supabase
+      .from("works")
+      .select("id, display_code, title, sequence_number")
+      .eq("series_id", series.id)
+      .eq("status", "published")
+      .gte("sequence_number", Math.max(1, sequenceNumber - windowRadius))
+      .lte("sequence_number", sequenceNumber + windowRadius)
+      .order("sequence_number", { ascending: true }),
     getSeriesWallpaperCoverMap(seriesSlug),
   ]);
 
-  const index = works.findIndex((work) => work.id === workId);
-  if (index === -1) return [];
+  if (worksResult.error) {
+    throw new Error(`Failed to load nearby works: ${worksResult.error.message}`);
+  }
 
-  const candidates = works
-    .map((work, position) => {
+  const nearbyWorks = (worksResult.data ?? []) as Array<{
+    id: string;
+    display_code: string;
+    title: string;
+    sequence_number: number;
+  }>;
+  const workIds = nearbyWorks.map((work) => work.id);
+  if (workIds.length === 0) return [];
+
+  const { data: variantData, error: variantError } = await supabase
+    .from("work_variants")
+    .select("work_id, variant_number, is_primary")
+    .in("work_id", workIds)
+    .eq("status", "ready")
+    .order("variant_number", { ascending: true });
+
+  if (variantError) {
+    throw new Error(`Failed to load nearby variants: ${variantError.message}`);
+  }
+
+  const primaryVariantByWorkId = new Map<string, number>();
+  for (const row of (variantData ?? []) as Array<{
+    work_id: string;
+    variant_number: number;
+    is_primary: boolean;
+  }>) {
+    if (row.is_primary || !primaryVariantByWorkId.has(row.work_id)) {
+      primaryVariantByWorkId.set(row.work_id, row.variant_number);
+    }
+  }
+
+  const candidates = nearbyWorks
+    .map((work) => {
       if (work.id === workId) return null;
-      const variantNumber = work.primaryVariant?.variantNumber ?? 1;
-      const coverUrl = coverMap.get(`${work.displayCode}:${variantNumber}`);
+      const variantNumber = primaryVariantByWorkId.get(work.id) ?? 1;
+      const coverUrl = coverMap.get(`${work.display_code}:${variantNumber}`);
       if (!coverUrl) return null;
-      return { work, position, variantNumber, coverUrl };
+      return { work, coverUrl, variantNumber };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
   return candidates
-    .sort((a, b) => Math.abs(a.position - index) - Math.abs(b.position - index))
+    .sort(
+      (a, b) =>
+        Math.abs(a.work.sequence_number - sequenceNumber) -
+        Math.abs(b.work.sequence_number - sequenceNumber)
+    )
     .slice(0, count)
-    .sort((a, b) => a.position - b.position)
-    .map(({ work, variantNumber, coverUrl }) => ({
+    .sort((a, b) => a.work.sequence_number - b.work.sequence_number)
+    .map(({ work, coverUrl, variantNumber }) => ({
       id: work.id,
-      seriesSlug: work.seriesSlug,
-      displayCode: work.displayCode,
+      seriesSlug,
+      displayCode: work.display_code,
       title: work.title,
       variantNumber,
       coverUrl,

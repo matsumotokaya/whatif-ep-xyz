@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { GallerySeries, WorkListItem } from "@/lib/types";
+import type {
+  GallerySeries,
+  WorkFilterMeta,
+  WorkListItem,
+  WorkListPage,
+} from "@/lib/types";
 import { useResolvedList } from "@/hooks/useResolvedList";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { SortToggle } from "@/components/SortToggle";
@@ -13,9 +18,6 @@ import {
 } from "@/context/SavedWorksContext";
 import { cn } from "@/lib/utils";
 
-const ITEMS_PER_PAGE = 20;
-
-// Localized copy for the SAVED filter toggle and its empty state.
 const COPY: Record<
   Language,
   {
@@ -93,6 +95,8 @@ const COPY: Record<
   },
 };
 
+const WORKS_PAGE_SIZE = 20;
+
 type WorkRange = {
   id: string;
   label: string;
@@ -100,40 +104,20 @@ type WorkRange = {
   end: number;
 };
 
-type TagFilterItem = {
-  id: string;
-  label: string;
-  count: number;
-};
-
 interface WorksPageClientProps {
   series: GallerySeries[];
   selectedSeriesSlug: string;
-  /** Works in newest-first order. The client reverses for "oldest" sort. */
-  works: WorkListItem[];
-  total: number;
+  initialPage: WorkListPage;
+  filterMeta: WorkFilterMeta;
   initialSelectedTagId?: string | null;
-  /**
-   * Display codes the signed-in user has purchased (one-time wallpaper buys).
-   * Streamed as a promise so it does not block the catalog render.
-   */
   purchasedCodesPromise: Promise<string[]>;
-  /**
-   * Work ids the signed-in user has saved (across all series).
-   * Streamed as a promise so it does not block the catalog render.
-   */
   savedWorkIdsPromise: Promise<string[]>;
 }
 
-function buildWorkRanges(works: WorkListItem[]): WorkRange[] {
-  let max = 0;
-  for (const work of works) {
-    if (work.sequenceNumber > max) max = work.sequenceNumber;
-  }
-
+function buildWorkRanges(maxSequence: number): WorkRange[] {
   const ranges: WorkRange[] = [];
-  for (let start = 1; start <= max; start += 100) {
-    const end = Math.min(start + 99, max);
+  for (let start = 1; start <= maxSequence; start += 100) {
+    const end = Math.min(start + 99, maxSequence);
     ranges.push({
       id: `${start}-${end}`,
       label: `${start}-${end}`,
@@ -144,43 +128,21 @@ function buildWorkRanges(works: WorkListItem[]): WorkRange[] {
   return ranges;
 }
 
-function buildTagFilters(works: WorkListItem[]): TagFilterItem[] {
-  const tags = new Map<string, TagFilterItem>();
-
-  for (const work of works) {
-    for (const tag of work.tags) {
-      const existing = tags.get(tag.slug);
-      if (existing) {
-        existing.count += 1;
-        continue;
-      }
-
-      tags.set(tag.slug, {
-        id: tag.slug,
-        label: tag.label,
-        count: 1,
-      });
-    }
-  }
-
-  return [...tags.values()].sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count;
-    return a.label.localeCompare(b.label);
-  });
-}
-
-// Inner component so it can consume the SavedWorksContext for the SAVED filter.
 function WorksPageInner({
   series,
   selectedSeriesSlug,
-  works,
+  initialPage,
+  filterMeta,
   purchasedCodes,
+  savedWorkIds,
   initialSelectedTagId,
 }: {
   series: GallerySeries[];
   selectedSeriesSlug: string;
-  works: WorkListItem[];
+  initialPage: WorkListPage;
+  filterMeta: WorkFilterMeta;
   purchasedCodes: string[];
+  savedWorkIds: string[];
   initialSelectedTagId?: string | null;
 }) {
   const { lang } = useLanguage();
@@ -196,36 +158,38 @@ function WorksPageInner({
   const [selectedTagId, setSelectedTagId] = useState<string | null>(
     initialSelectedTagId ?? null
   );
+  const [works, setWorks] = useState<WorkListItem[]>(initialPage.items);
+  const [total, setTotal] = useState(initialPage.total);
+  const [hasMore, setHasMore] = useState(initialPage.hasMore);
+  const [isLoading, setIsLoading] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  const requestIdRef = useRef(0);
 
-  const ranges = buildWorkRanges(works);
-  const tagFilters = buildTagFilters(works);
-  // works arrives newest-first; reverse a copy for oldest sort (no extra server fetch).
-  const sortedWorks = sort === "newest" ? works : [...works].reverse();
-  const rangeFilteredWorks = selectedRange
-    ? sortedWorks.filter(
-        (work) =>
-          work.sequenceNumber >= selectedRange.start &&
-          work.sequenceNumber <= selectedRange.end
-      )
-    : sortedWorks;
-  const savedFilteredWorks = savedOnly
-    ? rangeFilteredWorks.filter((work) => isSaved(work.id))
-    : rangeFilteredWorks;
-  const wallpaperFilteredWorks = wallpaperOnly
-    ? savedFilteredWorks.filter((work) => work.hasWallpaperOffer)
-    : savedFilteredWorks;
-  const filteredWorks = selectedTagId
-    ? wallpaperFilteredWorks.filter((work) =>
-        work.tags.some((tag) => tag.slug === selectedTagId)
-      )
-    : wallpaperFilteredWorks;
-  const filteredTotal = filteredWorks.length;
-  const initialWorks = filteredWorks.slice(0, ITEMS_PER_PAGE);
+  const ranges = buildWorkRanges(filterMeta.maxSequence);
+  const tagFilters = filterMeta.tagFilters;
   const selectedTag =
-    (selectedTagId
+    selectedTagId
       ? tagFilters.find((tag) => tag.id === selectedTagId) ?? null
-      : null);
+      : null;
+
+  const savedIdsKey = savedWorkIds.join(",");
+  const rangeKey = selectedRange?.id ?? "all";
+  const queryKey = [
+    selectedSeriesSlug,
+    sort,
+    rangeKey,
+    wallpaperOnly ? "wallpaper" : "all-wallpapers",
+    selectedTagId ?? "all-tags",
+    savedOnly ? savedIdsKey : "all-works",
+  ].join("|");
+  const defaultQueryKey = [
+    selectedSeriesSlug,
+    "newest",
+    "all",
+    "all-wallpapers",
+    initialSelectedTagId ?? "all-tags",
+    "all-works",
+  ].join("|");
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -245,6 +209,85 @@ function WorksPageInner({
       document.removeEventListener("keydown", handleEscape);
     };
   }, []);
+
+  async function loadPage(offset: number, replace: boolean) {
+    if (savedOnly && savedWorkIds.length === 0) {
+      setWorks([]);
+      setTotal(0);
+      setHasMore(false);
+      setIsLoading(false);
+      return;
+    }
+
+    const requestId = ++requestIdRef.current;
+    setIsLoading(true);
+
+    const params = new URLSearchParams({
+      sort,
+      offset: String(offset),
+      limit: String(WORKS_PAGE_SIZE),
+    });
+
+    if (selectedRange) {
+      params.set("rangeStart", String(selectedRange.start));
+      params.set("rangeEnd", String(selectedRange.end));
+    }
+    if (selectedTagId) {
+      params.set("tag", selectedTagId);
+    }
+    if (wallpaperOnly) {
+      params.set("wallpaperOnly", "1");
+    }
+    if (savedOnly && savedWorkIds.length > 0) {
+      params.set("ids", savedWorkIds.join(","));
+    }
+
+    try {
+      const response = await fetch(
+        `/api/works/${selectedSeriesSlug}/cards?${params.toString()}`,
+        { cache: "no-store" }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to load works page: ${response.status}`);
+      }
+
+      const page = (await response.json()) as WorkListPage;
+      if (requestId !== requestIdRef.current) return;
+
+      setWorks((current) =>
+        replace ? page.items : [...current, ...page.items]
+      );
+      setTotal(page.total);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.error(error);
+      if (replace) {
+        setWorks([]);
+        setTotal(0);
+        setHasMore(false);
+      }
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (queryKey === defaultQueryKey) {
+      setWorks(initialPage.items);
+      setTotal(initialPage.total);
+      setHasMore(initialPage.hasMore);
+      setIsLoading(false);
+      return;
+    }
+
+    loadPage(0, true);
+  }, [defaultQueryKey, initialPage, queryKey]);
+
+  const progress = total > 0 ? (works.length / total) * 100 : 0;
+  const displayedWorks = savedOnly ? works.filter((work) => isSaved(work.id)) : works;
 
   return (
     <div>
@@ -431,18 +474,31 @@ function WorksPageInner({
         </div>
       )}
 
-      {filteredTotal > 0 ? (
-        <WorkGallery
-          key={`${selectedSeriesSlug}-${sort}-${selectedRange?.id ?? "all"}-${
-            savedOnly ? "saved" : "all"
-          }-${wallpaperOnly ? "wallpaper" : "all-wallpapers"}-${
-            selectedTagId ?? "all-tags"
-          }`}
-          initialWorks={initialWorks}
-          allWorks={filteredWorks}
-          total={filteredTotal}
-          purchasedCodes={purchasedCodeSet}
-        />
+      {displayedWorks.length > 0 ? (
+        <>
+          <div className="mb-6 flex items-center gap-3">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
+              <div
+                className="h-full rounded-full bg-foreground/30 transition-all duration-500 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="shrink-0 text-xs tabular-nums text-muted">
+              {works.length} / {total}
+            </p>
+          </div>
+
+          <WorkGallery
+            works={displayedWorks}
+            hasMore={!savedOnly && hasMore}
+            isLoading={isLoading}
+            onLoadMore={() => {
+              if (!hasMore || isLoading || savedOnly) return;
+              loadPage(works.length, false);
+            }}
+            purchasedCodes={purchasedCodeSet}
+          />
+        </>
       ) : savedOnly ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface/30 px-6 py-12 text-center">
           <p className="text-lg font-semibold text-foreground">{t.emptyTitle}</p>
@@ -451,10 +507,10 @@ function WorksPageInner({
       ) : (
         <div className="rounded-2xl border border-dashed border-border bg-surface/30 px-6 py-12 text-center">
           <p className="text-lg font-semibold text-foreground">
-            {works.length === 0 ? "Coming soon" : t.noMatchTitle}
+            {filterMeta.total === 0 ? "Coming soon" : t.noMatchTitle}
           </p>
           <p className="mt-2 text-sm text-muted">
-            {works.length === 0
+            {filterMeta.total === 0
               ? "This series has not been published yet."
               : t.noMatchBody}
           </p>
@@ -467,11 +523,8 @@ function WorksPageInner({
 export function WorksPageClient({
   savedWorkIdsPromise,
   purchasedCodesPromise,
-  initialSelectedTagId,
   ...rest
 }: WorksPageClientProps) {
-  // Resolve the streamed user-specific lists on the client without suspending,
-  // so the catalog grid renders immediately and these fill in once available.
   const savedWorkIds = useResolvedList(savedWorkIdsPromise);
   const purchasedCodes = useResolvedList(purchasedCodesPromise);
 
@@ -480,7 +533,7 @@ export function WorksPageClient({
       <WorksPageInner
         {...rest}
         purchasedCodes={purchasedCodes}
-        initialSelectedTagId={initialSelectedTagId}
+        savedWorkIds={savedWorkIds}
       />
     </SavedWorksProvider>
   );
