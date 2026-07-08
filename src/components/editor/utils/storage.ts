@@ -1,4 +1,4 @@
-import { getSupabase, getSupabaseStoragePublicUrl } from './supabase';
+import { getSupabase } from './supabase';
 
 // Re-exported from the single asset module (M3) so existing importers
 // (e.g. bannerStorage) keep working.
@@ -6,10 +6,6 @@ export { appendCacheBust } from '@/lib/asset';
 
 const DATA_URL_PREFIX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/;
 const PUBLIC_OBJECT_PATH_SEGMENT = '/storage/v1/object/public/';
-
-interface UploadOptions {
-  upsert?: boolean;
-}
 
 export const getExtensionFromMime = (mimeType: string): string => {
   if (mimeType === 'image/jpeg') return 'jpg';
@@ -40,64 +36,6 @@ export const dataUrlToBlob = (dataUrl: string): { blob: Blob; mimeType: string; 
   return { blob, mimeType, extension: getExtensionFromMime(mimeType) };
 };
 
-export const uploadBlobToBucket = async (
-  bucket: string,
-  filePath: string,
-  blob: Blob,
-  contentType: string,
-  options: UploadOptions = {}
-): Promise<string> => {
-  const supabase = await getSupabase();
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, blob, {
-      contentType,
-      upsert: options.upsert ?? false,
-    });
-
-  if (error) {
-    console.error('Storage upload failed:', error);
-    throw error;
-  }
-
-  return getSupabaseStoragePublicUrl(bucket, filePath);
-};
-
-export const uploadDataUrlToBucket = async (
-  dataUrl: string,
-  bucket: string,
-  filePathBase: string,
-  options: UploadOptions = {}
-): Promise<string> => {
-  const { blob, mimeType, extension } = dataUrlToBlob(dataUrl);
-  const filePath = `${filePathBase}.${extension}`;
-  return uploadBlobToBucket(bucket, filePath, blob, mimeType, options);
-};
-
-export const uploadFileToBucket = async (
-  file: File,
-  bucket: string,
-  filePathBase: string,
-  options: UploadOptions = {}
-): Promise<string> => {
-  const extension = getExtensionFromMime(file.type || '');
-  const filePath = `${filePathBase}.${extension}`;
-  const supabase = await getSupabase();
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, file, {
-      contentType: file.type,
-      upsert: options.upsert ?? false,
-    });
-
-  if (error) {
-    console.error('Storage upload failed:', error);
-    throw error;
-  }
-
-  return getSupabaseStoragePublicUrl(bucket, filePath);
-};
-
 export const extractStoragePathFromPublicUrl = (
   publicUrl: string,
   bucket: string
@@ -124,9 +62,9 @@ export const extractStoragePathFromPublicUrl = (
   }
 };
 
-export const removeFilesFromBucket = async (bucket: string, filePaths: string[]): Promise<void> => {
+export const removeFilesFromBucket = async (bucket: string, filePaths: string[]): Promise<string[]> => {
   const uniquePaths = [...new Set(filePaths.filter(Boolean))];
-  if (uniquePaths.length === 0) return;
+  if (uniquePaths.length === 0) return [];
 
   const response = await fetch('/api/editor/assets/delete', {
     method: 'POST',
@@ -149,4 +87,8 @@ export const removeFilesFromBucket = async (bucket: string, filePaths: string[])
     const detail = payload?.detail || payload?.error || `status_${response.status}`;
     throw new Error(`Storage remove failed: ${detail}`);
   }
+
+  return Array.isArray((payload as { deleted?: unknown[] } | null)?.deleted)
+    ? ((payload as { deleted?: string[] }).deleted ?? [])
+    : [];
 };

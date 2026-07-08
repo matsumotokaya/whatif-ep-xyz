@@ -4,7 +4,7 @@ import { getSupabase } from '../utils/supabase';
 import type { DefaultImage, UserImage } from '../types/image-library';
 import { formatWorkVariantLabel, insertUserImageRecord } from '../utils/libraryAssets';
 import { generateImageThumbnail } from '../utils/imageThumbnail';
-import { getExtensionFromMime } from '../utils/storage';
+import { getExtensionFromMime, removeFilesFromBucket } from '../utils/storage';
 import {
   asAssetKey,
   buildUserUploadKey,
@@ -324,16 +324,13 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
 
     setDeletingId(image.id);
     try {
-      const supabase = await getSupabase();
-
       // Remove the original + thumbnail objects. Legacy rows may carry a bare
       // path; prefix it with the default-images logical bucket to form the R2
       // key. Rows explicitly on Supabase (pre-R2) still delete there.
       const paths = [image.storage_path, image.thumbnail_path].filter(Boolean) as string[];
       if (paths.length > 0) {
         if ((image.storage_provider ?? 'r2') === 'supabase') {
-          const { error: storageError } = await supabase.storage.from('default-images').remove(paths);
-          if (storageError) throw storageError;
+          await removeFilesFromBucket('default-images', paths);
         } else {
           await deleteAssets(
             paths.map((path) => toDefaultImageKey(path) as string),
@@ -342,6 +339,7 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
       }
 
       // Then remove the metadata row.
+      const supabase = await getSupabase();
       const { error: dbError } = await supabase.from('default_images').delete().eq('id', image.id);
       if (dbError) throw dbError;
 

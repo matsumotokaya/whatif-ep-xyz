@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate } from '@/components/editor/lib/router';
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase } from '../utils/supabase';
+import { removeFilesFromBucket } from '../utils/storage';
 import { SitePageLayout } from '../components/SitePageLayout';
 
 const USER_IMAGES_BUCKET = 'user-images';
@@ -100,22 +101,20 @@ export function StorageCleanup() {
   const removeObjects = async (
     items: { path: string; bytes: number }[],
   ): Promise<{ deleted: number; failed: number; freed: number }> => {
-    const supabase = await getSupabase();
     let deleted = 0;
     let failed = 0;
     let freed = 0;
     const byPath = new Map(items.map((it) => [it.path, it.bytes]));
     for (const group of chunk(items.map((it) => it.path), REMOVE_BATCH)) {
-      const { data: removed, error: remErr } = await supabase.storage.from(USER_IMAGES_BUCKET).remove(group);
-      if (remErr) {
-        console.error('[StorageCleanup] remove batch error:', remErr);
+      try {
+        const removedPaths = await removeFilesFromBucket(USER_IMAGES_BUCKET, group);
+        deleted += removedPaths.length;
+        failed += group.length - removedPaths.length;
+        for (const p of removedPaths) freed += byPath.get(p) ?? 0;
+      } catch (error) {
+        console.error('[StorageCleanup] remove batch error:', error);
         failed += group.length;
-        continue;
       }
-      const removedPaths = (removed ?? []).map((o) => o.name);
-      deleted += removedPaths.length;
-      failed += group.length - removedPaths.length;
-      for (const p of removedPaths) freed += byPath.get(p) ?? 0;
     }
     return { deleted, failed, freed };
   };
