@@ -71,9 +71,9 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
   ];
 
   const pageLinks = [
-    { label: t('common:footer.aboutUs'), href: '/about', external: false },
-    { label: t('common:footer.contact'), href: `mailto:${contactEmail}`, external: true },
-    { label: t('common:footer.company'), href: '/', external: false },
+    { label: t('common:footer.aboutUs'), href: '/imagine/about', external: false },
+    { label: t('common:footer.contact'), href: '/imagine/contact', external: false },
+    { label: t('common:footer.company'), href: '/imagine', external: false },
   ];
 
   const socialLinks = [

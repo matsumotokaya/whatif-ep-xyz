@@ -3,12 +3,9 @@
 // IMAGINE site footer, ported for the consolidated app (M4).
 //
 // Differences from the IMAGINE original (imagine/src/components/Footer.tsx):
-// - Links go through the router shim (next/navigation).
-// - The two external whatif-ep.xyz anchors (brand site / company) collapsed
-//   into a single internal link to the Gallery home — the footer now lives on
-//   that same origin.
-// - The legal pages (/legal/*) and /contact are NOT ported, so their links
-//   stay omitted instead of pointing at the retired legacy host.
+// - Internal links go through the router shim (next/navigation).
+// - Restored public IMAGINE pages live under /imagine/* in the consolidated
+//   app, so footer links point there instead of the retired app subdomain.
 
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/components/editor/lib/router';
@@ -75,13 +72,29 @@ export function Footer() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-4 items-center md:items-start">
-                        <Link to="/about" className="text-gray-400 hover:text-white text-sm transition-colors">
-                            {t('footer.aboutUs')}
-                        </Link>
-                        <Link to="/" className="text-gray-400 hover:text-white text-sm transition-colors">
-                            {t('footer.brandSite')}
-                        </Link>
+                    <div className="flex flex-col md:flex-row gap-8 md:gap-16">
+                        <div className="flex flex-col gap-4 items-center md:items-start">
+                            <Link to="/imagine/about" className="text-gray-400 hover:text-white text-sm transition-colors">
+                                {t('footer.aboutUs')}
+                            </Link>
+                            <Link to="/imagine" className="text-gray-400 hover:text-white text-sm transition-colors">
+                                {t('footer.company')}
+                            </Link>
+                            <Link to="/imagine/contact" className="text-gray-400 hover:text-white text-sm transition-colors">
+                                {t('footer.contact')}
+                            </Link>
+                        </div>
+                        <div className="flex flex-col gap-4 items-center md:items-start">
+                            <Link to="/imagine/legal/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
+                                {t('footer.privacyPolicy')}
+                            </Link>
+                            <Link to="/imagine/legal/terms" className="text-gray-400 hover:text-white text-sm transition-colors">
+                                {t('footer.termsOfService')}
+                            </Link>
+                            <Link to="/imagine/legal/security" className="text-gray-400 hover:text-white text-sm transition-colors">
+                                {t('footer.securityPolicy')}
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
@@ -91,6 +104,9 @@ export function Footer() {
                     </p>
                     <div className="flex items-center gap-4">
                         <LanguageSwitcher dropUp />
+                        <Link to="/imagine/legal/specified-commercial-transactions-act" className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+                            {t('footer.legalInfo')}
+                        </Link>
                     </div>
                 </div>
             </div>
