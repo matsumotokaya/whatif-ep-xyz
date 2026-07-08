@@ -30,6 +30,7 @@ interface CanvasProps {
 
 export interface CanvasRef {
   exportImage: () => string;
+  exportFullresPreview: () => string;
   exportThumbnail: () => string;
   getNodesMap: () => Map<string, Konva.Node>;
   getLayerNode: () => Konva.Layer | null;
@@ -193,6 +194,62 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       console.log('Export dataURL length:', dataURL?.length || 0);
       return dataURL;
+    },
+    exportFullresPreview: () => {
+      if (!stageRef.current) {
+        console.error('Fullres preview export failed: stageRef is null');
+        return '';
+      }
+
+      const stage = stageRef.current;
+      const layers = stage.getLayers();
+      if (layers.length === 0) {
+        console.error('Fullres preview export failed: no layers found');
+        return '';
+      }
+
+      const restoreSelection = () => {
+        if (isEditing) return;
+
+        selectedElementIds.forEach(id => {
+          const tr = transformerRefsMap.current.get(id);
+          const node = nodesRef.current.get(id);
+          if (tr && node) tr.nodes([node]);
+        });
+
+        if (selectedElementIds.length > 1 && multiTransformerRef.current) {
+          const selectedNodes = selectedElementIds
+            .map(id => nodesRef.current.get(id))
+            .filter((node): node is Konva.Node => !!node);
+          multiTransformerRef.current.nodes(selectedNodes);
+        }
+
+        layers[0].draw();
+      };
+
+      transformerRefsMap.current.forEach(tr => tr.nodes([]));
+      if (multiTransformerRef.current) multiTransformerRef.current.nodes([]);
+      layers[0].draw();
+
+      try {
+        const dataURL = stage.toDataURL({
+          x: BLEED * scale,
+          y: BLEED * scale,
+          width: template.width * scale,
+          height: template.height * scale,
+          pixelRatio: 1 / scale,
+          mimeType: 'image/jpeg',
+          quality: 0.88,
+        });
+
+        restoreSelection();
+        console.log('Fullres preview dataURL length:', dataURL?.length || 0);
+        return dataURL;
+      } catch (error) {
+        restoreSelection();
+        console.error('Fullres preview export failed with error:', error);
+        return '';
+      }
     },
     exportThumbnail: () => {
       if (!stageRef.current) {

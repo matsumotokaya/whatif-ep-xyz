@@ -631,7 +631,7 @@ export const BannerEditor = () => {
     await canvas.waitForNextRender();
 
     const rawThumbnail = canvas.exportThumbnail();
-    const rawFullres = canvas.exportImage();
+    const rawFullres = canvas.exportFullresPreview();
 
     return {
       thumbnailDataURL: rawThumbnail && rawThumbnail.length >= 100 ? rawThumbnail : undefined,

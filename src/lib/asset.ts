@@ -193,7 +193,7 @@ export function buildBannerThumbKey(uid: string, bannerId: string, revision: str
 }
 
 export function buildBannerFullKey(uid: string, bannerId: string, revision: string): AssetKey {
-  return `user-images/${uid}/banners/${bannerId}/full/${revision}.png` as AssetKey;
+  return `user-images/${uid}/banners/${bannerId}/full/${revision}.jpg` as AssetKey;
 }
 
 export function buildUserUploadKey(uid: string, assetId: string, ext: string): AssetKey {
