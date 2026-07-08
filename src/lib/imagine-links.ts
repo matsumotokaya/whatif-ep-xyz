@@ -39,6 +39,11 @@ export function normalizeImagineDeepLink(url: string): string {
     return `/edit${pathname.slice("/banner".length)}${search}${hash}`;
   }
 
+  // /banners -> /mydesign and /banners/<sizeKey> -> /mydesign/<sizeKey>
+  if (pathname === "/banners" || pathname.startsWith("/banners/")) {
+    return `/mydesign${pathname.slice("/banners".length)}${search}${hash}`;
+  }
+
   // /upgrade -> /plans (the /upgrade route itself now redirects to /plans,
   // but normalize directly here to skip the extra hop). Query is preserved.
   if (pathname === "/upgrade" || pathname.startsWith("/upgrade/")) {

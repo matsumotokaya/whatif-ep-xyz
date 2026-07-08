@@ -46,6 +46,26 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // M5 host-level cutover: once app.whatif-ep.xyz still points at this
+      // deployment, redirect every legacy request to the gallery top.
+      // The product decision is to prioritize a fast retirement of the legacy
+      // IMAGINE app over deep-link preservation because usage is negligible.
+      //
+      // Use an explicit 301 because the cutover requirement is permanent host
+      // canonicalization for legacy GET deep links. Next's `permanent: true`
+      // emits 308 by default, which is not what ops wants here.
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host",
+            value: "app.whatif-ep.xyz",
+          },
+        ],
+        destination: "https://whatif-ep.xyz",
+        statusCode: 301,
+        basePath: false,
+      },
       // Legacy gallery index → new works route.
       {
         source: "/episodes",
@@ -65,6 +85,34 @@ const nextConfig: NextConfig = {
       {
         source: "/upgrade",
         destination: "/plans",
+        permanent: false,
+      },
+      {
+        source: "/upgrade/:path*",
+        destination: "/plans/:path*",
+        permanent: false,
+      },
+      // Legacy IMAGINE deep links → consolidated editor routes. These are
+      // required before app.whatif-ep.xyz can be 301'd to this domain.
+      // Query params (template, return_to, source, etc.) are passed through.
+      {
+        source: "/banner",
+        destination: "/edit",
+        permanent: false,
+      },
+      {
+        source: "/banner/:id",
+        destination: "/edit/:id",
+        permanent: false,
+      },
+      {
+        source: "/banners",
+        destination: "/mydesign",
+        permanent: false,
+      },
+      {
+        source: "/banners/:sizeKey",
+        destination: "/mydesign/:sizeKey",
         permanent: false,
       },
     ];
