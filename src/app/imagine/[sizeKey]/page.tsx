@@ -3,11 +3,11 @@ import { Suspense } from "react";
 import { ImagineTemplatesClientOnly } from "@/components/editor/ImagineTemplatesClientOnly";
 
 export const metadata: Metadata = {
-  title: "IMAGINE",
-  description: "IMAGINE template gallery.",
+  title: "IMAGINE Templates",
+  description: "IMAGINE templates by size.",
 };
 
-export default function ImagineEntryPage() {
+export default function ImagineTemplatesBySizePage() {
   return (
     <Suspense fallback={null}>
       <ImagineTemplatesClientOnly />
