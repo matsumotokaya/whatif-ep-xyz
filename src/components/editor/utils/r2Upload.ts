@@ -51,6 +51,33 @@ export const uploadAsset = async (
   return key;
 };
 
+// Upload through the app's own origin instead of browser -> R2 direct PUT.
+// This avoids any dependency on Cloudflare bucket CORS for save flows that
+// originate from authenticated UI actions such as banner thumbnail generation.
+export const uploadAssetViaApi = async (
+  key: AssetKey,
+  blob: Blob,
+  contentType: string,
+): Promise<AssetKey> => {
+  const formData = new FormData();
+  formData.set('key', key);
+  formData.set('contentType', contentType);
+  formData.set('file', blob, key.split('/').pop() || 'asset');
+
+  const response = await fetch('/api/editor/assets/upload', {
+    method: 'POST',
+    body: formData,
+    credentials: 'same-origin',
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Editor asset upload failed (${response.status}): ${detail}`);
+  }
+
+  return key;
+};
+
 interface DeleteResponse {
   deleted?: string[];
   error?: string;
