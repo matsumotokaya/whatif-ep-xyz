@@ -55,16 +55,23 @@ export const deleteAssets = async (keys: Array<AssetKey | string>): Promise<void
   const uniqueKeys = [...new Set(keys.filter(Boolean))] as string[];
   if (uniqueKeys.length === 0) return;
 
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.functions.invoke<DeleteResponse>('r2-presign', {
-    body: { op: 'delete', keys: uniqueKeys },
+  const response = await fetch('/api/editor/assets/delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      backend: 'r2',
+      keys: uniqueKeys,
+    }),
   });
 
-  if (error) {
-    throw new Error(`R2 delete failed: ${error.message}`);
-  }
-  if (data?.error) {
-    throw new Error(`R2 delete failed: ${data.error}`);
+  const data = (await response.json().catch(() => null)) as DeleteResponse | null;
+
+  if (!response.ok || data?.error) {
+    const detail = data?.error || `status_${response.status}`;
+    throw new Error(`R2 delete failed: ${detail}`);
   }
 };
 

@@ -128,11 +128,25 @@ export const removeFilesFromBucket = async (bucket: string, filePaths: string[])
   const uniquePaths = [...new Set(filePaths.filter(Boolean))];
   if (uniquePaths.length === 0) return;
 
-  const supabase = await getSupabase();
-  const { error } = await supabase.storage.from(bucket).remove(uniquePaths);
+  const response = await fetch('/api/editor/assets/delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      backend: 'supabase',
+      bucket,
+      paths: uniquePaths,
+    }),
+  });
 
-  if (error) {
-    console.error('Storage remove failed:', error);
-    throw error;
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string; detail?: string }
+    | null;
+
+  if (!response.ok || payload?.error) {
+    const detail = payload?.detail || payload?.error || `status_${response.status}`;
+    throw new Error(`Storage remove failed: ${detail}`);
   }
 };
