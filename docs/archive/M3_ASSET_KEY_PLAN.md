@@ -1,4 +1,7 @@
-# M3 実装計画: アセット参照の key 方式化
+# ARCHIVED: M3 実装計画: アセット参照の key 方式化
+
+> Archived: 2026-07-07
+> 現在の正本: `docs/CUTOVER_MILESTONES.md`（残タスク） / `scripts/`（実行 SQL） / `src/lib/asset.ts`（実装）
 
 最終更新: 2026-07-02（実データ調査に基づく計画確定版）
 Status: **計画確定・実装前**

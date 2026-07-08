@@ -7,9 +7,8 @@
 // - The two external whatif-ep.xyz anchors (brand site / company) collapsed
 //   into a single internal link to the Gallery home — the footer now lives on
 //   that same origin.
-// - The legal pages (/legal/*) and /contact are NOT ported in M4, so their
-//   links are omitted instead of pointing at soon-to-be-frozen
-//   app.whatif-ep.xyz URLs. Porting or redirect-mapping them is an M5 item.
+// - The legal pages (/legal/*) and /contact are NOT ported, so their links
+//   stay omitted instead of pointing at the retired legacy host.
 
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/components/editor/lib/router';

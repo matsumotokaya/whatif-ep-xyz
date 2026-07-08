@@ -1,5 +1,5 @@
 // Size-filtered design list (/mydesign/[sizeKey]), ported from IMAGINE's
-// src/pages/BannersBySize.tsx (docs/CONSOLIDATION_PLAN.md M4, brought forward).
+// src/pages/BannersBySize.tsx (docs/archive/CONSOLIDATION_PLAN.md M4, brought forward).
 //
 // Differences from the IMAGINE original:
 // - Routes: /banner/:id -> /edit/:id, /banner -> /edit, list -> /mydesign.

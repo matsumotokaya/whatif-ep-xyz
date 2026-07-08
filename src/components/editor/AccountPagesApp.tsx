@@ -1,6 +1,6 @@
 'use client';
 
-// Account-area island entry (docs/CONSOLIDATION_PLAN.md M4): /mypage, /plans
+// Account-area island entry (docs/archive/CONSOLIDATION_PLAN.md M4): /mypage, /plans
 // and /success. Sibling of MyDesignsApp — same client-only providers
 // (react-query, react-i18next side-effect init, Google Fonts / Material
 // Symbols) without the Konva canvas editor, so the chunk stays small.

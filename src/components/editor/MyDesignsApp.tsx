@@ -1,6 +1,6 @@
 'use client';
 
-// My Designs island entry (docs/CONSOLIDATION_PLAN.md M4, brought forward).
+// My Designs island entry (docs/archive/CONSOLIDATION_PLAN.md M4, brought forward).
 //
 // Lightweight sibling of EditorApp for the /mydesign list pages: it reuses the
 // same client-only providers (react-query, react-i18next side-effect init,

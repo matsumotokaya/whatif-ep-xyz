@@ -1,5 +1,5 @@
 // My Designs list, ported from IMAGINE's src/pages/BannerManager.tsx
-// (docs/CONSOLIDATION_PLAN.md M4, brought forward).
+// (docs/archive/CONSOLIDATION_PLAN.md M4, brought forward).
 //
 // Differences from the IMAGINE original:
 // - Routes: /banner/:id -> /edit/:id, /banner -> /edit, /banners/:sizeKey ->

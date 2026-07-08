@@ -4,7 +4,7 @@
 //
 // IMAGINE's original AuthContext (cross-subdomain SSO cookie adoption,
 // signup notification, sign-in methods) is intentionally NOT ported — see
-// docs/CONSOLIDATION_PLAN.md. The editor island reads the Gallery-side
+// docs/archive/CONSOLIDATION_PLAN.md. The editor island reads the Gallery-side
 // session/profile from the root <AuthProvider> (src/context/AuthContext.tsx,
 // @supabase/ssr single-origin session) and maps the profile row to the
 // camelCase shape the ported editor code expects.

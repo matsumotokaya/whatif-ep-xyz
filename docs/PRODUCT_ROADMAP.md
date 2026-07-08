@@ -4,7 +4,7 @@
 Status: **Phase 0 決定済み・Phase 1 着手前**
 
 > 本書はプロダクト全体の正本（旧 `RENEWAL_PLAN.md`〈2026-06-16、データモデル中心〉を統合・置換。work / variant / offer のデータモデルは既に実装・稼働済み）。
-> 技術統合の実行計画は [CONSOLIDATION_PLAN.md](./CONSOLIDATION_PLAN.md)（M1〜M6）をそのまま Phase 1 として組み込む。
+> 技術統合の現在の実行計画は [CUTOVER_MILESTONES.md](./CUTOVER_MILESTONES.md)。設計と M1〜M4 の履歴は [archive/CONSOLIDATION_PLAN.md](./archive/CONSOLIDATION_PLAN.md)。
 > 作業ブランチ: `renewal/single-app`（大改修前スナップショット: main `6caab29`）
 
 ---
@@ -72,7 +72,7 @@ WHATIF
 - よってゲストはクレジット要素を削除してクリーン画像をエクスポート**できる**。ただし出力は feed の **1080×1350（4:5）のみ**。有料壁紙（1440×2560 等の 9:16/16:9）とは解像度・アスペクト比が別物で、完全代替にはならない。壁紙サイズのテンプレは `premium` 昇格かつ Gallery 非露出でゲート済み。
 - 判定: **即時の対処は不要**。Phase 3 の「ゲスト/無料＝エクスポート時クレジット強制合成」で構造的に塞ぐ（エレメント削除に依存しない合成方式にすること）。
 
-### Phase 1: 技術統合（= CONSOLIDATION_PLAN M1〜M6）
+### Phase 1: 技術統合（実行正本 = CUTOVER_MILESTONES / 履歴 = archive/CONSOLIDATION_PLAN）
 
 単一 Next.js アプリ化。BannerEditor 移植 → `@supabase/ssr` 一本化・SSO撤去 → アセット key 方式化 → 周辺ページ統合 → データ/URL移行 → 旧 IMAGINE 凍結。
 **全 UX 改修の前提**（先にやらないと以降の改修が2サイト二重実装になる）。
@@ -101,5 +101,5 @@ WHATIF
 
 ## 6. アーキテクチャ決定（再確認）
 
-- **単一アプリ・単一ドメイン**（サブドメイン分離は不採用）。理由: クロスサイト課金導線の排除・SSO廃止・二重実装解消・一本のファネル。詳細は [CONSOLIDATION_PLAN.md](./CONSOLIDATION_PLAN.md) §0。
+- **単一アプリ・単一ドメイン**（サブドメイン分離は不採用）。理由: クロスサイト課金導線の排除・SSO廃止・二重実装解消・一本のファネル。設計履歴は [archive/CONSOLIDATION_PLAN.md](./archive/CONSOLIDATION_PLAN.md) §0。
 - `app.whatif-ep.xyz` は移行完了後に 301 → 本ドメイン。

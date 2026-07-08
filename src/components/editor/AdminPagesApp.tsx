@@ -1,6 +1,6 @@
 'use client';
 
-// Admin-area island entry (docs/CONSOLIDATION_PLAN.md M4): /admin,
+// Admin-area island entry (docs/archive/CONSOLIDATION_PLAN.md M4): /admin,
 // /admin/content-factory, /admin/cover-lab, /admin/storage-cleanup and the
 // admin-only /mydesign/factory list. All pages are admin-gated, so sharing a
 // single chunk across them is acceptable.

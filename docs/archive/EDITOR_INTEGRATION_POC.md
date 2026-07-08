@@ -1,4 +1,7 @@
-# Editor Integration PoC（Next `/edit` client island）
+# ARCHIVED: Editor Integration PoC（Next `/edit` client island）
+
+> Archived: 2026-07-07
+> 現在の正本: `docs/CUTOVER_MILESTONES.md`（現在地） / `docs/archive/CONSOLIDATION_PLAN.md`（統合履歴）
 
 > Status: **M1 実施済み**（2026-07-02）。PoC は本物の BannerEditor で置き換え済み（下記「M1 実施記録」）。
 > 場所: `whatif-ep-xyz/src/app/edit` / `src/components/editor`（旧 `editor-poc` は削除）。

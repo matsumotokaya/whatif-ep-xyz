@@ -2,7 +2,7 @@
 
 // react-router-dom compatibility shim backed by next/navigation.
 //
-// The ported IMAGINE editor code (see docs/CONSOLIDATION_PLAN.md M1) was
+// The ported IMAGINE editor code (see docs/archive/CONSOLIDATION_PLAN.md M1) was
 // written against react-router-dom v7. Rather than rewriting every call site,
 // this module re-implements the small API surface the editor actually uses
 // (useNavigate / useLocation / useParams / useSearchParams / Link) on top of

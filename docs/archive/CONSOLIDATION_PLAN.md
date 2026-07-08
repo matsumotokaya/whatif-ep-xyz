@@ -1,6 +1,9 @@
-# App Consolidation Plan（Gallery + IMAGINE を1つのNext.jsアプリへ統合）
+# ARCHIVED: App Consolidation Plan（Gallery + IMAGINE を1つのNext.jsアプリへ統合）
 
-> Status: **PoC 済み・実行計画フェーズ**。2026-06-29 起案、同日 `/edit` client island PoC 実装済み（`docs/EDITOR_INTEGRATION_POC.md`）。
+> Archived: 2026-07-07
+> 現在の正本: `docs/CUTOVER_MILESTONES.md`（現在地と実行順） / `docs/NEXT_SESSION_HANDOFF.md`（次回再開） / `docs/PRODUCT_ROADMAP.md`（方針）
+
+> Status: **PoC 済み・実行計画フェーズ**。2026-06-29 起案、同日 `/edit` client island PoC 実装済み（`docs/archive/EDITOR_INTEGRATION_POC.md`）。
 > 決定: **Gallery(Next.js 16) を土台に、IMAGINE のエディタ/機能を取り込み、単一アプリ・単一ドメイン `whatif-ep.xyz` にする。** `app.whatif-ep.xyz` サブドメインと cross-subdomain SSO は廃止。
 > 関連: アセット参照の再設計 [imagine/docs/ASSET_REFERENCE_REDESIGN.md] は本統合の中で**1回だけ**実装する（2リポジトリへの二重実装をやめる）。
 

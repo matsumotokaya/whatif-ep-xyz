@@ -1,6 +1,6 @@
 'use client';
 
-// Editor island entry (docs/CONSOLIDATION_PLAN.md M1).
+// Editor island entry (docs/archive/CONSOLIDATION_PLAN.md M1).
 //
 // Everything the ported IMAGINE editor needs at runtime is closed inside this
 // client-only boundary: react-query provider, react-i18next initialization
