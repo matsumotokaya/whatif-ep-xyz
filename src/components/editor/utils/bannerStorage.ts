@@ -6,7 +6,7 @@ import {
   extractStoragePathFromPublicUrl,
   removeFilesFromBucket,
 } from './storage';
-import { uploadAssetViaApi, deleteAssets } from './r2Upload';
+import { uploadAsset, deleteAssets } from './r2Upload';
 import {
   createAssetRevision,
   buildBannerThumbKey,
@@ -450,7 +450,7 @@ export const bannerStorage = {
       .eq('user_id', user.id)
       .single();
     const { blob, mimeType } = dataUrlToBlob(thumbnailDataURL);
-    const key = await uploadAssetViaApi(
+    const key = await uploadAsset(
       buildBannerThumbKey(user.id, id, createAssetRevision()),
       blob,
       mimeType,
@@ -509,7 +509,7 @@ export const bannerStorage = {
         let nextThumbnailKey: string | undefined;
         if (updates.thumbnailDataURL) {
           const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
-          nextThumbnailKey = await uploadAssetViaApi(
+          nextThumbnailKey = await uploadAsset(
             buildBannerThumbKey(user.id, id, createAssetRevision()),
             blob,
             mimeType,
@@ -527,7 +527,7 @@ export const bannerStorage = {
           // separately to avoid blocking preview freshness when the PNG upload fails.
           try {
             const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
-            const nextFullresKey = await uploadAssetViaApi(
+            const nextFullresKey = await uploadAsset(
               buildBannerFullKey(user.id, id, createAssetRevision()),
               blob,
               mimeType,
