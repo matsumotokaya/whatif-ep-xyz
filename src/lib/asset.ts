@@ -84,6 +84,7 @@ export function appendCacheBust(url: string, version?: string | null): string {
 
 interface ResolveOptions {
   version?: string | null;
+  corsMode?: "anonymous";
   // Bucket a *bare* key (no logical prefix) belongs to, used only during the
   // migration window to reach the object where it physically lives today.
   legacyBucket?: LegacyBucket;
@@ -143,29 +144,32 @@ export function resolveAsset(
   options: ResolveOptions = {}
 ): string {
   if (!value) return "";
-  const { version, legacyBucket } = options;
+  const { version, legacyBucket, corsMode } = options;
+  const resolvedVersion = corsMode === "anonymous"
+    ? [version, "cors-anon-v1"].filter(Boolean).join("-")
+    : version;
 
   if (isInlineData(value)) {
-    return appendCacheBust(value, version);
+    return appendCacheBust(value, resolvedVersion);
   }
 
   if (isFullUrl(value)) {
     const normalizedKey = extractKnownAssetKey(value);
     if (normalizedKey) {
-      return buildR2AssetUrl(normalizedKey, version);
+      return buildR2AssetUrl(normalizedKey, resolvedVersion);
     }
-    return appendCacheBust(value, version);
+    return appendCacheBust(value, resolvedVersion);
   }
 
   const key = value.replace(/^\/+/, "");
   const hasLogicalPrefix = LOGICAL_BUCKET_PREFIXES.some((prefix) => key.startsWith(prefix));
 
   if (hasLogicalPrefix) {
-    return buildR2AssetUrl(key, version);
+    return buildR2AssetUrl(key, resolvedVersion);
   }
 
   const bucket = legacyBucket ?? "default-images";
-  return buildR2AssetUrl(`${bucket}/${key}`, version);
+  return buildR2AssetUrl(`${bucket}/${key}`, resolvedVersion);
 }
 
 // Resolve a canvas element's `src` at load time. Editor state keeps `src` as a
@@ -175,7 +179,11 @@ export function resolveElementSrc(
   version?: string | null
 ): string {
   if (!src) return "";
-  return resolveAsset(src, { version, legacyBucket: "user-images" });
+  return resolveAsset(src, {
+    version,
+    legacyBucket: "user-images",
+    corsMode: "anonymous",
+  });
 }
 
 export function createAssetRevision(): string {

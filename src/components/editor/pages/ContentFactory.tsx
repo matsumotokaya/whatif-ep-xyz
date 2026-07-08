@@ -1109,6 +1109,7 @@ export function ContentFactory() {
                       alt={asset.name}
                       className="h-full w-full object-contain"
                       loading="lazy"
+                      crossOrigin="anonymous"
                     />
                   </div>
                   <div className="space-y-2 p-4">
@@ -1288,6 +1289,7 @@ export function ContentFactory() {
                                   alt={entry.sourceAsset.name}
                                   className="h-full w-full object-contain"
                                   loading="lazy"
+                                  crossOrigin="anonymous"
                                 />
                               </div>
                               <div className="min-w-0">

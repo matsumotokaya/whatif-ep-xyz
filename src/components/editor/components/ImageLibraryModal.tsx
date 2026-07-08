@@ -497,6 +497,7 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
                         className="w-full h-full object-contain"
                         loading="lazy"
                         decoding="async"
+                        crossOrigin="anonymous"
                       />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
                         <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 text-3xl drop-shadow-lg">
