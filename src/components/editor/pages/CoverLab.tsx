@@ -16,7 +16,7 @@ import {
 } from '../utils/coverComposer';
 
 export function CoverLab() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mockRef = useRef<HTMLImageElement | null>(null);
   const wallpaperRef = useRef<HTMLImageElement | null>(null);
@@ -89,6 +89,14 @@ export function CoverLab() {
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
+
+  if (loading || (user && profileLoading)) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[#101010]">
+        <div className="size-8 rounded-full border-2 border-gray-600 border-t-indigo-400 animate-spin" />
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to={`/auth/login?next=${encodeURIComponent('/admin/cover-lab')}`} replace />;

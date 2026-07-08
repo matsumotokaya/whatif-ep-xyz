@@ -22,12 +22,12 @@ import {
 
 export function MyPage() {
   const { t } = useTranslation(['auth', 'common', 'message']);
-  const { user, session, profile, loading, signOut } = useAuth();
+  const { user, session, profile, loading, profileLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<SubscriptionPortalErrorDetails | null>(null);
 
-  if (loading) {
+  if (loading || (user && profileLoading)) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#101010]">
         <div className="w-8 h-8 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />

@@ -12,7 +12,7 @@ import {
 
 export const AuthButton = () => {
   const { t } = useTranslation(['auth', 'common', 'message']);
-  const { user, session, profile, loading, signOut } = useAuth();
+  const { user, session, profile, loading, profileLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -72,7 +72,7 @@ export const AuthButton = () => {
     };
   }, [isMenuOpen]);
 
-  if (loading) {
+  if (loading || (user && profileLoading)) {
     return (
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>

@@ -10,16 +10,13 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 import { Header } from '../components/Header';
 import { SortableGrid } from '../components/SortableGrid';
-import { bannerStorage } from '../utils/bannerStorage';
 import {
   useBanners,
   useDeleteBanner,
   useDuplicateBanner,
   useUpdateBannerName,
-  bannerKeys,
 } from '../hooks/useBanners';
 import type { BannerListItem, CanvasElement, Template } from '../types/template';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,7 +34,6 @@ export const BannersBySize = () => {
   const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
   const location = useLocation();
-  const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const isGuest = !user;
   // Guest's single design lives in localStorage. This island is client-only,
@@ -143,21 +139,6 @@ export const BannersBySize = () => {
   const filteredBanners = category
     ? filterBySize(displayedBanners, category.width, category.height)
     : [];
-
-  // Handle reorder for banners (used by SortableGrid)
-  const handleReorderBanners = async (reorderedBanners: BannerListItem[]) => {
-    const orders = reorderedBanners.map((b, index) => ({
-      id: b.id,
-      displayOrder: index + 1,
-    }));
-
-    try {
-      await bannerStorage.updateDisplayOrders(orders);
-      queryClient.invalidateQueries({ queryKey: bannerKeys.lists() });
-    } catch (error) {
-      console.error('Failed to update display orders:', error);
-    }
-  };
 
   // Grid columns based on aspect ratio
   const gridCols = category
@@ -411,9 +392,9 @@ export const BannersBySize = () => {
         ) : (
           <SortableGrid
             items={filteredBanners}
-            disabled={isGuest}
+            disabled
             gridClassName={`grid ${gridCols} gap-4`}
-            onReorder={handleReorderBanners}
+            onReorder={() => {}}
             renderItem={renderBannerCard}
           />
         )}

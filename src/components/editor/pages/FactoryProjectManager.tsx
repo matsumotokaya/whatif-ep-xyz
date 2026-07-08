@@ -303,7 +303,7 @@ export function FactoryProjectManager() {
   const { t, i18n } = useTranslation(['banner', 'common']);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
   const [pendingByProject, setPendingByProject] = useState<Record<string, 'publish' | 'delete' | 'save' | undefined>>({});
   const [messageByProject, setMessageByProject] = useState<Record<string, string | undefined>>({});
   const [errorByProject, setErrorByProject] = useState<Record<string, string | undefined>>({});
@@ -423,7 +423,7 @@ export function FactoryProjectManager() {
     }
   };
 
-  if (loading) {
+  if (loading || (user && profileLoading)) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#101010]">
         <div className="size-8 rounded-full border-2 border-gray-600 border-t-indigo-400 animate-spin" />

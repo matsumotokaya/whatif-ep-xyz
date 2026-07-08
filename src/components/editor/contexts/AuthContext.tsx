@@ -28,7 +28,7 @@ export interface UserProfile {
 }
 
 export const useAuth = () => {
-  const { user, session, profile, loading, signOut } = useGalleryAuth();
+  const { user, session, profile, loading, profileLoading, signOut } = useGalleryAuth();
 
   const mappedProfile: UserProfile | null = useMemo(() => {
     if (profile) {
@@ -57,5 +57,5 @@ export const useAuth = () => {
     return null;
   }, [profile, user]);
 
-  return { user, session, profile: mappedProfile, loading, signOut };
+  return { user, session, profile: mappedProfile, loading, profileLoading, signOut };
 };

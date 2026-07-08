@@ -21,6 +21,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  profileLoading: boolean;
   signInWithGoogle: (nextPath?: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithLegacyId: (legacyId: string, password: string) => Promise<{ error: string | null }>;
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const notifiedSignupUserIdsRef = useRef<Set<string>>(new Set());
   const pendingSignupNotificationUserIdsRef = useRef<Set<string>>(new Set());
 
@@ -98,16 +100,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) {
       setProfile(null);
+      setProfileLoading(false);
       return;
     }
-    supabase
-      .from('profiles')
-      .select('id, email, full_name, avatar_url, role, subscription_tier, subscription_status, subscription_expires_at')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) setProfile(data as Profile);
-      });
+
+    setProfileLoading(true);
+
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, avatar_url, role, subscription_tier, subscription_status, subscription_expires_at')
+          .eq('id', user.id)
+          .single();
+
+        setProfile(data ? (data as Profile) : null);
+      } catch {
+        setProfile(null);
+      } finally {
+        setProfileLoading(false);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -203,6 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         profile,
         loading,
+        profileLoading,
         signInWithGoogle,
         signInWithEmail,
         signInWithLegacyId,

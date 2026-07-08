@@ -52,6 +52,7 @@ interface DbBannerListItem {
   fullres_url?: string | null;
   thumbnail_key?: string | null;
   fullres_key?: string | null;
+  created_at?: string;
   updated_at: string;
   template?: { width?: number; height?: number; thumbnail?: string | null } | null;
   display_order?: number | null;
@@ -223,9 +224,10 @@ export const bannerStorage = {
     // RLS policy handles access control: public banners OR own banners
     const { data, error } = await supabase
       .from('banners')
-      .select('id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, updated_at, template, display_order')
+      .select('id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, created_at, updated_at, template, display_order')
       .order('updated_at', { ascending: false })
-      .order('display_order', { ascending: true });
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false });
 
     if (error) {
       console.error('Error fetching banners:', error);

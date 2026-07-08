@@ -276,7 +276,7 @@ function UserListModal({
 }
 
 export function AdminDashboard() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
   const { data: stats, isLoading: statsLoading, error, refetch } = useAdminStats(user?.id);
   const [activeUserTier, setActiveUserTier] = useState<UserTier | null>(null);
 
@@ -285,7 +285,7 @@ export function AdminDashboard() {
     free: (stats?.users ?? []).filter((account) => account.subscriptionTier !== 'premium'),
   }), [stats?.users]);
 
-  if (loading) {
+  if (loading || (user && profileLoading)) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#101010]">
         <div className="w-8 h-8 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />

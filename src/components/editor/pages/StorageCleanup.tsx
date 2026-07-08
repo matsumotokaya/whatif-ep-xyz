@@ -52,7 +52,7 @@ interface Candidates {
 type PurgeResult = { freed: number; deleted: number; failed: number } | null;
 
 export function StorageCleanup() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
   const [data, setData] = useState<Candidates | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export function StorageCleanup() {
     if (profile?.role === 'admin') fetchCandidates();
   }, [profile?.role, fetchCandidates]);
 
-  if (loading) {
+  if (loading || (user && profileLoading)) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#101010]">
         <div className="w-8 h-8 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />

@@ -15,8 +15,8 @@ export const GalleryTabs = () => {
   const { t } = useTranslation(['banner']);
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const { profile, profileLoading } = useAuth();
+  const isAdmin = !profileLoading && profile?.role === 'admin';
 
   const tabs = [
     { path: '/mydesign', label: t('banner:myBannersTab') },

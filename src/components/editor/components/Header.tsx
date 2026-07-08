@@ -62,7 +62,7 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
   };
 
   const serviceLinks = [
-    { label: 'IMAGINE', href: '/edit', external: false },
+    { label: 'IMAGINE', href: '/imagine', external: false },
     { label: t('common:galleryLink'), href: '/works/episode', external: false },
     { label: t('banner:myBannersTab'), href: '/mydesign', external: false },
     { label: 'WHATIF-EP.XYZ', href: '/', external: false },

@@ -284,7 +284,7 @@ function resolveDefaultImageDisplayUrl(path: string): string {
 }
 
 export function ContentFactory() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
   const queryClient = useQueryClient();
   const todayDefault = useMemo(() => getTodayDateInputValue(), []);
   const [officialAssets, setOfficialAssets] = useState<DefaultImage[]>([]);
@@ -722,7 +722,7 @@ export function ContentFactory() {
     }
   };
 
-  if (loading) {
+  if (loading || (user && profileLoading)) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#101010]">
         <div className="h-8 w-8 rounded-full border-2 border-gray-300 border-t-indigo-500 animate-spin" />
