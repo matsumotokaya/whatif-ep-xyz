@@ -1,60 +1,11 @@
 import { getSupabase } from './supabase';
 import type { AssetKey } from '@/lib/asset';
 
-interface PresignResponse {
-  url: string;
-}
-
-// Request a presigned PUT URL from the `r2-presign` Edge Function. The function
-// verifies the caller's Supabase JWT (attached automatically by functions.invoke)
-// and enforces that the key is writable by this user before signing.
-const requestPresignedPutUrl = async (
-  key: string,
-  contentType: string,
-): Promise<string> => {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.functions.invoke<PresignResponse>('r2-presign', {
-    body: { key, contentType },
-  });
-
-  if (error) {
-    throw new Error(`Failed to get R2 presigned URL: ${error.message}`);
-  }
-  if (!data?.url) {
-    throw new Error('R2 presign returned no URL');
-  }
-  return data.url;
-};
-
-// Upload a blob to R2 via a presigned PUT and return the asset KEY (never a
-// URL). `key` is a full object key including the logical bucket prefix
-// (e.g. `user-images/{uid}/...` or `default-images/...`). The DB stores this
-// key; the URL is composed only at render time via resolveAsset.
-export const uploadAsset = async (
-  key: AssetKey,
-  blob: Blob,
-  contentType: string,
-): Promise<AssetKey> => {
-  const presignedUrl = await requestPresignedPutUrl(key, contentType);
-
-  const response = await fetch(presignedUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: blob,
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(`R2 upload failed (${response.status}): ${detail}`);
-  }
-
-  return key;
-};
-
 // Upload through the app's own origin instead of browser -> R2 direct PUT.
-// This avoids any dependency on Cloudflare bucket CORS for save flows that
-// originate from authenticated UI actions such as banner thumbnail generation.
-export const uploadAssetViaApi = async (
+// This avoids any dependency on Cloudflare bucket CORS for every authenticated
+// upload flow in the editor, including banner saves, Content Factory uploads,
+// template thumbnails, and library assets.
+const uploadAssetViaApi = async (
   key: AssetKey,
   blob: Blob,
   contentType: string,
@@ -77,6 +28,17 @@ export const uploadAssetViaApi = async (
 
   return key;
 };
+
+// Upload a blob to R2 and return the asset KEY (never a URL). All editor-side
+// writes route through the same-origin proxy so browser uploads no longer rely
+// on Cloudflare bucket CORS being perfectly configured.
+export const uploadAsset = async (
+  key: AssetKey,
+  blob: Blob,
+  contentType: string,
+): Promise<AssetKey> => uploadAssetViaApi(key, blob, contentType);
+
+export { uploadAssetViaApi };
 
 interface DeleteResponse {
   deleted?: string[];

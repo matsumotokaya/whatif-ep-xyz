@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
 const isWritableUserAssetKey = (key: string, userId: string): boolean =>
   key.startsWith(`user-images/${userId}/`);
 
+const isWritableDefaultImageKey = (key: string): boolean =>
+  key.startsWith("default-images/");
+
 interface PresignResponse {
   url?: string;
   error?: string;
@@ -73,7 +76,18 @@ export async function POST(request: Request) {
   }
 
   if (!isWritableUserAssetKey(keyValue, user.id)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin = profile?.role === "admin";
+    const canWriteDefaultImages = isAdmin && isWritableDefaultImageKey(keyValue);
+
+    if (!canWriteDefaultImages) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
   }
 
   try {
