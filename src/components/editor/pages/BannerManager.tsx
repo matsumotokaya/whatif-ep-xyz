@@ -16,6 +16,8 @@ import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, Link } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
+import { GalleryTabs } from '../components/GalleryTabs';
+import { Footer } from '../components/Footer';
 import { SortableGrid } from '../components/SortableGrid';
 import {
   useBanners,
@@ -330,6 +332,8 @@ export const BannerManager = () => {
       <Header />
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        <GalleryTabs />
+
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-100">
             {t('banner:title')} ({displayedBanners.length})
@@ -444,6 +448,8 @@ export const BannerManager = () => {
           </div>
         )}
       </main>
+
+      <Footer />
     </div>
   );
 };

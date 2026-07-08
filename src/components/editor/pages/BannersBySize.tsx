@@ -11,6 +11,8 @@ import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
+import { GalleryTabs } from '../components/GalleryTabs';
+import { Footer } from '../components/Footer';
 import { SortableGrid } from '../components/SortableGrid';
 import {
   useBanners,
@@ -313,6 +315,8 @@ export const BannersBySize = () => {
       <div className="min-h-screen bg-[#101010]">
         <Header />
         <main className="max-w-7xl mx-auto px-6 py-8">
+          <GalleryTabs />
+
           <div className="text-center py-20">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">{t('banner:categoryNotFound')}</h2>
             <button
@@ -323,6 +327,7 @@ export const BannersBySize = () => {
             </button>
           </div>
         </main>
+        <Footer />
       </div>
     );
   }
@@ -332,6 +337,8 @@ export const BannersBySize = () => {
       <Header />
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        <GalleryTabs />
+
         {/* Breadcrumb */}
         <nav className="mb-6">
           <ol className="flex items-center gap-2 text-sm text-gray-400">
@@ -399,6 +406,7 @@ export const BannersBySize = () => {
           />
         )}
       </main>
+      <Footer />
     </div>
   );
 };

@@ -8,7 +8,7 @@ WHATIF EP - Digital Art Gallery
 
 ## Current Status
 
-このリポジトリは、WHATIF の**現行本番アプリ**です。Gallery と IMAGINE の統合はすでに完了しており、`whatif-ep.xyz` の単一アプリ・単一ドメイン運用が正本です。`app.whatif-ep.xyz` は履歴互換の 301 のみを返します。残るのは DB cleanup / security / stale docs / runtime shim などの後追い整理です。
+このリポジトリは、WHATIF の**現行本番アプリ**です。Gallery と IMAGINE の統合は完了しており、`whatif-ep.xyz` の単一アプリ・単一ドメイン運用が正本です。`app.whatif-ep.xyz` は履歴互換の 301 のみを返します。
 
 正本ドキュメント（この順で読む）:
 
@@ -18,6 +18,13 @@ WHATIF EP - Digital Art Gallery
 4. [docs/WALLPAPER_PIPELINE_PLAN.md](docs/WALLPAPER_PIPELINE_PLAN.md) — 壁紙運用・量産・収益動線の残タスク
 
 データモデルは `episode` から `work` / `work_variant` 中心へ移行済み（canonical works は IMAGINE Content Factory から同期）。
+
+## UI Shell Policy
+
+- Gallery と IMAGINE は同一コードベース内で運用するが、ヘッダー・フッター・配色・導線を含むサイトクロームは別々の UI シェルとして扱う
+- Gallery 側シェルは `src/components/Header.tsx` と `src/components/Footer.tsx`、IMAGINE 側シェルは `src/components/editor/components/Header.tsx` と `src/components/editor/components/Footer.tsx` を正本とする
+- IMAGINE は通常ページ用ヘッダーとデザイン編集画面用ヘッダーの 2 モードを持つ。通常ページはサイトナビゲーション優先、編集画面は編集操作優先とする
+- 共通化するのはルーティング、認証、データ取得などのアプリ基盤であり、見た目と操作導線は無理に統一しない
 
 ## Tech Stack
 
@@ -128,53 +135,6 @@ npm install
 npm run dev    # http://localhost:3710
 npm run build
 ```
-
-## Session Note: 2026-06-27
-
-R2 まわりのやり残しに着手し、画像URL生成の一元化と R2 delete 経路を完了。あわせて現状に合わなくなっていた記述を更新した。
-
-- **画像URL生成を単一リゾルバへ一元化（完了）**: `images.ts` / `work-images.ts` / `wallpaper.ts` / `club/catalog.ts` に散在していたURL構築を `src/lib/asset-url.ts` の `resolveAssetUrl(provider, key, {version})` に集約。`supabase` / `r2-legacy`（旧 `pub-…r2.dev`）/ `r2-assets`（`assets.whatif-ep.xyz`）＋full-URL passthrough と `?v=` 付与を統一し、provider 対応漏れを構造的に解消。（旧計画 `docs/IMAGE_URL_REFACTOR.md` は完了につき削除）
-- **IMAGINE 側に R2 delete 経路（presigned DELETE）を実装・本番デプロイ（完了）**: `r2-presign` Edge Function（v2 ACTIVE）に PUT と対称の権限チェックで delete を追加。後続バックフィルの旧版削除の前提が整った。正本は `imagine/docs/R2_MIGRATION.md`。
-- **記述の現状反映**: 壁紙の単品販売は実装済み（後述）。旧ロリポップサーバーは停止済み。
-- **残（R2移行の続き）**: 残バックフィル（default-images 388MB / 残り user-images 518MB ≈ 計約906MB が Supabase 残存）。実行は provider 列 DDL と R2 creds 投入が前提。
-
-## Session Note: 2026-06-26
-
-IMAGINE の画像ストレージ Cloudflare R2 移行（production 出力）に合わせ、Gallery 側を対応・修正した。
-
-- **Vercel Image Optimization をサイト全体で無効化**（`next.config.ts` `images.unoptimized = true`）。全画像は R2（egress 無料）から直接配信。無料枠超過の **402 Payment Required** で詳細/ヒーロー/壁紙カバー等が表示されなくなっていた問題の根本対応。
-- `src/lib/wallpaper.ts` `buildPublicUrl` を `storage_provider` 対応化（R2移行済み作品は `assets.whatif-ep.xyz/{bucket}/{path}` を生成）。これが漏れていて削除済み Supabase URL を返していた。
-- `EpisodeDetailImage` / `WorkCard` にキャッシュ画像の `onLoad` 不発対策（ref + `img.complete`）。
-- `assets.whatif-ep.xyz` を `images.remotePatterns` に追加（最適化無効化後は不要だが残置）。
-
-**この宿題は完了（2026-06-27）**: 画像 URL 生成を `src/lib/asset-url.ts` の `resolveAssetUrl` に一元化し、provider 対応漏れを構造的に解消した（旧計画 `docs/IMAGE_URL_REFACTOR.md` は削除）。IMAGINE 側 R2 移行の正本は `imagine/docs/R2_MIGRATION.md`。
-
-## Session Note: 2026-06-25
-
-This session aligned Gallery-side notification and purchase handling with the current production flow.
-
-- Added Resend-based notification helpers for Gallery purchase/account events
-- Added signup notification trigger wiring so Gallery auth flow can call the shared `notify-account-signup` Supabase function
-- Updated wallpaper purchase handling to be idempotent by `stripe_checkout_session_id`
-- Added buyer/admin wallpaper purchase notification send on successful Stripe webhook processing
-- Updated docs and env examples for `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CONTACT_NOTIFICATION_EMAIL`
-- Expanded the lightweight cross-subdomain SSO bridge:
-  - both apps re-check the shared SSO cookie on boot, focus, and visibility return
-  - login carry-over now works more reliably in both directions when the other app is revisited
-  - **2026-07-02 追記**: アプリ統合 M2（履歴: `docs/archive/CONSOLIDATION_PLAN.md`）で Gallery 側の SSO 実装（`src/lib/ssoCookie.ts`・boot/focus/visibility 再チェック・`wf-sso-token` 読み書き）は撤去済み。認証は `@supabase/ssr` の単一オリジンセッションのみ
-
-Confirmed in production:
-
-- Verified-account welcome mail is now sent after email verification, not before
-
-Remaining production verification:
-
-- Wallpaper purchase notification still needs a real production purchase check
-- Premium subscription notification is implemented on the IMAGINE Supabase webhook side but still needs a real production subscription check
-
-Future auth hardening:
-
-- ~~Replace the current browser-readable shared SSO cookie with an HttpOnly cookie based, server-led session design~~ → 解決（2026-07-02 統合 M2 で SSO クッキー自体を廃止。セッションは `@supabase/ssr` クッキーに一本化）
 
 ## Adding a New Episode
 
