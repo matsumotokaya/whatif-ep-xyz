@@ -5,7 +5,7 @@ interface CacheEntry<T> {
 }
 
 class CacheManager {
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
   private defaultTTL = 5 * 60 * 1000; // 5 minutes
 
   set<T>(key: string, data: T, ttl?: number): void {

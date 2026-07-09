@@ -14,7 +14,7 @@ export function ChineseSimplifiedContent() {
     <>
       <Section title="1. 简介">
         <p>
-          IMAGINE（以下简称"本服务"）将用户的信息安全作为首要任务，
+          IMAGINE（以下简称&quot;本服务&quot;）将用户的信息安全作为首要任务，
           采取适当的技术和组织措施。
         </p>
       </Section>

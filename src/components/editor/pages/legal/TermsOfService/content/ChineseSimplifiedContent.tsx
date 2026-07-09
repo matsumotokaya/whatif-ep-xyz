@@ -6,7 +6,7 @@ export function ChineseSimplifiedContent() {
     <>
       <Section title="第1条 (适用)">
         <p>
-          本条款规定了松本夏弥(以下简称"运营者")提供的IMAGINE(以下简称"本服务")的使用条件。
+          本条款规定了松本夏弥(以下简称&quot;运营者&quot;)提供的IMAGINE(以下简称&quot;本服务&quot;)的使用条件。
           用户通过使用本服务即表示同意本条款。
         </p>
       </Section>
@@ -14,16 +14,16 @@ export function ChineseSimplifiedContent() {
       <Section title="第2条 (定义)">
         <ul className="list-disc list-inside space-y-2 text-gray-700">
           <li>
-            <strong>"用户"</strong>: 使用本服务的所有个人或法人
+            <strong>&quot;用户&quot;</strong>: 使用本服务的所有个人或法人
           </li>
           <li>
-            <strong>"注册用户"</strong>: 完成账户注册的用户
+            <strong>&quot;注册用户&quot;</strong>: 完成账户注册的用户
           </li>
           <li>
-            <strong>"高级用户"</strong>: 订阅付费计划的用户
+            <strong>&quot;高级用户&quot;</strong>: 订阅付费计划的用户
           </li>
           <li>
-            <strong>"内容"</strong>: 用户在本服务上创建·上传的横幅设计、图片等
+            <strong>&quot;内容&quot;</strong>: 用户在本服务上创建·上传的横幅设计、图片等
           </li>
         </ul>
       </Section>
@@ -103,7 +103,7 @@ export function ChineseSimplifiedContent() {
 
       <Section title="第9条 (免责声明)">
         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-          <li>本服务按"现状"提供,运营者不做任何明示或默示的保证。</li>
+          <li>本服务按&quot;现状&quot;提供,运营者不做任何明示或默示的保证。</li>
           <li>运营者不保证本服务的准确性、完整性、有用性、安全性等。</li>
           <li>对于因使用本服务而造成的损失,运营者不承担任何责任。</li>
           <li>对于用户之间或用户与第三方之间的纠纷,运营者不承担任何责任。</li>

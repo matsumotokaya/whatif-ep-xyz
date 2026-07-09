@@ -6,7 +6,7 @@ export function EnglishContent() {
     <>
       <Section title="Article 1 (Application)">
         <p>
-          These Terms of Service ("Terms") govern the use of IMAGINE ("Service") provided by Kaya Matsumoto ("Operator").
+          These Terms of Service (&quot;Terms&quot;) govern the use of IMAGINE (&quot;Service&quot;) provided by Kaya Matsumoto (&quot;Operator&quot;).
           By using the Service, users agree to be bound by these Terms.
         </p>
       </Section>
@@ -14,16 +14,16 @@ export function EnglishContent() {
       <Section title="Article 2 (Definitions)">
         <ul className="list-disc list-inside space-y-2 text-gray-700">
           <li>
-            <strong>"User"</strong>: Any individual or entity using the Service
+            <strong>&quot;User&quot;</strong>: Any individual or entity using the Service
           </li>
           <li>
-            <strong>"Registered User"</strong>: User who has completed account registration
+            <strong>&quot;Registered User&quot;</strong>: User who has completed account registration
           </li>
           <li>
-            <strong>"Premium User"</strong>: User subscribed to the paid plan
+            <strong>&quot;Premium User&quot;</strong>: User subscribed to the paid plan
           </li>
           <li>
-            <strong>"Content"</strong>: Banner designs, images, etc. created or uploaded by users
+            <strong>&quot;Content&quot;</strong>: Banner designs, images, etc. created or uploaded by users
           </li>
         </ul>
       </Section>
@@ -56,7 +56,7 @@ export function EnglishContent() {
           <li>Imposing excessive load on Service servers or networks</li>
           <li>Interfering with Service operations</li>
           <li>Unauthorized access, reverse engineering, etc.</li>
-          <li>Illegally collecting other users' information</li>
+          <li>Illegally collecting other users&apos; information</li>
           <li>Registering false information</li>
           <li>Providing benefits to antisocial forces</li>
           <li>Other activities deemed inappropriate by the Operator</li>
@@ -103,7 +103,7 @@ export function EnglishContent() {
 
       <Section title="Article 9 (Disclaimer)">
         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-          <li>The Service is provided "as is" without any warranties, express or implied.</li>
+          <li>The Service is provided &quot;as is&quot; without any warranties, express or implied.</li>
           <li>The Operator does not guarantee accuracy, completeness, usefulness, or safety of the Service.</li>
           <li>The Operator is not liable for any damages arising from use of the Service.</li>
           <li>The Operator is not liable for disputes between users or between users and third parties.</li>
@@ -113,7 +113,7 @@ export function EnglishContent() {
 
       <Section title="Article 10 (Limitation of Liability)">
         <p>
-          If damages occur due to the Operator's fault, the Operator's liability is limited to
+          If damages occur due to the Operator&apos;s fault, the Operator&apos;s liability is limited to
           the total amount of fees paid by the user in the past 12 months.
         </p>
       </Section>

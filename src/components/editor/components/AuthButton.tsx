@@ -1,58 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../contexts/AuthContext';
-import { SubscriptionPortalErrorNotice } from './SubscriptionPortalErrorNotice';
 import {
-  createPortalSessionUrl,
-  isSubscriptionPortalSessionRecoveryError,
-  SubscriptionPortalError,
-  type SubscriptionPortalErrorDetails,
-} from '../utils/subscription';
+  resolveSharedHeaderLanguage,
+  sharedChromeCopy,
+} from '@/components/header/shared';
+import { useAuth } from '../contexts/AuthContext';
 
 export const AuthButton = () => {
-  const { t } = useTranslation(['auth', 'common', 'message']);
-  const { user, session, profile, loading, profileLoading, signOut } = useAuth();
+  const { t, i18n } = useTranslation(['auth', 'common', 'message']);
+  const { user, profile, loading, profileLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
-  const [portalError, setPortalError] = useState<SubscriptionPortalErrorDetails | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const showUpgradeEntry = profile?.subscriptionTier !== 'premium';
-  const showManageSubscription = profile?.subscriptionTier === 'premium';
-
-  const handleManageSubscription = async () => {
-    setPortalLoading(true);
-    setPortalError(null);
-    try {
-      window.location.href = await createPortalSessionUrl(session?.access_token);
-    } catch (err) {
-      console.error('Unexpected error creating portal session:', err);
-      if (isSubscriptionPortalSessionRecoveryError(err)) {
-        setIsMenuOpen(false);
-        await signOut();
-        const redirect = `${window.location.pathname}${window.location.search}`;
-        navigate(`/auth/login?reason=session-expired&next=${encodeURIComponent(redirect)}`, { replace: true });
-        return;
-      }
-      if (err instanceof SubscriptionPortalError) {
-        setPortalError(err.details);
-      } else {
-        setPortalError({
-          code: 'SubscriptionPortalUnknownError',
-          message: t('message:error.subscriptionPortalFailed'),
-          copyText: [
-            'error_code=SubscriptionPortalUnknownError',
-            'status=n/a',
-            'error_id=n/a',
-            `message=${err instanceof Error ? err.message : t('message:error.subscriptionPortalFailed')}`,
-          ].join('\n'),
-        });
-      }
-    } finally {
-      setPortalLoading(false);
-    }
-  };
+  const headerLang = resolveSharedHeaderLanguage(i18n.language);
 
   useEffect(() => {
     const handleClickOutside = (event: Event) => {
@@ -148,47 +109,15 @@ export const AuthButton = () => {
             </div>
 
             <Link
-              to="/mypage"
+              to="/account"
               onClick={() => setIsMenuOpen(false)}
               className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span>{t('auth:mypage.title')}</span>
+              <span>{sharedChromeCopy[headerLang].account}</span>
             </Link>
-
-            {showUpgradeEntry && (
-              <Link
-                to="/plans"
-                onClick={() => setIsMenuOpen(false)}
-                className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-9 7 9M12 6v12" />
-                </svg>
-                <span>{t('auth:mypage.upgradeToPremium')}</span>
-              </Link>
-            )}
-
-            {showManageSubscription && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleManageSubscription}
-                  disabled={portalLoading}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3 disabled:opacity-50"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                  <span>{portalLoading ? t('common:label.loading') : t('auth:mypage.manageSubscription')}</span>
-                </button>
-                {portalError && (
-                  <SubscriptionPortalErrorNotice error={portalError} className="mx-4 mb-3" />
-                )}
-              </>
-            )}
 
             {profile?.role === 'admin' && (
               <>
@@ -198,7 +127,7 @@ export const AuthButton = () => {
                   className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
                 >
                   <span className="material-symbols-outlined text-[20px]">monitoring</span>
-                  <span>Admin Dashboard</span>
+                  <span>{sharedChromeCopy[headerLang].adminDashboard}</span>
                 </Link>
                 <Link
                   to="/admin/content-factory"
@@ -206,7 +135,15 @@ export const AuthButton = () => {
                   className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
                 >
                   <span className="material-symbols-outlined text-[20px]">factory</span>
-                  <span>Content Factory</span>
+                  <span>{sharedChromeCopy[headerLang].contentFactory}</span>
+                </Link>
+                <Link
+                  to="/episodes/new"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
+                  <span>{sharedChromeCopy[headerLang].addEpisode}</span>
                 </Link>
               </>
             )}
@@ -223,7 +160,7 @@ export const AuthButton = () => {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              <span>{t('auth:logout')}</span>
+              <span>{sharedChromeCopy[headerLang].logout}</span>
             </button>
           </div>
         )}
@@ -243,8 +180,8 @@ export const AuthButton = () => {
       <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
-      <span className="hidden md:inline">{t('auth:login')} / {t('auth:signUp')}</span>
-      <span className="md:hidden">{t('auth:login')}</span>
+      <span className="hidden md:inline">{sharedChromeCopy[headerLang].login} / {t('auth:signUp')}</span>
+      <span className="md:hidden">{sharedChromeCopy[headerLang].login}</span>
     </Link>
   );
 };

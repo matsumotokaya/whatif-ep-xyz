@@ -15,7 +15,7 @@ export function ChineseSimplifiedContent({ setSelectedImage }: ContentProps) {
         </h2>
         <div className="text-gray-700">
           <p className="mb-4">
-            手机壁纸、社交媒体标题、专属图标和缩略图。使用"IMAGINE"让"创作"变得更自由、更简单。
+            手机壁纸、社交媒体标题、专属图标和缩略图。使用&quot;IMAGINE&quot;让&quot;创作&quot;变得更自由、更简单。
           </p>
           <p className="mb-4">
             基于融入生成式AI的视觉设计而广受欢迎的{' '}
@@ -27,7 +27,7 @@ export function ChineseSimplifiedContent({ setSelectedImage }: ContentProps) {
             >
               WHATIF
             </a>
-            提供的强大设计资产，只需添加您直观的"编辑"，即可创造出独一无二的艺术作品。
+            提供的强大设计资产，只需添加您直观的&quot;编辑&quot;，即可创造出独一无二的艺术作品。
           </p>
           <p className="mb-4">
             将灵感变为现实不再需要时间。99%的设计已经为您准备好了。

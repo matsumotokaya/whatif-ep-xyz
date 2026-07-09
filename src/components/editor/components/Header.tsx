@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
+import {
+  resolveSharedHeaderLanguage,
+  sharedChromeCopy,
+  sharedNavCopy,
+  sharedNavItems,
+  sharedSocialLinks,
+} from '@/components/header/shared';
 import { AuthButton } from './AuthButton';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ReleaseNotesModal } from './ReleaseNotesModal';
@@ -16,14 +23,14 @@ interface HeaderProps {
 }
 
 export const Header = ({ onBackToManager, onInternalNavigate, bannerName, bannerId, onBannerNameChange, onSaveAsTemplate, isAdmin }: HeaderProps) => {
-  const { t } = useTranslation(['banner', 'common', 'auth']);
+  const { t, i18n } = useTranslation(['banner', 'common', 'auth']);
   const navigate = useNavigate();
-  const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'contact@whatif-ep.xyz';
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isEditorMode = Boolean(onBackToManager || bannerName || onBannerNameChange || onSaveAsTemplate);
+  const headerLang = resolveSharedHeaderLanguage(i18n.language);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -61,27 +68,6 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
     setIsEditing(false);
     setEditingName('');
   };
-
-  const serviceLinks = [
-    { label: 'IMAGINE', href: '/imagine', external: false },
-    { label: t('common:galleryLink'), href: '/works/episode', external: false },
-    { label: t('banner:myBannersTab'), href: '/mydesign', external: false },
-    { label: 'WHATIF-EP.XYZ', href: '/', external: false },
-    { label: 'The Club', href: '/the-club', external: false },
-    { label: t('common:footer.shop'), href: 'https://whatif.stores.jp/', external: true },
-  ];
-
-  const pageLinks = [
-    { label: t('common:footer.aboutUs'), href: '/imagine/about', external: false },
-    { label: t('common:footer.contact'), href: '/imagine/contact', external: false },
-    { label: t('common:footer.company'), href: '/imagine', external: false },
-  ];
-
-  const socialLinks = [
-    { label: 'Instagram (@whatif.ep)', href: 'https://www.instagram.com/whatif.ep/' },
-    { label: 'Threads (@whatif.ep)', href: 'https://www.threads.net/@whatif.ep' },
-    { label: 'Discord', href: 'https://discord.gg/cW2uUGUR' },
-  ];
 
   const handleInternalNavigation = async (href: string) => {
     setIsMenuOpen(false);
@@ -230,81 +216,50 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-8">
-            <section>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Service</p>
-              <div className="mt-3 flex flex-col gap-2">
-                {serviceLinks.map((link) =>
-                  link.external ? (
+          <nav className="flex-1 overflow-y-auto px-4 py-5">
+            <div className="mb-6 text-[11px] uppercase tracking-[0.3em] text-gray-500">
+              {sharedChromeCopy[headerLang].menu}
+            </div>
+            <div className="flex flex-col gap-2">
+              {sharedNavItems.map((item) => {
+                const copy = sharedNavCopy[headerLang][item.key];
+
+                if (item.external) {
+                  return (
                     <a
-                      key={link.label}
-                      href={link.href}
+                      key={item.href}
+                      href={item.href}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setIsMenuOpen(false)}
-                      className="rounded-lg border border-gray-800 px-3 py-2 text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
+                      className="rounded-xl border border-gray-800 px-4 py-3 text-left text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
                     >
-                      {link.label}
+                      <div className="text-base font-semibold">{copy.label}</div>
+                      <div className="mt-1 text-sm leading-relaxed text-gray-400">{copy.description}</div>
                     </a>
-                  ) : (
-                    <button
-                      type="button"
-                      key={link.label}
-                      onClick={() => void handleInternalNavigation(link.href)}
-                      className="rounded-lg border border-gray-800 px-3 py-2 text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
-                    >
-                      {link.label}
-                    </button>
-                  )
-                )}
-              </div>
-            </section>
+                  );
+                }
 
-            <section>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Pages</p>
-              <div className="mt-3 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    setIsReleaseNotesOpen(true);
-                  }}
-                  className="rounded-lg border border-gray-800 px-3 py-2 text-left text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
-                >
-                  Release Notes
-                </button>
-                {pageLinks.map((link) =>
-                  link.external ? (
-                    <a
-                      key={link.label}
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setIsMenuOpen(false)}
-                      className="rounded-lg border border-gray-800 px-3 py-2 text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
-                    >
-                      {link.label}
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      key={link.label}
-                      onClick={() => void handleInternalNavigation(link.href)}
-                      className="rounded-lg border border-gray-800 px-3 py-2 text-sm font-medium text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
-                    >
-                      {link.label}
-                    </button>
-                  )
-                )}
-              </div>
-            </section>
+                return (
+                  <button
+                    type="button"
+                    key={item.href}
+                    onClick={() => void handleInternalNavigation(item.href)}
+                    className="rounded-xl border border-gray-800 px-4 py-3 text-left text-gray-100 hover:border-gray-600 hover:bg-gray-900 transition-colors"
+                  >
+                    <div className="text-base font-semibold">{copy.label}</div>
+                    <div className="mt-1 text-sm leading-relaxed text-gray-400">{copy.description}</div>
+                  </button>
+                );
+              })}
+            </div>
 
-            <section>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Social</p>
-              <div className="mt-3 flex flex-col gap-2">
-                {socialLinks.map((link) => (
+            <div className="mt-8 border-t border-gray-800 pt-5">
+              <div className="mb-3 text-[11px] uppercase tracking-[0.3em] text-gray-500">Social</div>
+              <div className="flex flex-col gap-2">
+                {sharedSocialLinks.map((link) => (
                   <a
-                    key={link.label}
+                    key={link.href}
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -315,7 +270,7 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
                   </a>
                 ))}
               </div>
-            </section>
+            </div>
           </nav>
         </div>
       </aside>

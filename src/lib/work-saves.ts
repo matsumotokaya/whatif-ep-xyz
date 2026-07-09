@@ -11,7 +11,6 @@ import { createClient } from "@/lib/supabase/server";
 // bookmarks), and the caller already knows which works belong to the series.
 // The param is accepted for call-site clarity but does not change the result.
 export async function getSavedWorkIds(
-  _seriesSlug?: string
 ): Promise<string[]> {
   const supabase = await createClient();
   const {

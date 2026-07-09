@@ -66,27 +66,28 @@ export function EpisodeDetailImage({
 }: EpisodeDetailImageProps) {
   const { lang } = useLanguage();
   const t = COPY[lang];
-  const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const upgradedRef = useRef(false);
   const src = candidates[index] ?? "";
   const editable = Boolean(imagineUrl);
-
-  // A cache-hit image can be `complete` before React attaches onLoad, so the
-  // load event never fires and the image stays stuck at opacity-0. Clear the
-  // loading state proactively once the underlying <img> reports complete.
-  useEffect(() => {
-    const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) {
-      setIsLoading(false);
-    }
-  }, [src]);
+  const isLoading = Boolean(src) && loadedSrc !== src;
 
   useEffect(() => {
     upgradedRef.current = false;
   }, [candidates]);
+
+  const setImageRef = useCallback(
+    (node: HTMLImageElement | null) => {
+      imgRef.current = node;
+      if (node && src && node.complete && node.naturalWidth > 0) {
+        setLoadedSrc(src);
+      }
+    },
+    [src]
+  );
 
   const openImagine = useCallback(() => {
     if (imagineUrl) window.open(imagineUrl, "_blank", "noopener,noreferrer");
@@ -114,7 +115,7 @@ export function EpisodeDetailImage({
       )}
       <Image
         key={src}
-        ref={imgRef}
+        ref={setImageRef}
         src={src}
         alt={alt}
         fill
@@ -128,11 +129,10 @@ export function EpisodeDetailImage({
         }`}
         priority
         onError={() => {
-          setIsLoading(true);
           setIndex((current) => current + 1);
         }}
         onLoad={() => {
-          setIsLoading(false);
+          setLoadedSrc(src);
 
           // Paint a lightweight preview first, then upgrade once the heavier
           // source finishes in the background. This keeps detail navigation

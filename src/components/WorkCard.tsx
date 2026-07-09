@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { WorkListItem } from "@/lib/types";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 import { SaveButton } from "@/components/SaveButton";
@@ -44,7 +44,7 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
   const { lang } = useLanguage();
   const badges = BADGE_COPY[lang];
   const [index, setIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Index 0 = the unoptimized feed_thumb (when available); the remaining indices
@@ -60,16 +60,16 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
 
   const current = sources[index] ?? null;
   const src = current?.url ?? null;
-
-  // A cache-hit image can be `complete` before React attaches onLoad, so the
-  // load event never fires and the thumbnail stays stuck at opacity-0. Clear the
-  // loading state proactively once the underlying <img> reports complete.
-  useEffect(() => {
-    const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) {
-      setIsLoading(false);
-    }
-  }, [src]);
+  const isLoading = Boolean(src) && loadedSrc !== src;
+  const setImageRef = useCallback(
+    (node: HTMLImageElement | null) => {
+      imgRef.current = node;
+      if (node && src && node.complete && node.naturalWidth > 0) {
+        setLoadedSrc(src);
+      }
+    },
+    [src]
+  );
 
   return (
     <Link
@@ -83,7 +83,7 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
         {src ? (
           <Image
             key={src}
-            ref={imgRef}
+            ref={setImageRef}
             src={src}
             alt={work.title}
             fill
@@ -94,7 +94,7 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
             }`}
             loading="lazy"
             onError={() => setIndex((prev) => prev + 1)}
-            onLoad={() => setIsLoading(false)}
+            onLoad={() => setLoadedSrc(src)}
           />
         ) : (
           <WorkPlaceholder code={work.displayCode} />

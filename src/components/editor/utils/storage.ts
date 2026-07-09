@@ -1,5 +1,3 @@
-import { getSupabase } from './supabase';
-
 // Re-exported from the single asset module (M3) so existing importers
 // (e.g. bannerStorage) keep working.
 export { appendCacheBust } from '@/lib/asset';

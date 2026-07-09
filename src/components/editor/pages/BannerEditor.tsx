@@ -303,12 +303,13 @@ export const BannerEditor = () => {
     templateId?: string;
   } | null;
 
-  const guestBanner: Banner | null = isGuest && (guestTemplate || guestState?.template) ? {
+  const resolvedGuestTemplate = guestTemplate ?? guestState?.template ?? null;
+  const guestBanner: Banner | null = isGuest && resolvedGuestTemplate ? {
     id: 'guest',
     name: guestName || guestState?.name || 'Guest Banner',
     createdAt: guestCreatedAtRef.current,
     updatedAt: guestUpdatedAt,
-    template: guestTemplate || guestState?.template!,
+    template: resolvedGuestTemplate,
     elements,
     canvasColor,
   } : null;
@@ -428,7 +429,7 @@ export const BannerEditor = () => {
     }
 
     navigate('/');
-  }, [isGuest, guestState, navigate, searchParams]);
+  }, [guestState, guestStorageKey, isGuest, navigate, resetHistory, searchParams]);
 
   // Direct-open receiver for /banner?template=<id> (Gallery "Edit in IMAGINE").
   // Reuses the shared open flow (premium guard + login/guest branch). On a guest
@@ -529,7 +530,7 @@ export const BannerEditor = () => {
         if (el.type === 'text') {
           const text = el as TextElement;
           // Migrate old strokeOnly property to new structure
-          const strokeOnly = (text as any).strokeOnly;
+          const strokeOnly = text.strokeOnly;
           return {
             ...text,
             fillEnabled: text.fillEnabled !== undefined ? text.fillEnabled : (strokeOnly === undefined ? true : !strokeOnly),
@@ -611,7 +612,7 @@ export const BannerEditor = () => {
     }
     // If same banner, keep local state (don't overwrite with DB)
     // Note: elements is NOT in dependency array to avoid loops
-  }, [banner?.id, banner?.template, isLoading, id, navigate, profile, currentBannerId, isGuest, editorReturnTo]);
+  }, [banner, banner?.id, banner?.template, currentBannerId, editorReturnTo, id, isGuest, isLoading, navigate, profile, resetHistory]);
 
   // Track if there are unsaved changes and save status
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -844,7 +845,7 @@ export const BannerEditor = () => {
 
   // Save before leaving page (best effort only).
   useEffect(() => {
-    const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       if (hasUnsavedChanges) {
         debouncedSave.cancel();
         debouncedGuestSave.cancel();

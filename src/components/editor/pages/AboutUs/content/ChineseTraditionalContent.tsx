@@ -15,7 +15,7 @@ export function ChineseTraditionalContent({ setSelectedImage }: ContentProps) {
         </h2>
         <div className="text-gray-700">
           <p className="mb-4">
-            手機壁紙、社群媒體標題、專屬圖示和縮圖。使用"IMAGINE"讓"創作"變得更自由、更簡單。
+            手機壁紙、社群媒體標題、專屬圖示和縮圖。使用&quot;IMAGINE&quot;讓&quot;創作&quot;變得更自由、更簡單。
           </p>
           <p className="mb-4">
             基於融入生成式AI的視覺設計而廣受歡迎的{' '}
@@ -27,7 +27,7 @@ export function ChineseTraditionalContent({ setSelectedImage }: ContentProps) {
             >
               WHATIF
             </a>
-            提供的強大設計資產，只需添加您直觀的"編輯"，即可創造出獨一無二的藝術作品。
+            提供的強大設計資產，只需添加您直觀的&quot;編輯&quot;，即可創造出獨一無二的藝術作品。
           </p>
           <p className="mb-4">
             將靈感變為現實不再需要時間。99%的設計已經為您準備好了。

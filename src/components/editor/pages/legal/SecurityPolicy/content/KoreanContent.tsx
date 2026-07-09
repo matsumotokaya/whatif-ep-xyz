@@ -14,7 +14,7 @@ export function KoreanContent() {
     <>
       <Section title="1. 소개">
         <p>
-          IMAGINE(이하 "본 서비스")은 사용자 여러분의 정보 보안을 최우선 과제로 삼아
+          IMAGINE(이하 &quot;본 서비스&quot;)은 사용자 여러분의 정보 보안을 최우선 과제로 삼아
           적절한 기술적·조직적 대책을 마련하고 있습니다.
         </p>
       </Section>

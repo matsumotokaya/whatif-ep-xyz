@@ -6,7 +6,7 @@ export function KoreanContent() {
     <>
       <Section title="제1조 (적용)">
         <p>
-          본 약관은 마츠모토 카야(이하 "운영자")가 제공하는 IMAGINE(이하 "본 서비스")의 이용 조건을 정합니다.
+          본 약관은 마츠모토 카야(이하 &quot;운영자&quot;)가 제공하는 IMAGINE(이하 &quot;본 서비스&quot;)의 이용 조건을 정합니다.
           사용자는 본 서비스를 이용함으로써 본 약관에 동의한 것으로 간주됩니다.
         </p>
       </Section>
@@ -14,16 +14,16 @@ export function KoreanContent() {
       <Section title="제2조 (정의)">
         <ul className="list-disc list-inside space-y-2 text-gray-700">
           <li>
-            <strong>"사용자"</strong>: 본 서비스를 이용하는 모든 개인 또는 법인
+            <strong>&quot;사용자&quot;</strong>: 본 서비스를 이용하는 모든 개인 또는 법인
           </li>
           <li>
-            <strong>"등록 사용자"</strong>: 계정 등록을 완료한 사용자
+            <strong>&quot;등록 사용자&quot;</strong>: 계정 등록을 완료한 사용자
           </li>
           <li>
-            <strong>"프리미엄 사용자"</strong>: 유료 플랜에 가입한 사용자
+            <strong>&quot;프리미엄 사용자&quot;</strong>: 유료 플랜에 가입한 사용자
           </li>
           <li>
-            <strong>"콘텐츠"</strong>: 사용자가 본 서비스에서 생성·업로드한 배너 디자인, 이미지 등
+            <strong>&quot;콘텐츠&quot;</strong>: 사용자가 본 서비스에서 생성·업로드한 배너 디자인, 이미지 등
           </li>
         </ul>
       </Section>
@@ -103,7 +103,7 @@ export function KoreanContent() {
 
       <Section title="제9조 (면책 사항)">
         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-          <li>본 서비스는 "있는 그대로" 제공되며, 운영자는 명시·묵시를 불문하고 일체의 보증을 하지 않습니다.</li>
+          <li>본 서비스는 &quot;있는 그대로&quot; 제공되며, 운영자는 명시·묵시를 불문하고 일체의 보증을 하지 않습니다.</li>
           <li>운영자는 본 서비스의 정확성, 완전성, 유용성, 안전성 등을 보증하지 않습니다.</li>
           <li>본 서비스 이용으로 인해 발생한 손해에 대해 운영자는 일체의 책임을 지지 않습니다.</li>
           <li>사용자 간 또는 사용자와 제3자 간의 트러블에 대해 운영자는 일체의 책임을 지지 않습니다.</li>

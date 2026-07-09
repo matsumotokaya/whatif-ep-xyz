@@ -5,7 +5,7 @@ export function ChineseSimplifiedContent() {
     <>
       <Section title="1. 简介">
         <p>
-          IMAGINE（以下简称"本服务"）是由Kaya Matsumoto（以下简称"运营方"）提供的横幅设计辅助工具。
+          IMAGINE（以下简称&quot;本服务&quot;）是由Kaya Matsumoto（以下简称&quot;运营方&quot;）提供的横幅设计辅助工具。
           本隐私政策说明本服务如何处理个人信息。
         </p>
       </Section>

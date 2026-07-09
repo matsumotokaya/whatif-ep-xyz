@@ -5,198 +5,14 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { useLanguage, type Language } from "@/context/LanguageContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-
-type NavItemKey = "episodes" | "imagine" | "club" | "store" | "about";
-
-const navItems = [
-  { key: "episodes" as NavItemKey, href: "/works/episode" },
-  { key: "imagine" as NavItemKey, href: "/imagine" },
-  { key: "club" as NavItemKey, href: "/the-club" },
-  { key: "store" as NavItemKey, href: "https://whatif.stores.jp", external: true },
-  { key: "about" as NavItemKey, href: "/about" },
-];
-
-// Localized labels for the header chrome (menu heading, auth actions).
-const chromeCopy: Record<
-  Language,
-  {
-    menu: string;
-    login: string;
-    logout: string;
-    account: string;
-    addEpisode: string;
-  }
-> = {
-  en: { menu: "Menu", login: "Log in", logout: "Log out", account: "My account", addEpisode: "Add episode" },
-  ja: { menu: "メニュー", login: "ログイン", logout: "ログアウト", account: "マイアカウント", addEpisode: "エピソードを追加" },
-  "zh-CN": { menu: "菜单", login: "登录", logout: "退出登录", account: "我的账户", addEpisode: "添加作品" },
-  "zh-TW": { menu: "選單", login: "登入", logout: "登出", account: "我的帳戶", addEpisode: "新增作品" },
-  ko: { menu: "메뉴", login: "로그인", logout: "로그아웃", account: "내 계정", addEpisode: "에피소드 추가" },
-};
-
-const menuCopy: Record<
-  Language,
-  Record<NavItemKey, { label: string; description: string }>
-> = {
-  en: {
-    episodes: {
-      label: "EPISODES",
-      description:
-        "A gallery of WHATIF artworks shared on Instagram and Threads. Selected images are available for download.",
-    },
-    imagine: {
-      label: "/IMAGINE",
-      description:
-        "A free design site where you can create illustrations from 99% complete design kits. Build original designs using WHATIF artwork assets.",
-    },
-    club: {
-      label: "THE CLUB",
-      description:
-        "A members-only wallpaper download service for Instagram subscription members. Accounts are now shared with Imagine, and paid Imagine users get unlimited wallpaper downloads.",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "Shop fashion items like T-shirts and sweatshirts featuring WHATIF artwork, plus downloadable items such as wallpapers and digital books.",
-    },
-    about: {
-      label: "ABOUT",
-      description:
-        "The story behind WHATIF — an AI-driven art project. Learn who we are and what we make.",
-    },
-  },
-  ja: {
-    episodes: {
-      label: "エピソード",
-      description:
-        "Instagram と Threads で公開している WHATIF のアートワークギャラリーです。一部画像はダウンロードできます。",
-    },
-    imagine: {
-      label: "Imagine",
-      description:
-        "99%完成済みのデザインキットから自由にイラストを作れる無料デザインサイトです。WHATIFのアートワーク素材でオリジナルデザインを作成できます。",
-    },
-    club: {
-      label: "ザ・クラブ",
-      description:
-        "会員制の壁紙ダウンロードサービスです。Instagramサブスク会員向けプランに加え、Imagineとのアカウント共有に対応しています。Imagine有料プランなら壁紙をダウンロードし放題です。",
-    },
-    store: {
-      label: "ストア",
-      description:
-        "WHATIFアートワークを使ったTシャツやスウェットなどのファッションアイテムに加え、壁紙や電子書籍などのダウンロード商品も購入できます。",
-    },
-    about: {
-      label: "ABOUT",
-      description:
-        "WHATIF について。AIを活用したアートプロジェクトの背景や、私たちが作っているものを紹介します。",
-    },
-  },
-  "zh-CN": {
-    episodes: {
-      label: "EPISODES",
-      description:
-        "在 Instagram 与 Threads 上发布的 WHATIF 作品画廊。部分图片可供下载。",
-    },
-    imagine: {
-      label: "/IMAGINE",
-      description:
-        "可从 99% 完成的设计套件自由创作插画的免费设计网站。使用 WHATIF 作品素材打造原创设计。",
-    },
-    club: {
-      label: "THE CLUB",
-      description:
-        "面向 Instagram 订阅会员的会员制壁纸下载服务。账号现已与 Imagine 互通，Imagine 付费用户可无限下载壁纸。",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "选购采用 WHATIF 作品的 T 恤、卫衣等时尚单品，以及壁纸、电子书等可下载商品。",
-    },
-    about: {
-      label: "ABOUT",
-      description:
-        "关于 WHATIF。介绍这个由 AI 驱动的艺术项目的背景，以及我们所创作的内容。",
-    },
-  },
-  "zh-TW": {
-    episodes: {
-      label: "EPISODES",
-      description:
-        "在 Instagram 與 Threads 上發布的 WHATIF 作品藝廊。部分圖片可供下載。",
-    },
-    imagine: {
-      label: "/IMAGINE",
-      description:
-        "可從 99% 完成的設計套件自由創作插畫的免費設計網站。使用 WHATIF 作品素材打造原創設計。",
-    },
-    club: {
-      label: "THE CLUB",
-      description:
-        "面向 Instagram 訂閱會員的會員制桌布下載服務。帳號現已與 Imagine 互通，Imagine 付費使用者可無限下載桌布。",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "選購採用 WHATIF 作品的 T 恤、衛衣等時尚單品，以及桌布、電子書等可下載商品。",
-    },
-    about: {
-      label: "ABOUT",
-      description:
-        "關於 WHATIF。介紹這個由 AI 驅動的藝術專案的背景，以及我們所創作的內容。",
-    },
-  },
-  ko: {
-    episodes: {
-      label: "EPISODES",
-      description:
-        "Instagram과 Threads에 공개한 WHATIF 아트워크 갤러리입니다. 일부 이미지는 다운로드할 수 있습니다.",
-    },
-    imagine: {
-      label: "/IMAGINE",
-      description:
-        "99% 완성된 디자인 키트로 자유롭게 일러스트를 만들 수 있는 무료 디자인 사이트입니다. WHATIF 아트워크 소재로 오리지널 디자인을 제작하세요.",
-    },
-    club: {
-      label: "THE CLUB",
-      description:
-        "Instagram 구독 회원을 위한 회원제 배경화면 다운로드 서비스입니다. 이제 Imagine과 계정을 공유하며, Imagine 유료 회원은 배경화면을 무제한으로 다운로드할 수 있습니다.",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "WHATIF 아트워크를 활용한 티셔츠, 스웨트셔츠 등 패션 아이템과 배경화면, 전자책 등 다운로드 상품을 구매할 수 있습니다.",
-    },
-    about: {
-      label: "ABOUT",
-      description:
-        "WHATIF 소개. AI를 활용한 아트 프로젝트의 배경과 우리가 만드는 것을 소개합니다.",
-    },
-  },
-};
-
-const socialLinks = [
-  {
-    href: "https://www.instagram.com/whatif.ep/",
-    label: "Instagram",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-      </svg>
-    ),
-  },
-  {
-    href: "https://www.threads.com/@whatif.ep",
-    label: "Threads",
-    icon: (
-      <svg viewBox="0 0 192 192" fill="currentColor" className="h-5 w-5">
-        <path d="M141.537 88.988a66.667 66.667 0 0 0-1.518-.94c-1.482-27.307-16.403-42.94-41.457-43.1h-.37c-14.985 0-27.449 6.396-35.12 17.36l13.779 9.452c5.73-8.695 14.724-10.548 21.347-10.548h.25c8.25.055 14.474 2.454 18.503 7.13 2.932 3.406 4.893 8.111 5.864 14.05-7.314-1.243-15.224-1.625-23.68-1.14-23.82 1.372-39.134 15.265-38.105 34.569.517 9.792 5.395 18.216 13.73 23.719 7.047 4.652 16.124 6.927 25.557 6.412 12.458-.683 22.23-5.436 29.049-14.127 5.178-6.6 8.453-15.153 9.899-25.93 5.937 3.583 10.337 8.298 12.767 13.966 4.132 9.635 4.373 25.468-8.546 38.376-11.319 11.308-24.925 16.2-45.488 16.351-22.809-.17-40.06-7.485-51.275-21.742C35.236 139.966 29.808 120.682 29.606 96c.202-24.682 5.63-43.966 16.132-57.317C56.954 24.425 74.204 17.11 97.013 16.94c22.975.17 40.526 7.52 52.171 21.847 5.71 7.026 10.015 15.861 12.853 26.162l16.147-4.308c-3.44-12.68-8.853-23.606-16.219-32.668C147.036 9.607 125.202.195 97.07 0h-.131C68.882.194 47.292 9.642 32.788 28.079 19.882 44.486 13.224 67.316 13.001 95.932L13 96l.001.068c.223 28.616 6.881 51.446 19.787 67.853 14.504 18.437 36.094 27.885 64.169 28.079h.131c25.025-.173 42.619-6.708 57.113-21.189 18.963-18.945 18.392-42.692 12.142-57.27-4.484-10.454-13.033-19.044-24.806-24.553zm-40.093 40.52c-10.44.587-21.286-4.099-21.821-14.136-.384-7.442 5.308-15.746 22.473-16.735 1.966-.113 3.895-.168 5.79-.168 6.235 0 12.068.606 17.371 1.765-1.978 24.702-13.715 28.713-23.813 29.274z" />
-      </svg>
-    ),
-  },
-];
+import {
+  sharedChromeCopy,
+  sharedNavCopy,
+  sharedNavItems,
+  sharedSocialLinks,
+} from "@/components/header/shared";
 
 // Crown icon (filled), used to mark premium accounts.
 function CrownIcon({
@@ -311,22 +127,38 @@ function UserMenu() {
             onClick={() => setOpen(false)}
             className="block w-full px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
           >
-            {chromeCopy[lang].account}
+            {sharedChromeCopy[lang].account}
           </Link>
           {isAdmin && (
-            <Link
-              href="/episodes/new"
-              onClick={() => setOpen(false)}
-              className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
-            >
-              {chromeCopy[lang].addEpisode}
-            </Link>
+            <>
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
+              >
+                {sharedChromeCopy[lang].adminDashboard}
+              </Link>
+              <Link
+                href="/admin/content-factory"
+                onClick={() => setOpen(false)}
+                className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
+              >
+                {sharedChromeCopy[lang].contentFactory}
+              </Link>
+              <Link
+                href="/episodes/new"
+                onClick={() => setOpen(false)}
+                className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
+              >
+                {sharedChromeCopy[lang].addEpisode}
+              </Link>
+            </>
           )}
           <button
             onClick={handleSignOut}
             className="w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
           >
-            {chromeCopy[lang].logout}
+            {sharedChromeCopy[lang].logout}
           </button>
         </div>
       )}
@@ -381,7 +213,7 @@ export function Header() {
                 href={loginHref}
                 className="btn-press rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
               >
-                {chromeCopy[lang].login}
+                {sharedChromeCopy[lang].login}
               </Link>
             ))}
         </div>
@@ -440,7 +272,7 @@ export function Header() {
               {/* Top bar */}
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-[0.4em] text-muted">
-                  {chromeCopy[lang].menu}
+                  {sharedChromeCopy[lang].menu}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -468,8 +300,8 @@ export function Header() {
 
               {/* Nav items with staggered slide-in */}
               <nav className="mt-12 flex flex-col">
-                {navItems.map((item, i) => {
-                  const copy = menuCopy[lang][item.key];
+                {sharedNavItems.map((item, i) => {
+                  const copy = sharedNavCopy[lang][item.key];
                   const isActive = !item.external && pathname?.startsWith(item.href);
                   const delay = `${80 + i * 60}ms`;
 
@@ -551,7 +383,7 @@ export function Header() {
                     &copy; {new Date().getFullYear()} WHATIF EP
                   </p>
                   <div className="flex items-center gap-4">
-                    {socialLinks.map((social) => (
+                    {sharedSocialLinks.map((social) => (
                       <a
                         key={social.href}
                         href={social.href}
@@ -560,7 +392,15 @@ export function Header() {
                         aria-label={social.label}
                         className="text-muted transition-colors hover:text-foreground"
                       >
-                        {social.icon}
+                        {social.label === "Instagram" ? (
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 192 192" fill="currentColor" className="h-5 w-5">
+                            <path d="M141.537 88.988a66.667 66.667 0 0 0-1.518-.94c-1.482-27.307-16.403-42.94-41.457-43.1h-.37c-14.985 0-27.449 6.396-35.12 17.36l13.779 9.452c5.73-8.695 14.724-10.548 21.347-10.548h.25c8.25.055 14.474 2.454 18.503 7.13 2.932 3.406 4.893 8.111 5.864 14.05-7.314-1.243-15.224-1.625-23.68-1.14-23.82 1.372-39.134 15.265-38.105 34.569.517 9.792 5.395 18.216 13.73 23.719 7.047 4.652 16.124 6.927 25.557 6.412 12.458-.683 22.23-5.436 29.049-14.127 5.178-6.6 8.453-15.153 9.899-25.93 5.937 3.583 10.337 8.298 12.767 13.966 4.132 9.635 4.373 25.468-8.546 38.376-11.319 11.308-24.925 16.2-45.488 16.351-22.809-.17-40.06-7.485-51.275-21.742C35.236 139.966 29.808 120.682 29.606 96c.202-24.682 5.63-43.966 16.132-57.317C56.954 24.425 74.204 17.11 97.013 16.94c22.975.17 40.526 7.52 52.171 21.847 5.71 7.026 10.015 15.861 12.853 26.162l16.147-4.308c-3.44-12.68-8.853-23.606-16.219-32.668C147.036 9.607 125.202.195 97.07 0h-.131C68.882.194 47.292 9.642 32.788 28.079 19.882 44.486 13.224 67.316 13.001 95.932L13 96l.001.068c.223 28.616 6.881 51.446 19.787 67.853 14.504 18.437 36.094 27.885 64.169 28.079h.131c25.025-.173 42.619-6.708 57.113-21.189 18.963-18.945 18.392-42.692 12.142-57.27-4.484-10.454-13.033-19.044-24.806-24.553zm-40.093 40.52c-10.44.587-21.286-4.099-21.821-14.136-.384-7.442 5.308-15.746 22.473-16.735 1.966-.113 3.895-.168 5.79-.168 6.235 0 12.068.606 17.371 1.765-1.978 24.702-13.715 28.713-23.813 29.274z" />
+                          </svg>
+                        )}
                       </a>
                     ))}
                   </div>

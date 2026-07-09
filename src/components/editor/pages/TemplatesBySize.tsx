@@ -37,7 +37,7 @@ export const TemplatesBySize = () => {
   const [editingTemplate, setEditingTemplate] = useState<TemplateRecord | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
 
   const { data: templates = [], isLoading: templatesLoading } = useTemplates();

@@ -79,7 +79,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   // in event handlers (handleElementClick, handleElementDragStart) that may
   // fire before React has re-rendered with the latest props.
   const selectedIdsRef = useRef(selectedElementIds);
-  selectedIdsRef.current = selectedElementIds;
+  useEffect(() => {
+    selectedIdsRef.current = selectedElementIds;
+  }, [selectedElementIds]);
 
   const isElementInteractionBlocked = () => {
     return isPinchingRef.current || Date.now() < pinchBlockUntilRef.current;
@@ -328,7 +330,6 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     // This prevents "ghost grouping" where elements move together
     // after the visual selection (bounding boxes) has been cleared.
     multiDragRef.current = { active: false, draggedId: null, startPositions: new Map(), elementMap: new Map() };
-    setIsMultiDragging(false);
     multiDragLockAxisRef.current = null;
 
     if (selectedElementIds.length > 0 && !isEditing) {
@@ -395,7 +396,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     }
   };
 
-  const handleElementDragStart = (id: string, _event: Konva.KonvaEventObject<DragEvent>) => {
+  const handleElementDragStart = (id: string) => {
     if (isElementInteractionBlocked()) {
       stopActiveDrags();
       return;
@@ -766,7 +767,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     textarea.addEventListener('blur', handleSubmit);
   };
 
-  // Auto-trigger inline editing after text placement
+  // Auto-trigger inline editing after text placement. This intentionally reads
+  // the latest callback from render time; the effect only runs when elements
+  // change and pendingEditIdRef has been set by a placement action.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!pendingEditIdRef.current) return;

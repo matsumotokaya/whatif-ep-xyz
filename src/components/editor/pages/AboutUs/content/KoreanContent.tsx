@@ -15,7 +15,7 @@ export function KoreanContent({ setSelectedImage }: ContentProps) {
         </h2>
         <div className="text-gray-700">
           <p className="mb-4">
-            스마트폰 배경화면, SNS 헤더, 나만의 아이콘과 썸네일. "IMAGINE"으로 '만들기'를 더욱 자유롭게, 더욱 간편하게.
+            스마트폰 배경화면, SNS 헤더, 나만의 아이콘과 썸네일. &quot;IMAGINE&quot;으로 &apos;만들기&apos;를 더욱 자유롭게, 더욱 간편하게.
           </p>
           <p className="mb-4">
             생성 AI를 활용한 비주얼 디자인으로 인기 있는{' '}
@@ -27,7 +27,7 @@ export function KoreanContent({ setSelectedImage }: ContentProps) {
             >
               WHATIF
             </a>
-            가 제공하는 압도적인 디자인 애셋을 기반으로, 당신의 직관적인 '편집'을 더하기만 하면 세상에 하나뿐인 아트가 탄생합니다.
+            가 제공하는 압도적인 디자인 애셋을 기반으로, 당신의 직관적인 &apos;편집&apos;을 더하기만 하면 세상에 하나뿐인 아트가 탄생합니다.
           </p>
           <p className="mb-4">
             영감을 형태로 만드는 데 더 이상 시간이 걸리지 않습니다. 디자인의 99%는 이미 준비되어 있습니다.

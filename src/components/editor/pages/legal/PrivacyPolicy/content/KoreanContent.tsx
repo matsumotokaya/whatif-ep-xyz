@@ -5,7 +5,7 @@ export function KoreanContent() {
     <>
       <Section title="1. 소개">
         <p>
-          IMAGINE(이하 "본 서비스")은 Kaya Matsumoto(이하 "운영자")가 제공하는 배너 디자인 도우미 도구입니다.
+          IMAGINE(이하 &quot;본 서비스&quot;)은 Kaya Matsumoto(이하 &quot;운영자&quot;)가 제공하는 배너 디자인 도우미 도구입니다.
           본 개인정보처리방침은 본 서비스에서의 개인정보 취급에 대해 설명합니다.
         </p>
       </Section>

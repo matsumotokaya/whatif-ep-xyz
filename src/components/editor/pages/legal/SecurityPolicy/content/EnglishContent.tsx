@@ -14,7 +14,7 @@ export function EnglishContent() {
     <>
       <Section title="1. Introduction">
         <p>
-          IMAGINE (hereinafter "the Service") prioritizes the information security of our users and implements appropriate technical and organizational measures.
+          IMAGINE (hereinafter &quot;the Service&quot;) prioritizes the information security of our users and implements appropriate technical and organizational measures.
         </p>
       </Section>
 
@@ -55,7 +55,7 @@ export function EnglishContent() {
 
       <Section title="4. Payment Information Security">
         <p className="mb-3">
-          The Service uses Stripe for payment processing. Credit card information does not pass through the Service's servers and is processed directly by Stripe, which is PCI DSS (Payment Card Industry Data Security Standard) compliant.
+          The Service uses Stripe for payment processing. Credit card information does not pass through the Service&apos;s servers and is processed directly by Stripe, which is PCI DSS (Payment Card Industry Data Security Standard) compliant.
         </p>
         <ul className="list-disc list-inside space-y-1 text-gray-700">
           <li>Credit card numbers are not stored or retained by the Service</li>
@@ -106,7 +106,7 @@ export function EnglishContent() {
 
       <Section title="9. Contact">
         <p>
-          For security-related questions or reports, please contact us via the
+          For security-related questions or reports, please contact us via the{" "}
           <Link to="/contact" className="text-blue-600 hover:underline mx-1">
             contact page
           </Link>

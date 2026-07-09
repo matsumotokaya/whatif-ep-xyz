@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 // Language set matches the sister IMAGINE app exactly.
@@ -59,6 +60,23 @@ interface LanguageContextValue {
   languages: typeof LANGUAGES;
 }
 
+function subscribeLanguageStore() {
+  return () => {};
+}
+
+function readPreferredLanguage(): Language {
+  if (typeof window === "undefined") {
+    return DEFAULT_LANGUAGE;
+  }
+
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+  if (isValidLanguage(stored)) {
+    return stored;
+  }
+
+  return detectFromNavigator(window.navigator.language);
+}
+
 const LanguageContext = createContext<LanguageContextValue | undefined>(
   undefined
 );
@@ -68,31 +86,25 @@ export function LanguageProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Deterministic on the server to avoid hydration mismatch.
-  const [lang, setLangState] = useState<Language>(DEFAULT_LANGUAGE);
-
-  // Resolve the persisted or auto-detected language after mount.
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    let next: Language;
-    if (isValidLanguage(stored)) {
-      next = stored;
-    } else {
-      next = detectFromNavigator(window.navigator.language);
-      window.localStorage.setItem(STORAGE_KEY, next);
-    }
-    setLangState(next);
-  }, []);
+  // Null means "follow the persisted / auto-detected preference" while keeping
+  // the server render deterministic in English.
+  const [langOverride, setLangOverride] = useState<Language | null>(null);
+  const hasHydrated = useSyncExternalStore(
+    subscribeLanguageStore,
+    () => true,
+    () => false
+  );
+  const lang =
+    langOverride ?? (hasHydrated ? readPreferredLanguage() : DEFAULT_LANGUAGE);
 
   // Keep the document language attribute in sync with the active language.
   useEffect(() => {
     document.documentElement.lang = lang;
+    window.localStorage.setItem(STORAGE_KEY, lang);
   }, [lang]);
 
   const setLang = useCallback((next: Language) => {
-    setLangState(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
-    document.documentElement.lang = next;
+    setLangOverride(next);
   }, []);
 
   return (

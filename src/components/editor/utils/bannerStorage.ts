@@ -58,6 +58,17 @@ interface DbBannerListItem {
   display_order?: number | null;
 }
 
+type BannerUpdatePayload = {
+  name?: Banner['name'];
+  template?: Banner['template'];
+  elements?: Banner['elements'];
+  canvas_color?: Banner['canvasColor'];
+  thumbnail_url?: Banner['thumbnailUrl'];
+  fullres_url?: Banner['fullresUrl'];
+  thumbnail_key?: Banner['thumbnailKey'];
+  fullres_key?: Banner['fullresKey'];
+};
+
 const derivePreviewStatus = (db: {
   thumbnail_key?: string | null;
   thumbnail_url?: string | null;
@@ -318,7 +329,7 @@ export const bannerStorage = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const dbUpdates: any = {};
+    const dbUpdates: BannerUpdatePayload = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.template !== undefined) dbUpdates.template = updates.template;
     if (updates.elements !== undefined) dbUpdates.elements = updates.elements;

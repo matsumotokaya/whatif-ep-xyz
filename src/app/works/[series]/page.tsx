@@ -53,7 +53,7 @@ export default async function WorksSeriesPage({
   // do NOT await: the promises are streamed into the client tree so the gallery
   // paints immediately and the saved/purchased state fills in when it resolves.
   const purchasedCodesPromise = getPurchasedDisplayCodes(series);
-  const savedWorkIdsPromise = getSavedWorkIds(series);
+  const savedWorkIdsPromise = getSavedWorkIds();
 
   return (
     <div className="w-full px-3 py-6 sm:px-5 sm:py-8">

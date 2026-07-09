@@ -5,7 +5,7 @@ export function EnglishContent() {
     <>
       <Section title="1. Introduction">
         <p>
-          IMAGINE (the "Service") is a banner design assistant tool provided by Kaya Matsumoto (the "Operator").
+          IMAGINE (the &quot;Service&quot;) is a banner design assistant tool provided by Kaya Matsumoto (the &quot;Operator&quot;).
           This Privacy Policy explains how we handle personal information in our Service.
         </p>
       </Section>

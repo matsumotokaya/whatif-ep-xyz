@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -85,20 +85,53 @@ interface FontSelectorProps {
 export const FontSelector = ({ selectedFont, onFontChange }: FontSelectorProps) => {
   const { t } = useTranslation('editor');
   const [isOpen, setIsOpen] = useState(false);
-  const [previewStylesLoaded, setPreviewStylesLoaded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const previewStylesLoadedRef = useRef(false);
 
   // Find current font info
   const currentFont = ALL_FONTS.find(f => f.value === selectedFont) || { name: selectedFont, previewText: LATIN_PREVIEW_TEXT };
 
+  // Load lightweight font subsets for preview
+  const injectFontStyle = useCallback((url: string, id: string) => {
+    // Don't inject if already exists
+    if (document.getElementById(id)) return;
+
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = url;
+    document.head.appendChild(link);
+  }, []);
+
+  const loadPreviewFonts = useCallback(() => {
+    const googleFonts = ALL_FONTS.filter(f => f.googleName);
+
+    // Group fonts by preview text to minimize requests
+    const latinFonts = googleFonts.filter(f => f.previewText === LATIN_PREVIEW_TEXT);
+    const japaneseFonts = googleFonts.filter(f => f.previewText === JAPANESE_PREVIEW_TEXT);
+
+    // Create and inject style elements for preview fonts
+    if (latinFonts.length > 0) {
+      const latinFamilies = latinFonts.map(f => `family=${f.googleName}`).join('&');
+      const latinUrl = `https://fonts.googleapis.com/css2?${latinFamilies}&text=${encodeURIComponent(LATIN_PREVIEW_TEXT)}&display=swap`;
+      injectFontStyle(latinUrl, 'font-preview-latin');
+    }
+
+    if (japaneseFonts.length > 0) {
+      const japaneseFamilies = japaneseFonts.map(f => `family=${f.googleName}`).join('&');
+      const japaneseUrl = `https://fonts.googleapis.com/css2?${japaneseFamilies}&text=${encodeURIComponent(JAPANESE_PREVIEW_TEXT)}&display=swap`;
+      injectFontStyle(japaneseUrl, 'font-preview-japanese');
+    }
+  }, [injectFontStyle]);
+
   // Load preview fonts when dropdown opens
   useEffect(() => {
-    if (isOpen && !previewStylesLoaded) {
+    if (isOpen && !previewStylesLoadedRef.current) {
       loadPreviewFonts();
-      setPreviewStylesLoaded(true);
+      previewStylesLoadedRef.current = true;
     }
-  }, [isOpen, previewStylesLoaded]);
+  }, [isOpen, loadPreviewFonts]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -128,39 +161,6 @@ export const FontSelector = ({ selectedFont, onFontChange }: FontSelectorProps) 
     }
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
-
-  // Load lightweight font subsets for preview
-  const loadPreviewFonts = () => {
-    const googleFonts = ALL_FONTS.filter(f => f.googleName);
-
-    // Group fonts by preview text to minimize requests
-    const latinFonts = googleFonts.filter(f => f.previewText === LATIN_PREVIEW_TEXT);
-    const japaneseFonts = googleFonts.filter(f => f.previewText === JAPANESE_PREVIEW_TEXT);
-
-    // Create and inject style elements for preview fonts
-    if (latinFonts.length > 0) {
-      const latinFamilies = latinFonts.map(f => `family=${f.googleName}`).join('&');
-      const latinUrl = `https://fonts.googleapis.com/css2?${latinFamilies}&text=${encodeURIComponent(LATIN_PREVIEW_TEXT)}&display=swap`;
-      injectFontStyle(latinUrl, 'font-preview-latin');
-    }
-
-    if (japaneseFonts.length > 0) {
-      const japaneseFamilies = japaneseFonts.map(f => `family=${f.googleName}`).join('&');
-      const japaneseUrl = `https://fonts.googleapis.com/css2?${japaneseFamilies}&text=${encodeURIComponent(JAPANESE_PREVIEW_TEXT)}&display=swap`;
-      injectFontStyle(japaneseUrl, 'font-preview-japanese');
-    }
-  };
-
-  const injectFontStyle = (url: string, id: string) => {
-    // Don't inject if already exists
-    if (document.getElementById(id)) return;
-
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href = url;
-    document.head.appendChild(link);
-  };
 
   const handleFontSelect = (fontValue: string) => {
     onFontChange(fontValue);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   GallerySeries,
   WorkFilterMeta,
@@ -210,7 +210,7 @@ function WorksPageInner({
     };
   }, []);
 
-  async function loadPage(offset: number, replace: boolean) {
+  const loadPage = useCallback(async (offset: number, replace: boolean) => {
     if (savedOnly && savedWorkIds.length === 0) {
       setWorks([]);
       setTotal(0);
@@ -272,7 +272,15 @@ function WorksPageInner({
         setIsLoading(false);
       }
     }
-  }
+  }, [
+    savedOnly,
+    savedWorkIds,
+    sort,
+    selectedRange,
+    selectedTagId,
+    wallpaperOnly,
+    selectedSeriesSlug,
+  ]);
 
   useEffect(() => {
     if (queryKey === defaultQueryKey) {
@@ -284,7 +292,7 @@ function WorksPageInner({
     }
 
     loadPage(0, true);
-  }, [defaultQueryKey, initialPage, queryKey]);
+  }, [defaultQueryKey, initialPage, loadPage, queryKey]);
 
   const progress = total > 0 ? (works.length / total) * 100 : 0;
   const displayedWorks = savedOnly ? works.filter((work) => isSaved(work.id)) : works;

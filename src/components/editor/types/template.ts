@@ -46,6 +46,7 @@ export interface TextElement extends BaseElement {
   text: string;
   fontSize: number;
   fontFamily: string;
+  strokeOnly?: boolean;
   letterSpacing: number;
   lineHeight?: number; // Line height multiplier (e.g., 1.0 = 100%, 1.5 = 150%)
   align?: 'left' | 'center' | 'right'; // Paragraph alignment (default: 'left')

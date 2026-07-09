@@ -139,7 +139,7 @@ export default async function WorkDetailPage({
   const isAdminPromise = getAdminAccess().then((access) => access.isAdmin);
 
   // Saved-state for this single work, streamed as a list the provider merges in.
-  const initialSavedIdsPromise = getSavedWorkIds(work.seriesSlug).then((ids) =>
+  const initialSavedIdsPromise = getSavedWorkIds().then((ids) =>
     ids.includes(work.id) ? [work.id] : []
   );
 
