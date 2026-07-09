@@ -8,13 +8,17 @@
 //   app, so footer links point there instead of the retired app subdomain.
 
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 import { Link } from '@/components/editor/lib/router';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { ReleaseNotesModal } from './ReleaseNotesModal';
 
 export function Footer() {
     const { t } = useTranslation('common');
+    const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
 
     return (
+        <>
         <footer className="bg-[#101010] border-t border-gray-800 py-12 mt-auto">
             <div className="max-w-7xl mx-auto px-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-8">
@@ -104,6 +108,13 @@ export function Footer() {
                     </p>
                     <div className="flex items-center gap-4">
                         <LanguageSwitcher dropUp />
+                        <button
+                            type="button"
+                            onClick={() => setIsReleaseNotesOpen(true)}
+                            className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+                        >
+                            Release Notes
+                        </button>
                         <Link to="/imagine/legal/specified-commercial-transactions-act" className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
                             {t('footer.legalInfo')}
                         </Link>
@@ -111,5 +122,7 @@ export function Footer() {
                 </div>
             </div>
         </footer>
+        <ReleaseNotesModal isOpen={isReleaseNotesOpen} onClose={() => setIsReleaseNotesOpen(false)} />
+        </>
     );
 }

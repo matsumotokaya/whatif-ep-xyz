@@ -5,6 +5,7 @@ import {
   resolveSharedHeaderLanguage,
   sharedChromeCopy,
 } from '@/components/header/shared';
+import { cn } from '../utils/cn';
 import { useAuth } from '../contexts/AuthContext';
 
 export const AuthButton = () => {
@@ -36,18 +37,22 @@ export const AuthButton = () => {
   if (loading || (user && profileLoading)) {
     return (
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+        <div className="size-6 animate-spin rounded-full border-2 border-white/20 border-t-white" />
       </div>
     );
   }
 
   if (user) {
+    const displayName = profile?.fullName || profile?.email || user.email || 'User';
+    const avatarInitial = displayName.charAt(0).toUpperCase();
+    const isPremium = profile?.subscriptionTier === 'premium';
+
     return (
       <div className="relative flex items-center" ref={menuRef}>
         <button
           type="button"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="size-9 overflow-hidden rounded-full transition-all hover:ring-2 hover:ring-white/50"
+          className="flex items-center gap-2 rounded-full focus:outline-none"
           aria-label={t('auth:profile')}
           aria-expanded={isMenuOpen}
           aria-haspopup="menu"
@@ -55,52 +60,75 @@ export const AuthButton = () => {
           {profile?.avatarUrl ? (
             <img
               src={profile.avatarUrl}
-              alt="User avatar"
-              className="w-full h-full object-cover"
+              alt={displayName}
+              className="size-9 rounded-full border border-white/15 object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-white/20 flex items-center justify-center text-white font-medium">
-              {(profile?.email || user.email || 'U')[0].toUpperCase()}
-            </div>
+            <span className="flex size-9 items-center justify-center rounded-full bg-white text-sm font-bold text-[#111]">
+              {avatarInitial}
+            </span>
           )}
+          <span className="hidden max-w-[9rem] truncate text-sm text-white sm:block">
+            {displayName}
+          </span>
+          <span
+            className={cn(
+              'hidden size-2 rounded-full sm:block',
+              isPremium ? 'bg-amber-400' : 'bg-white/45'
+            )}
+            aria-hidden="true"
+          />
+          <svg
+            className={cn(
+              'hidden h-3 w-3 text-white/70 transition-transform duration-200 sm:block',
+              isMenuOpen && 'rotate-180'
+            )}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </button>
 
         {isMenuOpen && (
           <div
-            className="absolute right-0 top-full z-50 mt-2 max-h-[min(24rem,calc(100dvh-4.5rem))] w-72 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white shadow-lg"
+            className="absolute left-0 top-full z-50 mt-2 max-h-[min(24rem,calc(100dvh-4.5rem))] w-60 overflow-y-auto overscroll-contain rounded-xl border border-[#2b2b2b] bg-[#151515] shadow-lg"
             role="menu"
           >
-            <div className="p-4 border-b border-gray-200">
+            <div className="border-b border-[#2b2b2b] px-4 py-3">
               <div className="flex items-center gap-3">
                 {profile?.avatarUrl ? (
                   <img
                     src={profile.avatarUrl}
-                    alt="User avatar"
-                    className="w-12 h-12 rounded-full"
+                    alt={displayName}
+                    className="size-11 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium text-xl">
-                    {(profile?.email || user.email || 'U')[0].toUpperCase()}
+                  <div className="flex size-11 items-center justify-center rounded-full bg-white text-lg font-bold text-[#111]">
+                    {avatarInitial}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-900 truncate">
-                    {profile?.fullName || 'User'}
+                  <div className="truncate font-medium text-white">
+                    {displayName}
                   </div>
-                  <div className="text-sm text-gray-500 truncate">
+                  <div className="truncate text-sm text-white/55">
                     {profile?.email || user.email}
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1 flex items-center gap-2">
                     {profile?.role === 'admin' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                      <span className="inline-flex items-center rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-200">
                         {t('auth:admin')}
                       </span>
                     )}
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      profile?.subscriptionTier === 'premium'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                      isPremium
+                        ? 'bg-amber-500/15 text-amber-200'
+                        : 'bg-white/8 text-white/70'
+                    )}>
                       {profile?.subscriptionTier === 'premium' ? t('auth:premium') : t('auth:free')}
                     </span>
                   </div>
@@ -111,7 +139,7 @@ export const AuthButton = () => {
             <Link
               to="/account"
               onClick={() => setIsMenuOpen(false)}
-              className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -124,7 +152,7 @@ export const AuthButton = () => {
                 <Link
                   to="/admin"
                   onClick={() => setIsMenuOpen(false)}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
                 >
                   <span className="material-symbols-outlined text-[20px]">monitoring</span>
                   <span>{sharedChromeCopy[headerLang].adminDashboard}</span>
@@ -132,7 +160,7 @@ export const AuthButton = () => {
                 <Link
                   to="/admin/content-factory"
                   onClick={() => setIsMenuOpen(false)}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
                 >
                   <span className="material-symbols-outlined text-[20px]">factory</span>
                   <span>{sharedChromeCopy[headerLang].contentFactory}</span>
@@ -140,7 +168,7 @@ export const AuthButton = () => {
                 <Link
                   to="/episodes/new"
                   onClick={() => setIsMenuOpen(false)}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
                 >
                   <span className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
                   <span>{sharedChromeCopy[headerLang].addEpisode}</span>
@@ -155,7 +183,7 @@ export const AuthButton = () => {
                 await signOut();
                 navigate('/');
               }}
-              className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
+              className="flex w-full items-center gap-3 border-t border-[#2b2b2b] px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -175,13 +203,9 @@ export const AuthButton = () => {
   return (
     <Link
       to={`/auth/login?next=${encodeURIComponent(loginNext)}`}
-      className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+      className="rounded-lg border border-white/15 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white/8"
     >
-      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-      <span className="hidden md:inline">{sharedChromeCopy[headerLang].login} / {t('auth:signUp')}</span>
-      <span className="md:hidden">{sharedChromeCopy[headerLang].login}</span>
+      {sharedChromeCopy[headerLang].login}
     </Link>
   );
 };
