@@ -16,11 +16,63 @@ interface DeleteResponse {
   results?: Array<{ key: string; ok: boolean; status: number }>;
 }
 
+const MAX_SUPABASE_DELETE_PATHS = 100;
+const MAX_SUPABASE_PATH_LENGTH = 1024;
+const MAX_SUPABASE_PATH_SEGMENT_LENGTH = 255;
+
 const isWritableUserAssetKey = (key: string, userId: string): boolean =>
   key.startsWith(`user-images/${userId}/`);
 
 const isWritableDefaultImageKey = (key: string): boolean =>
   key.startsWith("default-images/");
+
+// Supabase Storage expects paths relative to the selected bucket. Keep the
+// accepted form deliberately strict so ownership checks cannot be bypassed by
+// alternate spellings that a downstream URL/path parser may normalize.
+function normalizeSupabaseStoragePath(path: string): string | null {
+  if (
+    path.length === 0 ||
+    path.length > MAX_SUPABASE_PATH_LENGTH ||
+    path !== path.trim() ||
+    path.startsWith("/") ||
+    path.startsWith("\\") ||
+    path.includes("\\") ||
+    /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(path) ||
+    /[\u0000-\u001f\u007f]/.test(path)
+  ) {
+    return null;
+  }
+
+  // Callers already decode paths extracted from public URLs. Reject encoded
+  // variants instead of risking a second decoding step turning them into a
+  // separator or traversal segment.
+  try {
+    if (decodeURIComponent(path) !== path) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  const segments = path.split("/");
+  if (
+    segments.some(
+      (segment) =>
+        segment.length === 0 ||
+        segment.length > MAX_SUPABASE_PATH_SEGMENT_LENGTH ||
+        segment === "." ||
+        segment === ".." ||
+        segment !== segment.trim(),
+    )
+  ) {
+    return null;
+  }
+
+  return segments.join("/");
+}
+
+const isOwnedUserImagePath = (path: string, userId: string): boolean =>
+  path.split("/", 1)[0] === userId;
 
 function isSupabaseDeleteBody(body: unknown): body is Extract<DeleteBody, { backend: "supabase" }> {
   return Boolean(
@@ -123,7 +175,18 @@ export async function POST(request: Request) {
 
     if (isSupabaseDeleteBody(body)) {
       const bucket = body.bucket;
-      const paths = [...new Set(body.paths.filter((path): path is string => typeof path === "string" && path.trim().length > 0))];
+      if (body.paths.length > MAX_SUPABASE_DELETE_PATHS) {
+        return NextResponse.json({ error: "too_many_paths" }, { status: 413 });
+      }
+
+      const normalizedPaths = body.paths.map((path) =>
+        typeof path === "string" ? normalizeSupabaseStoragePath(path) : null,
+      );
+      if (normalizedPaths.some((path) => path === null)) {
+        return NextResponse.json({ error: "invalid_path" }, { status: 400 });
+      }
+
+      const paths = [...new Set(normalizedPaths as string[])];
       if (paths.length === 0) {
         return NextResponse.json({ ok: true, deleted: [] });
       }
@@ -131,6 +194,17 @@ export async function POST(request: Request) {
       const bucketAllowed =
         bucket === "user-images" || (isAdmin && bucket === "default-images");
       if (!bucketAllowed) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+
+      // The admin-only Storage Cleanup page deletes RPC-vetted orphan/fullres
+      // objects across users. Other callers may only delete objects rooted in
+      // their own UUID directory inside the legacy user-images bucket.
+      if (
+        bucket === "user-images" &&
+        !isAdmin &&
+        !paths.every((path) => isOwnedUserImagePath(path, user.id))
+      ) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
 

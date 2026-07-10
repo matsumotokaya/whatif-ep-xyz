@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface ColorSelectorProps {
@@ -5,6 +6,7 @@ interface ColorSelectorProps {
   selectedColor: string;
   onColorChange: (color: string) => void;
   showInput?: boolean;
+  onInteractionEnd?: () => void;
 }
 
 const PRESET_COLORS = [
@@ -17,9 +19,23 @@ export const ColorSelector = ({
   selectedColor,
   onColorChange,
   showInput = true,
+  onInteractionEnd,
 }: ColorSelectorProps) => {
   const { t } = useTranslation('common');
   const colorPickerTitle = t('colorPicker.open');
+  const interactionEndedRef = useRef(false);
+  const beginInteraction = () => {
+    interactionEndedRef.current = false;
+  };
+  const endInteraction = () => {
+    if (interactionEndedRef.current) return;
+    interactionEndedRef.current = true;
+    onInteractionEnd?.();
+  };
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    beginInteraction();
+    if (event.key === 'Enter' || event.key === 'Escape') endInteraction();
+  };
   return (
     <div className="w-full">
       {label && (
@@ -37,6 +53,9 @@ export const ColorSelector = ({
             type="text"
             value={selectedColor}
             onChange={(e) => onColorChange(e.target.value)}
+            onFocus={beginInteraction}
+            onKeyDown={handleKeyDown}
+            onBlur={endInteraction}
             className="flex-1 min-w-0 px-2 py-1.5 bg-[#2b2b2b] border border-[#444444] rounded text-xs font-mono text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <div className="relative flex-shrink-0">
@@ -44,6 +63,12 @@ export const ColorSelector = ({
               type="color"
               value={selectedColor}
               onChange={(e) => onColorChange(e.target.value)}
+              onPointerDown={beginInteraction}
+              onPointerUp={endInteraction}
+              onPointerCancel={endInteraction}
+              onKeyDown={handleKeyDown}
+              onKeyUp={endInteraction}
+              onBlur={endInteraction}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               title={colorPickerTitle}
             />
@@ -61,7 +86,10 @@ export const ColorSelector = ({
         {PRESET_COLORS.map((color) => (
           <button
             key={color}
-            onClick={() => onColorChange(color)}
+            onClick={() => {
+              onColorChange(color);
+              onInteractionEnd?.();
+            }}
             className={`w-full aspect-square rounded border transition-all hover:scale-105 ${
               selectedColor.toLowerCase() === color.toLowerCase()
                 ? 'border-2 border-indigo-500'

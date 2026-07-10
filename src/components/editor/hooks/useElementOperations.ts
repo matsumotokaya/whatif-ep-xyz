@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
 
 interface UseElementOperationsProps {
@@ -9,6 +10,7 @@ export const useElementOperations = ({
   setElements,
   saveToHistory,
 }: UseElementOperationsProps) => {
+  const interactionDirtyRef = useRef(false);
 
   // Update a single element with partial updates
   // Using functional update pattern to avoid closure issues
@@ -34,6 +36,46 @@ export const useElementOperations = ({
       // Save to history with the new elements
       saveToHistory(newElements);
       return newElements;
+    });
+  };
+
+  // Update during a continuous interaction without adding an undo snapshot.
+  const updateElementTransient = (id: string, updates: Partial<CanvasElement>) => {
+    interactionDirtyRef.current = true;
+    setElements((prevElements) => prevElements.map((el) => {
+      if (el.id !== id) return el;
+
+      if (el.type === 'text' && updates.type === 'text') {
+        return { ...el, ...updates } as TextElement;
+      } else if (el.type === 'shape' && updates.type === 'shape') {
+        return { ...el, ...updates } as ShapeElement;
+      } else if (el.type === 'image' && updates.type === 'image') {
+        return { ...el, ...updates } as ImageElement;
+      }
+
+      return { ...el, ...updates } as CanvasElement;
+    }));
+  };
+
+  // Update multiple elements during a continuous interaction without adding a snapshot.
+  const updateElementsTransient = (
+    ids: string[],
+    updateFn: (element: CanvasElement) => Partial<CanvasElement>
+  ) => {
+    interactionDirtyRef.current = true;
+    setElements((prevElements) => prevElements.map((el) => {
+      if (!ids.includes(el.id)) return el;
+      return { ...el, ...updateFn(el) } as CanvasElement;
+    }));
+  };
+
+  // Commit the latest state once when a continuous interaction ends.
+  const commitInteraction = () => {
+    if (!interactionDirtyRef.current) return;
+    interactionDirtyRef.current = false;
+    setElements((latestElements) => {
+      saveToHistory(latestElements);
+      return latestElements;
     });
   };
 
@@ -116,6 +158,9 @@ export const useElementOperations = ({
   // All functions use functional updates to get the latest state
   return {
     updateElement,
+    updateElementTransient,
+    updateElementsTransient,
+    commitInteraction,
     updateElements,
     deleteElements,
     addElement,

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CanvasElement, TextElement, ShapeElement } from '../types/template';
 import { ColorSelector } from './ColorSelector';
@@ -7,6 +8,7 @@ import { MobileSheet } from './MobileSheet';
 interface PropertyPanelProps {
   selectedElement: CanvasElement | null;
   onColorChange: (color: string) => void;
+  onInteractionEnd?: () => void;
   onFontChange?: (font: string) => void;
   onSizeChange?: (size: number) => void;
   onWeightChange?: (weight: number) => void;
@@ -50,8 +52,29 @@ interface PropertyPanelProps {
 }
 
 
-export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, onSizeChange, onWeightChange, onLetterSpacingChange, onLineHeightChange, onAlignChange, onOpacityChange, onBringToFront, onSendToBack, isMobile = false, onClose, onDelete, onFillEnabledChange, onStrokeChange, onStrokeWidthChange, onStrokeEnabledChange, onShadowEnabledChange, onShadowColorChange, onShadowBlurChange, onShadowOffsetXChange, onShadowOffsetYChange, onShadowOpacityChange, onImageBlurChange, onGenerateShadow, isGeneratingShadow, onFitToCanvas, selectedCount = 0, selectedElements = [], onCenterHorizontal, onCenterVertical }: PropertyPanelProps) => {
+export const PropertyPanel = ({ selectedElement, onColorChange, onInteractionEnd, onFontChange, onSizeChange, onWeightChange, onLetterSpacingChange, onLineHeightChange, onAlignChange, onOpacityChange, onBringToFront, onSendToBack, isMobile = false, onClose, onDelete, onFillEnabledChange, onStrokeChange, onStrokeWidthChange, onStrokeEnabledChange, onShadowEnabledChange, onShadowColorChange, onShadowBlurChange, onShadowOffsetXChange, onShadowOffsetYChange, onShadowOpacityChange, onImageBlurChange, onGenerateShadow, isGeneratingShadow, onFitToCanvas, selectedCount = 0, selectedElements = [], onCenterHorizontal, onCenterVertical }: PropertyPanelProps) => {
   const { t } = useTranslation('editor');
+  const interactionEndedRef = useRef(false);
+  const beginInteraction = () => {
+    interactionEndedRef.current = false;
+  };
+  const endInteraction = () => {
+    if (interactionEndedRef.current) return;
+    interactionEndedRef.current = true;
+    onInteractionEnd?.();
+  };
+  const handleRangeKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    beginInteraction();
+    if (event.key === 'Escape') endInteraction();
+  };
+  const rangeInteractionProps = {
+    onPointerDown: beginInteraction,
+    onPointerUp: endInteraction,
+    onPointerCancel: endInteraction,
+    onKeyDown: handleRangeKeyDown,
+    onKeyUp: endInteraction,
+    onBlur: endInteraction,
+  };
   const getWeightLabel = (weight: number): string => {
     if (weight <= 100) return t('properties.fontWeights.thin');
     if (weight <= 200) return t('properties.fontWeights.extraLight');
@@ -129,6 +152,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                 <ColorSelector
                   selectedColor={displayColor}
                   onColorChange={onColorChange}
+                  onInteractionEnd={onInteractionEnd}
                   showInput={true}
                 />
               </div>
@@ -149,6 +173,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                   step="1"
                   value={displayOpacity * 100}
                   onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
+                  {...rangeInteractionProps}
                   className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
                 <span className="text-xs font-medium text-gray-300 w-12 text-right">
@@ -286,6 +311,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               step="1"
               value={textElement.fontSize}
               onChange={(e) => onSizeChange(Number(e.target.value))}
+              {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
             <span className="text-xs font-medium text-gray-300 w-14 text-right truncate shrink-0">
@@ -309,6 +335,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               step="100"
               value={textElement.fontWeight}
               onChange={(e) => onWeightChange(Number(e.target.value))}
+              {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
             <span className="text-xs font-medium text-gray-300 w-20 text-right">
@@ -332,6 +359,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               step="1"
               value={textElement.letterSpacing ?? 0}
               onChange={(e) => onLetterSpacingChange(Number(e.target.value))}
+              {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
             <span className="text-xs font-medium text-gray-300 w-12 text-right">
@@ -355,6 +383,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               step="0.1"
               value={textElement.lineHeight ?? 1}
               onChange={(e) => onLineHeightChange(Number(e.target.value))}
+              {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
             <span className="text-xs font-medium text-gray-300 w-12 text-right">
@@ -412,6 +441,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
             <ColorSelector
               selectedColor={shapeElement.fill}
               onColorChange={onColorChange}
+              onInteractionEnd={onInteractionEnd}
               showInput={true}
             />
           )}
@@ -440,6 +470,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               <ColorSelector
                 selectedColor={shapeElement.stroke}
                 onColorChange={(color) => onStrokeChange && onStrokeChange(color)}
+                onInteractionEnd={onInteractionEnd}
                 showInput={true}
               />
               {onStrokeWidthChange && (
@@ -489,6 +520,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               <ColorSelector
                 selectedColor={textElement.fill}
                 onColorChange={onColorChange}
+                onInteractionEnd={onInteractionEnd}
                 showInput={true}
               />
             )}
@@ -515,6 +547,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                 <ColorSelector
                   selectedColor={textElement.stroke}
                   onColorChange={(color) => onStrokeChange && onStrokeChange(color)}
+                  onInteractionEnd={onInteractionEnd}
                   showInput={true}
                 />
                 {onStrokeWidthChange && (
@@ -528,6 +561,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                         step="1"
                         value={textElement.strokeWidth}
                         onChange={(e) => onStrokeWidthChange(Number(e.target.value))}
+                        {...rangeInteractionProps}
                         className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                       />
                       <span className="text-xs font-medium text-gray-300 w-10 text-right">
@@ -564,6 +598,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               <ColorSelector
                 selectedColor={selectedElement.shadowColor ?? '#000000'}
                 onColorChange={onShadowColorChange}
+                onInteractionEnd={onInteractionEnd}
                 showInput={true}
               />
             )}
@@ -578,6 +613,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                     step="1"
                     value={selectedElement.shadowBlur ?? 4}
                     onChange={(e) => onShadowBlurChange(Number(e.target.value))}
+                    {...rangeInteractionProps}
                     className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                   />
                   <span className="text-xs font-medium text-gray-300 w-10 text-right">
@@ -597,6 +633,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                     step="1"
                     value={selectedElement.shadowOffsetX ?? 2}
                     onChange={(e) => onShadowOffsetXChange(Number(e.target.value))}
+                    {...rangeInteractionProps}
                     className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                   />
                   <span className="text-xs font-medium text-gray-300 w-10 text-right">
@@ -616,6 +653,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                     step="1"
                     value={selectedElement.shadowOffsetY ?? 2}
                     onChange={(e) => onShadowOffsetYChange(Number(e.target.value))}
+                    {...rangeInteractionProps}
                     className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                   />
                   <span className="text-xs font-medium text-gray-300 w-10 text-right">
@@ -635,6 +673,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
                     step="1"
                     value={(selectedElement.shadowOpacity ?? 0.5) * 100}
                     onChange={(e) => onShadowOpacityChange(Number(e.target.value) / 100)}
+                    {...rangeInteractionProps}
                     className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                   />
                   <span className="text-xs font-medium text-gray-300 w-12 text-right">
@@ -661,6 +700,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               step="1"
               value={(selectedElement.opacity ?? 1) * 100}
               onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
+              {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
             <span className="text-xs font-medium text-gray-300 w-12 text-right">
@@ -684,6 +724,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onFontChange, on
               step="1"
               value={selectedElement.blurRadius ?? 0}
               onChange={(e) => onImageBlurChange(Number(e.target.value))}
+              {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
             <span className="text-xs font-medium text-gray-300 w-10 text-right">

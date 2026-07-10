@@ -99,7 +99,7 @@ export function useBanner(id: string | undefined) {
       console.log('[useBanner] Fetched banner with', banner?.elements.length, 'elements');
       return banner;
     },
-    enabled: !!id, // Only run if id exists
+    enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
 }

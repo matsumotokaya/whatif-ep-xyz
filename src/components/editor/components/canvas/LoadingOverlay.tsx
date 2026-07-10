@@ -29,17 +29,14 @@ function getElementBounds(el: CanvasElement): { x: number; y: number; width: num
 }
 
 export function LoadingOverlay({ elements, template, scale, phase, canvasColor }: LoadingOverlayProps) {
-  const [isVisible, setIsVisible] = useState(true);
-  const [isFadingOut, setIsFadingOut] = useState(false);
+  const [hasFadedOut, setHasFadedOut] = useState(false);
+  const isFadingOut = phase === 'animating';
+  const isVisible = phase !== 'complete' && !hasFadedOut;
 
   useEffect(() => {
     if (phase === 'animating') {
-      setIsFadingOut(true);
-      const timer = setTimeout(() => setIsVisible(false), 400);
+      const timer = setTimeout(() => setHasFadedOut(true), 400);
       return () => clearTimeout(timer);
-    }
-    if (phase === 'complete') {
-      setIsVisible(false);
     }
   }, [phase]);
 

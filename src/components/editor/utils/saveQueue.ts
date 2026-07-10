@@ -31,7 +31,11 @@ export class SaveQueue<TRequest, TResult = unknown> {
   private inFlight = false;
   private pending: PendingEntry<TRequest> | null = null;
   private revisionCounter = 0;
-  private drainResolvers: Array<() => void> = [];
+  private drainResolvers: Array<{
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }> = [];
+  private drainError: unknown = null;
 
   constructor(options: SaveQueueOptions<TRequest, TResult>) {
     this.execute = options.execute;
@@ -71,8 +75,8 @@ export class SaveQueue<TRequest, TResult = unknown> {
       void this.drain();
     }
 
-    return new Promise<void>((resolve) => {
-      this.drainResolvers.push(resolve);
+    return new Promise<void>((resolve, reject) => {
+      this.drainResolvers.push({ resolve, reject });
     });
   }
 
@@ -88,6 +92,7 @@ export class SaveQueue<TRequest, TResult = unknown> {
         try {
           await this.execute(request, revision);
         } catch (error) {
+          this.drainError ??= error;
           this.onError?.(error, request, revision);
         }
       }
@@ -95,7 +100,15 @@ export class SaveQueue<TRequest, TResult = unknown> {
       this.inFlight = false;
       const resolvers = this.drainResolvers;
       this.drainResolvers = [];
-      resolvers.forEach((resolve) => resolve());
+      const error = this.drainError;
+      this.drainError = null;
+      resolvers.forEach(({ resolve, reject }) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
     }
   }
 }

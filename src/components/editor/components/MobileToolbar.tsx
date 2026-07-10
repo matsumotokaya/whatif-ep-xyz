@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextEditor } from './TextEditor';
 import { ShapeSelector } from './ShapeSelector';
@@ -27,6 +27,7 @@ interface MobileToolbarProps {
   onToggleVisibility?: (id: string) => void;
   panMode?: boolean;
   onPanModeChange?: (mode: boolean) => void;
+  onDrawerOpenChange?: (open: boolean) => void;
 }
 
 type DrawerType = 'tool' | 'layer' | null;
@@ -46,12 +47,18 @@ export const MobileToolbar = ({
   onToggleVisibility,
   panMode = false,
   onPanModeChange,
+  onDrawerOpenChange,
 }: MobileToolbarProps) => {
   const { t } = useTranslation('editor');
   const { profile, loading } = useAuth();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  useEffect(() => {
+    onDrawerOpenChange?.(activeDrawer !== null);
+    return () => onDrawerOpenChange?.(false);
+  }, [activeDrawer, onDrawerOpenChange]);
 
   const isPremium = !!profile && profile.subscriptionTier !== 'free';
 

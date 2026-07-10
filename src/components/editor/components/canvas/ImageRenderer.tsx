@@ -42,7 +42,10 @@ const ImageRendererComponent = ({
   nodeRef,
   onImageLoad,
 }: ImageRendererProps) => {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [loadedImage, setLoadedImage] = useState<{
+    src: string;
+    image: HTMLImageElement;
+  } | null>(null);
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const lockAxisRef = useRef<'x' | 'y' | null>(null);
   const localNodeRef = useRef<Konva.Image | null>(null);
@@ -60,12 +63,13 @@ const ImageRendererComponent = ({
     lockAxisRef.current = null;
   };
 
+  const resolvedSrc = resolveElementSrc(imageElement.src);
+  const image = loadedImage?.src === resolvedSrc ? loadedImage.image : null;
+
   useEffect(() => {
     const img = new window.Image();
-    const resolvedSrc = resolveElementSrc(imageElement.src);
 
     if (!resolvedSrc) {
-      setImage(null);
       onImageLoad?.(imageElement.id, 'error');
       return;
     }
@@ -76,12 +80,12 @@ const ImageRendererComponent = ({
     }
 
     img.onload = () => {
-      setImage(img);
+      setLoadedImage({ src: resolvedSrc, image: img });
       onImageLoad?.(imageElement.id, 'loaded');
     };
     img.onerror = (error) => {
       console.error('Failed to load image:', imageElement.src, resolvedSrc, error);
-      setImage(null);
+      setLoadedImage(null);
       onImageLoad?.(imageElement.id, 'error');
     };
     img.src = resolvedSrc;
@@ -90,7 +94,7 @@ const ImageRendererComponent = ({
       img.onload = null;
       img.onerror = null;
     };
-  }, [imageElement.id, imageElement.src, onImageLoad]);
+  }, [imageElement.id, imageElement.src, onImageLoad, resolvedSrc]);
 
   useEffect(() => {
     const node = localNodeRef.current;

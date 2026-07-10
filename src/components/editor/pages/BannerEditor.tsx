@@ -32,6 +32,11 @@ import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
 import { SaveQueue } from '../utils/saveQueue';
+import {
+  clearEditorRecovery,
+  readEditorRecovery,
+  writeEditorRecovery,
+} from '../utils/editorRecovery';
 
 interface SaveRequest {
   generateThumbnail: boolean;
@@ -53,6 +58,7 @@ export const BannerEditor = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showDesktopModal, setShowDesktopModal] = useState(false);
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
+  const [isMobileToolDrawerOpen, setIsMobileToolDrawerOpen] = useState(false);
   const [showSaveAsTemplateModal, setShowSaveAsTemplateModal] = useState(false);
   // Guest-only editor notice (download is fine, saving needs login). Shown once
   // per browser session so it does not nag on every re-entry within a session.
@@ -88,7 +94,12 @@ export const BannerEditor = () => {
   const [guestUpdatedAt, setGuestUpdatedAt] = useState<string>(new Date().toISOString());
 
   // React Query hooks
-  const { data: bannerData, isLoading } = useBanner(id);
+  const {
+    data: bannerData,
+    isLoading,
+    isError: isBannerError,
+    isFetched: isBannerFetched,
+  } = useBanner(id && user ? id : undefined);
   const batchSave = useBatchSaveBanner(id || '');
   const updateBanner = useUpdateBanner(id || '');
   const updateName = useUpdateBannerName(id || '');
@@ -135,6 +146,14 @@ export const BannerEditor = () => {
   const prevCanvasColorRef = useRef<string>('');
   const isMountedRef = useRef(false);
   const previewDirtyRef = useRef(false);
+  const editRevisionRef = useRef(0);
+  const persistedRevisionRef = useRef(0);
+
+  // Save state lives near the document refs so initialization, persistence and
+  // navigation all share one revision-aware source of truth.
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
+  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Entrance animation callbacks
   const handleImageLoad = useCallback((id: string, status: 'loaded' | 'error') => {
@@ -194,6 +213,11 @@ export const BannerEditor = () => {
     const redirectPath = id ? `/edit/${id}` : '/edit';
     navigate(`/auth/login?next=${encodeURIComponent(redirectPath)}`);
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (!id || authLoading || user) return;
+    redirectToLoginForGuest();
+  }, [authLoading, id, redirectToLoginForGuest, user]);
 
   const handlePanMouseDown = useCallback((e: React.MouseEvent) => {
     if (isTransforming) return;
@@ -325,6 +349,17 @@ export const BannerEditor = () => {
   const saveDepsRef = useRef({ banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t });
   saveDepsRef.current = { banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t };
   const performSaveRef = useRef<(generateThumbnail: boolean) => Promise<void>>(async () => {});
+  const writeRecoveryNowRef = useRef<() => void>(() => {});
+  writeRecoveryNowRef.current = () => {
+    if (isGuest || !user?.id || !id) return;
+    writeEditorRecovery({
+      userId: user.id,
+      bannerId: id,
+      elements: elementsRef.current,
+      canvasColor: canvasColorRef.current,
+      updatedAt: new Date().toISOString(),
+    });
+  };
 
   const saveQueueRef = useRef<SaveQueue<SaveRequest> | null>(null);
   if (!saveQueueRef.current) {
@@ -362,6 +397,14 @@ export const BannerEditor = () => {
     }, 10000);
   }
   const idlePreviewSave = idlePreviewSaveRef.current;
+
+  const recoverySaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  if (!recoverySaveRef.current) {
+    recoverySaveRef.current = debounce(() => {
+      writeRecoveryNowRef.current();
+    }, 200);
+  }
+  const recoverySave = recoverySaveRef.current;
 
   useEffect(() => {
     if (!isGuest) return;
@@ -553,17 +596,37 @@ export const BannerEditor = () => {
         return el;
       });
 
-      console.log('[BannerEditor] Setting elements to:', migratedElements);
-      setElements(migratedElements);
-      setCanvasColor(banner.canvasColor);
-      elementsRef.current = migratedElements;
-      canvasColorRef.current = banner.canvasColor;
-      prevElementsRef.current = migratedElements;
-      prevCanvasColorRef.current = banner.canvasColor;
-      resetHistory(migratedElements);
+      const recovery = user?.id ? readEditorRecovery(user.id, banner.id) : null;
+      const recoveryIsNewer = Boolean(
+        recovery &&
+        Number.isFinite(Date.parse(recovery.updatedAt)) &&
+        Date.parse(recovery.updatedAt) > Date.parse(banner.updatedAt),
+      );
+      if (recovery && !recoveryIsNewer && user?.id) {
+        clearEditorRecovery(user.id, banner.id);
+      }
+      const initialElements = recoveryIsNewer && recovery
+        ? recovery.elements
+        : migratedElements;
+      const initialCanvasColor = recoveryIsNewer && recovery
+        ? recovery.canvasColor
+        : banner.canvasColor;
+
+      console.log('[BannerEditor] Setting elements to:', initialElements);
+      setElements(initialElements);
+      setCanvasColor(initialCanvasColor);
+      elementsRef.current = initialElements;
+      canvasColorRef.current = initialCanvasColor;
+      prevElementsRef.current = initialElements;
+      prevCanvasColorRef.current = initialCanvasColor;
+      resetHistory(initialElements);
+      editRevisionRef.current = recoveryIsNewer ? 1 : 0;
+      persistedRevisionRef.current = 0;
+      setSaveStatus(recoveryIsNewer ? 'unsaved' : 'saved');
+      setLastSaveError(null);
 
       // Initialize entrance animation tracking
-      const imageCount = migratedElements.filter(el => el.type === 'image').length;
+      const imageCount = initialElements.filter(el => el.type === 'image').length;
       setTotalImageCount(imageCount);
       setImageLoadStatus(new Map());
       isInitialLoadRef.current = true;
@@ -571,13 +634,19 @@ export const BannerEditor = () => {
       // Check if migration was needed and save to DB
       const originalJSON = JSON.stringify(banner.elements);
       const migratedJSON = JSON.stringify(migratedElements);
-      if (originalJSON !== migratedJSON) {
+      if (!recoveryIsNewer && originalJSON !== migratedJSON) {
         console.log('[BannerEditor] Migration detected, saving to DB to persist changes');
+        editRevisionRef.current += 1;
+        saveQueueRef.current?.enqueue({ generateThumbnail: false });
+      }
+
+      if (recoveryIsNewer) {
+        console.warn('[BannerEditor] Restored a newer local recovery snapshot.');
         saveQueueRef.current?.enqueue({ generateThumbnail: false });
       }
 
       // If new banner with no elements, add default text and save to DB immediately
-      if (migratedElements.length === 0) {
+      if (initialElements.length === 0) {
         console.log('[BannerEditor] Banner is empty, adding default text and saving to DB');
         const defaultText: TextElement = {
           id: `text-${Date.now()}-${Math.random()}`, // Unique ID with random component
@@ -602,6 +671,7 @@ export const BannerEditor = () => {
         elementsRef.current = newElements;
         prevElementsRef.current = newElements;
         resetHistory(newElements);
+        editRevisionRef.current += 1;
 
         console.log('[BannerEditor] Default text saved to DB');
         saveQueueRef.current?.enqueue({ generateThumbnail: false });
@@ -612,13 +682,7 @@ export const BannerEditor = () => {
     }
     // If same banner, keep local state (don't overwrite with DB)
     // Note: elements is NOT in dependency array to avoid loops
-  }, [banner, banner?.id, banner?.template, currentBannerId, editorReturnTo, id, isGuest, isLoading, navigate, profile, resetHistory]);
-
-  // Track if there are unsaved changes and save status
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
-  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
+  }, [banner, banner?.id, banner?.template, currentBannerId, editorReturnTo, id, isGuest, isLoading, navigate, profile, resetHistory, user?.id]);
 
   const generatePreviewAssets = useCallback(async (): Promise<{
     thumbnailDataURL: string | undefined;
@@ -646,6 +710,7 @@ export const BannerEditor = () => {
     const { banner, id, isGuest, guestTemplate, guestState, guestName, batchSave, t } = saveDepsRef.current;
     const elements = elementsRef.current;
     const canvasColor = canvasColorRef.current;
+    const revisionAtStart = editRevisionRef.current;
 
     if (isGuest) {
       if (!guestTemplate && !guestState?.template) return;
@@ -679,16 +744,20 @@ export const BannerEditor = () => {
         });
         localStorage.setItem(guestStorageKey, JSON.stringify(snapshot));
         setGuestUpdatedAt(updatedAt);
-        setHasUnsavedChanges(false);
+        const hasNewerChanges = editRevisionRef.current !== revisionAtStart;
+        if (!hasNewerChanges) {
+          persistedRevisionRef.current = revisionAtStart;
+        }
         if (generateThumbnail && (thumbnailDataURL || fullresDataURL)) {
           previewDirtyRef.current = false;
         }
-        setSaveStatus('saved');
+        setSaveStatus(hasNewerChanges ? 'unsaved' : 'saved');
         console.log('[BannerEditor Guest] Save complete');
       } catch (error) {
         console.error('[BannerEditor] Guest save failed:', error);
         setSaveStatus('error');
         setLastSaveError(error instanceof Error ? error.message : t('message:error.saveFailed'));
+        throw error;
       }
       return;
     }
@@ -724,11 +793,20 @@ export const BannerEditor = () => {
         fullresDataURL,
       });
 
-      setHasUnsavedChanges(false);
-      if ((result as { thumbnailError?: unknown; fullresError?: unknown } | null)?.thumbnailError ||
-          (result as { thumbnailError?: unknown; fullresError?: unknown } | null)?.fullresError) {
-        setSaveStatus('error');
-        setLastSaveError(t('message:error.saveFailed'));
+      if (!result) {
+        throw new Error(t('message:error.saveFailed'));
+      }
+
+      const hasNewerChanges = editRevisionRef.current !== revisionAtStart;
+      if (!hasNewerChanges) {
+        persistedRevisionRef.current = revisionAtStart;
+        recoverySave.cancel();
+        if (user?.id && id) {
+          clearEditorRecovery(user.id, id);
+        }
+      }
+      if (hasNewerChanges) {
+        setSaveStatus('unsaved');
       } else {
         if (generateThumbnail && (thumbnailDataURL || fullresDataURL)) {
           previewDirtyRef.current = false;
@@ -740,8 +818,9 @@ export const BannerEditor = () => {
       console.error('[BannerEditor] Save failed:', error);
       setSaveStatus('error');
       setLastSaveError(error instanceof Error ? error.message : t('message:error.saveFailed'));
+      throw error;
     }
-  }, [generatePreviewAssets, guestStorageKey]);
+  }, [generatePreviewAssets, guestStorageKey, recoverySave, user?.id]);
 
   performSaveRef.current = performSave;
 
@@ -754,7 +833,10 @@ export const BannerEditor = () => {
       saveDepsRef.current.isGuest ||
       (!!currentBanner && (!currentBanner.thumbnailUrl || !currentBanner.fullresUrl))
     );
-    const hasPendingWork = hasUnsavedChanges || saveQueueRef.current?.isBusy || previewNeedsRefresh;
+    const hasPendingWork =
+      editRevisionRef.current !== persistedRevisionRef.current ||
+      saveQueueRef.current?.isBusy ||
+      previewNeedsRefresh;
 
     if (!hasPendingWork) return;
 
@@ -763,7 +845,7 @@ export const BannerEditor = () => {
     idlePreviewSave.cancel();
     saveQueueRef.current?.enqueue({ generateThumbnail });
     await saveQueueRef.current?.flush();
-  }, [hasUnsavedChanges, debouncedSave, debouncedGuestSave, idlePreviewSave]);
+  }, [debouncedSave, debouncedGuestSave, idlePreviewSave]);
 
   // Immediate save for important editor mutations that do not need fresh
   // preview assets yet.
@@ -786,13 +868,14 @@ export const BannerEditor = () => {
     if (elements !== prevElementsRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Elements actually changed, triggering auto-save');
       prevElementsRef.current = elements;
+      editRevisionRef.current += 1;
       previewDirtyRef.current = true;
-      setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
+      recoverySave();
       debouncedSave();
       idlePreviewSave();
     };
-  }, [elements, currentBannerId, isGuest, debouncedSave, idlePreviewSave]);
+  }, [elements, currentBannerId, isGuest, debouncedSave, idlePreviewSave, recoverySave]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -806,8 +889,8 @@ export const BannerEditor = () => {
 
     if (elements !== prevGuestElementsRef.current) {
       prevGuestElementsRef.current = elements;
+      editRevisionRef.current += 1;
       previewDirtyRef.current = true;
-      setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedGuestSave();
     }
@@ -822,13 +905,14 @@ export const BannerEditor = () => {
     if (canvasColor !== prevCanvasColorRef.current && banner && currentBannerId === banner.id) {
       console.log('[BannerEditor] Canvas color changed, triggering auto-save');
       prevCanvasColorRef.current = canvasColor;
+      editRevisionRef.current += 1;
       previewDirtyRef.current = true;
-      setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
+      recoverySave();
       debouncedSave();
       idlePreviewSave();
     }
-  }, [canvasColor, currentBannerId, isGuest, debouncedSave, idlePreviewSave]);
+  }, [canvasColor, currentBannerId, isGuest, debouncedSave, idlePreviewSave, recoverySave]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -836,36 +920,61 @@ export const BannerEditor = () => {
 
     if (canvasColor !== prevGuestCanvasColorRef.current) {
       prevGuestCanvasColorRef.current = canvasColor;
+      editRevisionRef.current += 1;
       previewDirtyRef.current = true;
-      setHasUnsavedChanges(true);
       setSaveStatus('unsaved');
       debouncedGuestSave();
     }
   }, [canvasColor, debouncedGuestSave, isGuest]);
 
-  // Save before leaving page (best effort only).
+  // Persist a synchronous recovery snapshot before the page can be frozen or
+  // discarded. The network save remains best-effort during beforeunload, but
+  // recovery no longer depends on the browser waiting for a Promise.
   useEffect(() => {
+    const hasPendingDocumentChanges = () =>
+      editRevisionRef.current !== persistedRevisionRef.current;
+
+    const persistRecoveryNow = () => {
+      if (!hasPendingDocumentChanges()) return;
+      recoverySave.cancel();
+      writeRecoveryNowRef.current();
+    };
+
     const handleBeforeUnload = () => {
-      if (hasUnsavedChanges) {
-        debouncedSave.cancel();
-        debouncedGuestSave.cancel();
-        idlePreviewSave.cancel();
-        saveQueueRef.current?.enqueue({ generateThumbnail: false });
-        void saveQueueRef.current?.flush();
-      }
+      if (!hasPendingDocumentChanges()) return;
+      persistRecoveryNow();
+      debouncedSave.cancel();
+      debouncedGuestSave.cancel();
+      idlePreviewSave.cancel();
+      saveQueueRef.current?.enqueue({ generateThumbnail: false });
+      void saveQueueRef.current?.flush().catch(() => {
+        // The synchronous recovery snapshot above is the reliable fallback.
+      });
+    };
+
+    const handlePageHide = () => persistRecoveryNow();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistRecoveryNow();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges, debouncedGuestSave, debouncedSave, idlePreviewSave]);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [debouncedGuestSave, debouncedSave, idlePreviewSave, recoverySave]);
 
   useEffect(() => {
     return () => {
       debouncedSave.cancel();
       debouncedGuestSave.cancel();
       idlePreviewSave.cancel();
+      recoverySave.cancel();
     };
-  }, [debouncedSave, debouncedGuestSave, idlePreviewSave]);
+  }, [debouncedSave, debouncedGuestSave, idlePreviewSave, recoverySave]);
 
   // Manual save handler (for save button)
   const handleSave = async () => {
@@ -1055,7 +1164,7 @@ export const BannerEditor = () => {
 
   if (!banner) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#1e1e1e]">
+      <div className="flex h-dvh items-center justify-center bg-[#1e1e1e]">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           <p className="mt-4 text-gray-600">{t('common:status.loading')}</p>
@@ -1232,40 +1341,44 @@ export const BannerEditor = () => {
     }
   };
 
+  const updateSelectedElementsTransient = (
+    updateFn: (element: CanvasElement) => Partial<CanvasElement>,
+  ) => {
+    if (selectedElementIds.length > 0) {
+      elementOps.updateElementsTransient(selectedElementIds, updateFn);
+    }
+  };
+
+  const commitPropertyInteraction = () => {
+    elementOps.commitInteraction();
+  };
+
   const handleSizeChange = (size: number) => {
     setSelectedSize(size);
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        el.type === 'text' ? { fontSize: size } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      el.type === 'text' ? { fontSize: size } : {}
+    );
   };
 
   const handleWeightChange = (weight: number) => {
     setSelectedWeight(weight);
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        el.type === 'text' ? { fontWeight: weight } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      el.type === 'text' ? { fontWeight: weight } : {}
+    );
   };
 
   const handleLetterSpacingChange = (letterSpacing: number) => {
     setSelectedLetterSpacing(letterSpacing);
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        el.type === 'text' ? { letterSpacing } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      el.type === 'text' ? { letterSpacing } : {}
+    );
   };
 
   const handleLineHeightChange = (lineHeight: number) => {
     setSelectedLineHeight(lineHeight);
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        el.type === 'text' ? { lineHeight } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      el.type === 'text' ? { lineHeight } : {}
+    );
   };
 
   const handleAlignChange = (align: 'left' | 'center' | 'right') => {
@@ -1278,7 +1391,7 @@ export const BannerEditor = () => {
 
   const handlePropertyColorChange = (color: string) => {
     if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
+      elementOps.updateElementsTransient(selectedElementIds, (el) =>
         (el.type === 'text' || el.type === 'shape') ? { fill: color } : {}
       );
 
@@ -1293,9 +1406,7 @@ export const BannerEditor = () => {
   };
 
   const handleOpacityChange = (opacity: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, () => ({ opacity }));
-    }
+    updateSelectedElementsTransient(() => ({ opacity }));
   };
 
   const handleBringToFront = () => {
@@ -1345,19 +1456,15 @@ export const BannerEditor = () => {
   };
 
   const handleStrokeChange = (color: string) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        (el.type === 'shape' || el.type === 'text') ? { stroke: color } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      (el.type === 'shape' || el.type === 'text') ? { stroke: color } : {}
+    );
   };
 
   const handleStrokeWidthChange = (width: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        (el.type === 'shape' || el.type === 'text') ? { strokeWidth: width } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      (el.type === 'shape' || el.type === 'text') ? { strokeWidth: width } : {}
+    );
   };
 
   const handleStrokeEnabledChange = (enabled: boolean) => {
@@ -1376,41 +1483,29 @@ export const BannerEditor = () => {
   };
 
   const handleShadowColorChange = (color: string) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, () => ({ shadowColor: color }));
-    }
+    updateSelectedElementsTransient(() => ({ shadowColor: color }));
   };
 
   const handleShadowBlurChange = (blur: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, () => ({ shadowBlur: blur }));
-    }
+    updateSelectedElementsTransient(() => ({ shadowBlur: blur }));
   };
 
   const handleShadowOffsetXChange = (offset: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, () => ({ shadowOffsetX: offset }));
-    }
+    updateSelectedElementsTransient(() => ({ shadowOffsetX: offset }));
   };
 
   const handleShadowOffsetYChange = (offset: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, () => ({ shadowOffsetY: offset }));
-    }
+    updateSelectedElementsTransient(() => ({ shadowOffsetY: offset }));
   };
 
   const handleShadowOpacityChange = (opacity: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, () => ({ shadowOpacity: opacity }));
-    }
+    updateSelectedElementsTransient(() => ({ shadowOpacity: opacity }));
   };
 
   const handleImageBlurChange = (blur: number) => {
-    if (selectedElementIds.length > 0) {
-      elementOps.updateElements(selectedElementIds, (el) =>
-        el.type === 'image' ? { blurRadius: blur } : {}
-      );
-    }
+    updateSelectedElementsTransient((el) =>
+      el.type === 'image' ? { blurRadius: blur } : {}
+    );
   };
 
   // Get element dimensions (from data or from rendered Konva node for text)
@@ -1628,13 +1723,34 @@ export const BannerEditor = () => {
     await handleInternalNavigation(editorReturnTo);
   };
 
-  const isBannerLoading = !isGuest && (isLoading || !banner);
+  const isBannerUnavailable = !isGuest && Boolean(user) && isBannerFetched && !banner;
+  const isBannerLoading = !isGuest && (
+    authLoading ||
+    (!user && !isBannerError) ||
+    (Boolean(user) && isLoading)
+  );
   if (isBannerLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#1e1e1e]">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           <p className="mt-4 text-gray-600">{t('common:status.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+  if (isBannerError || isBannerUnavailable) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-[#1e1e1e] px-6 text-white">
+        <div className="max-w-sm text-center">
+          <p className="text-pretty text-sm text-white/75">{t('banner:templateLoadFailed')}</p>
+          <button
+            type="button"
+            onClick={() => void handleBackToManager()}
+            className="mt-4 rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-100"
+          >
+            {t('common:button.back')}
+          </button>
         </div>
       </div>
     );
@@ -1690,7 +1806,7 @@ export const BannerEditor = () => {
   };
 
   return (
-    <div className="h-[100svh] flex flex-col bg-[#1e1e1e]">
+    <div className="flex h-dvh flex-col bg-[#1e1e1e]">
       <Header
         onBackToManager={handleBackToManager}
         onInternalNavigate={handleInternalNavigation}
@@ -1784,6 +1900,7 @@ export const BannerEditor = () => {
         <PropertyPanel
           selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
           onColorChange={handlePropertyColorChange}
+          onInteractionEnd={commitPropertyInteraction}
           onFontChange={handleFontChange}
           onSizeChange={handleSizeChange}
           onWeightChange={handleWeightChange}
@@ -1917,13 +2034,15 @@ export const BannerEditor = () => {
           textPlacementMode={textPlacementMode}
           panMode={panMode}
           onPanModeChange={setPanMode}
+          onDrawerOpenChange={setIsMobileToolDrawerOpen}
         />
 
         {/* Mobile PropertyPanel - Hidden during inline text editing */}
-        {!isCanvasEditing && (
+        {!isCanvasEditing && !isMobileToolDrawerOpen && (
           <PropertyPanel
             selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
             onColorChange={handlePropertyColorChange}
+            onInteractionEnd={commitPropertyInteraction}
             onFontChange={handleFontChange}
             onSizeChange={handleSizeChange}
             onWeightChange={handleWeightChange}

@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 
-export const queryClient = new QueryClient({
+export const createEditorQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for this duration
@@ -14,3 +14,8 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Shared by the lightweight public/list islands. The editor itself creates a
+// session-scoped client so private design details cannot survive an account
+// switch in memory.
+export const queryClient = createEditorQueryClient();

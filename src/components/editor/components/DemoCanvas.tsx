@@ -161,58 +161,58 @@ export const DemoCanvas = ({ scale = 0.45 }: DemoCanvasProps) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
   }, []);
 
-  const animateElement = useCallback((targetIndex: number) => {
-    if (!autoAnimatingRef.current) return;
-
-    const target = ANIMATE_TARGETS[targetIndex % ANIMATE_TARGETS.length];
-    setSelectedIds([target.id]);
-
-    const duration = 1500;
-    let originX: number | null = null;
-    let originY: number | null = null;
-
-    timeoutRef.current = setTimeout(() => {
-      if (!autoAnimatingRef.current) return;
-      const startTime = performance.now();
-
-      const tick = (now: number) => {
-        if (!autoAnimatingRef.current) return;
-
-        const progress = Math.min((now - startTime) / duration, 1);
-        const eased = easeInOutCubic(progress);
-
-        setElements((prev) =>
-          prev.map((el) => {
-            if (el.id !== target.id) return el;
-            if (originX === null) {
-              originX = el.x;
-              originY = el.y;
-            }
-            return {
-              ...el,
-              x: originX + target.dx * eased,
-              y: (originY ?? el.y) + target.dy * eased,
-            } as CanvasElement;
-          })
-        );
-
-        if (progress < 1) {
-          animFrameRef.current = requestAnimationFrame(tick);
-        } else {
-          timeoutRef.current = setTimeout(() => {
-            animateElement(targetIndex + 1);
-          }, 500);
-        }
-      };
-
-      animFrameRef.current = requestAnimationFrame(tick);
-    }, 300);
-  }, []);
-
   useEffect(() => {
+    autoAnimatingRef.current = true;
+
+    const animateElement = (targetIndex: number) => {
+      if (!autoAnimatingRef.current) return;
+
+      const target = ANIMATE_TARGETS[targetIndex % ANIMATE_TARGETS.length];
+      setSelectedIds([target.id]);
+
+      const duration = 1500;
+      let originX: number | null = null;
+      let originY: number | null = null;
+
+      timeoutRef.current = setTimeout(() => {
+        if (!autoAnimatingRef.current) return;
+        const startTime = performance.now();
+
+        const tick = (now: number) => {
+          if (!autoAnimatingRef.current) return;
+
+          const progress = Math.min((now - startTime) / duration, 1);
+          const eased = easeInOutCubic(progress);
+
+          setElements((prev) =>
+            prev.map((el) => {
+              if (el.id !== target.id) return el;
+              if (originX === null) {
+                originX = el.x;
+                originY = el.y;
+              }
+              return {
+                ...el,
+                x: originX + target.dx * eased,
+                y: (originY ?? el.y) + target.dy * eased,
+              } as CanvasElement;
+            })
+          );
+
+          if (progress < 1) {
+            animFrameRef.current = requestAnimationFrame(tick);
+          } else {
+            timeoutRef.current = setTimeout(() => animateElement(targetIndex + 1), 500);
+          }
+        };
+
+        animFrameRef.current = requestAnimationFrame(tick);
+      }, 300);
+    };
+
     timeoutRef.current = setTimeout(() => animateElement(0), 1500);
     return () => stopAutoAnimation();
-  }, [animateElement, stopAutoAnimation]);
+  }, [stopAutoAnimation]);
 
   const handleUserSelect = useCallback(
     (ids: string[]) => {

@@ -1,4 +1,4 @@
-import { useRef, forwardRef, useImperativeHandle, useEffect, useState } from 'react';
+import { useRef, forwardRef, useImperativeHandle, useEffect, useEffectEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Stage, Layer, Group, Rect, Transformer } from 'react-konva';
 import type { Template, CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
@@ -767,10 +767,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     textarea.addEventListener('blur', handleSubmit);
   };
 
+  const handlePendingTextEdit = useEffectEvent((element: TextElement, textNode: Konva.Text) => {
+    handleTextDoubleClick(element, textNode);
+  });
+
   // Auto-trigger inline editing after text placement. This intentionally reads
   // the latest callback from render time; the effect only runs when elements
   // change and pendingEditIdRef has been set by a placement action.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!pendingEditIdRef.current) return;
     const id = pendingEditIdRef.current;
@@ -780,7 +783,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       if (textEl) {
         pendingEditIdRef.current = null;
         setTimeout(() => {
-          handleTextDoubleClick(textEl, node as Konva.Text);
+          handlePendingTextEdit(textEl, node as Konva.Text);
         }, 50);
       }
     }

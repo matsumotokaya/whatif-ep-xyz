@@ -1,20 +1,40 @@
-import { useState, useRef, useEffect, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
+import { cn } from '../utils/cn';
 
-// iOS-style draggable bottom sheet with snap detents.
-// The sheet is moved (resized) to adjust the visible range; the content is fixed
-// (no internal scroll) and is simply revealed/clipped by the sheet height, so the
-// only gesture is dragging the whole sheet up/down.
-// medium / large detents are fractions of the visible viewport height.
+// iOS-style draggable bottom sheet with snap detents. The sheet keeps a stable
+// layout size and changes its visible area with a compositor-only transform.
 const SHEET_MEDIUM_RATIO = 0.6;
 const SHEET_LARGE_RATIO = 0.9;
 
-// Peek is the initial / minimum visible height: just the drag handle plus about
-// one row of content, so it never covers the selected object on the canvas.
-// We combine a small viewport ratio with a fixed px floor and cap so tall phones
-// do not turn "peek" into a large panel.
 const SHEET_PEEK_PX = 120;
 const SHEET_PEEK_RATIO = 0.16;
 const SHEET_PEEK_MAX_PX = 160;
+const FALLBACK_VIEWPORT_HEIGHT = 800;
+
+const getViewportHeight = () => {
+  if (typeof window === 'undefined') return FALLBACK_VIEWPORT_HEIGHT;
+  return window.visualViewport?.height ?? window.innerHeight;
+};
+
+const getDetents = (viewportHeight: number) => {
+  const peek = Math.min(
+    SHEET_PEEK_MAX_PX,
+    Math.max(SHEET_PEEK_PX, Math.round(viewportHeight * SHEET_PEEK_RATIO)),
+  );
+  return [
+    peek,
+    Math.round(viewportHeight * SHEET_MEDIUM_RATIO),
+    Math.round(viewportHeight * SHEET_LARGE_RATIO),
+  ];
+};
 
 interface MobileSheetProps {
   children: ReactNode;
@@ -23,107 +43,179 @@ interface MobileSheetProps {
 }
 
 export const MobileSheet = ({ children, onDismiss }: MobileSheetProps) => {
-  const getDetents = () => {
-    const vh = window.innerHeight;
-    const peek = Math.min(SHEET_PEEK_MAX_PX, Math.max(SHEET_PEEK_PX, Math.round(vh * SHEET_PEEK_RATIO)));
-    const medium = Math.round(vh * SHEET_MEDIUM_RATIO);
-    const large = Math.round(vh * SHEET_LARGE_RATIO);
-    return [peek, medium, large];
-  };
-
-  const detentsRef = useRef<number[]>(getDetents());
-  const [height, setHeight] = useState(() => detentsRef.current[0]);
-  const heightRef = useRef(height);
+  const initialViewportHeight = getViewportHeight();
+  const initialVisibleHeight = getDetents(initialViewportHeight)[0];
+  const [viewportHeight, setViewportHeight] = useState(initialViewportHeight);
+  const viewportHeightRef = useRef(initialViewportHeight);
+  const [visibleHeight, setVisibleHeight] = useState(initialVisibleHeight);
+  const visibleHeightRef = useRef(initialVisibleHeight);
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef<{ startY: number; startH: number } | null>(null);
-  // Entrance: start hidden below the screen, then slide up to the peek detent.
+  const dragRef = useRef<{ startY: number; startH: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
   const [entered, setEntered] = useState(false);
+  const contentId = useId();
 
-  const applyHeight = (h: number) => {
-    heightRef.current = h;
-    setHeight(h);
+  const detents = getDetents(viewportHeight);
+  const maxHeight = detents[detents.length - 1];
+
+  const applyVisibleHeight = (height: number) => {
+    visibleHeightRef.current = height;
+    setVisibleHeight(height);
   };
 
-  // Play the entrance slide-up one frame after mount so the transition runs.
+  const snapToNearestDetent = () => {
+    const currentDetents = getDetents(viewportHeightRef.current);
+    const nearest = currentDetents.reduce(
+      (best, detent) =>
+        Math.abs(detent - visibleHeightRef.current) < Math.abs(best - visibleHeightRef.current)
+          ? detent
+          : best,
+      currentDetents[0],
+    );
+    applyVisibleHeight(nearest);
+  };
+
   useEffect(() => {
     const id = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Keep detents in sync with viewport changes (rotation, URL bar show/hide).
+  // visualViewport tracks mobile browser chrome and the on-screen keyboard more
+  // accurately than innerHeight. Keep the window listener as a desktop fallback.
   useEffect(() => {
     const onResize = () => {
-      detentsRef.current = getDetents();
-      const max = detentsRef.current[detentsRef.current.length - 1];
-      if (heightRef.current > max) applyHeight(max);
+      const nextViewportHeight = getViewportHeight();
+      const nextDetents = getDetents(nextViewportHeight);
+      const nextMax = nextDetents[nextDetents.length - 1];
+
+      viewportHeightRef.current = nextViewportHeight;
+      setViewportHeight(nextViewportHeight);
+      if (visibleHeightRef.current > nextMax) applyVisibleHeight(nextMax);
     };
+
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    window.visualViewport?.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('resize', onResize);
+    };
   }, []);
 
-  const handlePointerDown = (e: ReactPointerEvent) => {
-    dragRef.current = { startY: e.clientY, startH: heightRef.current };
+  const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    dragRef.current = { startY: event.clientY, startH: visibleHeightRef.current, moved: false };
     setIsDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handlePointerMove = (e: ReactPointerEvent) => {
-    if (!dragRef.current) return;
-    const detents = detentsRef.current;
-    const min = Math.round(detents[0] * 0.45);
-    const max = detents[detents.length - 1];
-    const next = Math.min(max, Math.max(min, dragRef.current.startH - (e.clientY - dragRef.current.startY)));
-    applyHeight(next);
+  const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+
+    const currentDetents = getDetents(viewportHeightRef.current);
+    const min = Math.round(currentDetents[0] * 0.45);
+    const max = currentDetents[currentDetents.length - 1];
+    const delta = event.clientY - drag.startY;
+    if (Math.abs(delta) > 3) drag.moved = true;
+    applyVisibleHeight(Math.min(max, Math.max(min, drag.startH - delta)));
   };
 
-  const handlePointerUp = (e: ReactPointerEvent) => {
-    if (!dragRef.current) return;
+  const finishPointerInteraction = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+
     dragRef.current = null;
     setIsDragging(false);
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
 
-    const detents = detentsRef.current;
-    // Dragged well below the peek detent -> dismiss.
-    if (onDismiss && heightRef.current < detents[0] * 0.72) {
+    const currentDetents = getDetents(viewportHeightRef.current);
+    if (onDismiss && visibleHeightRef.current < currentDetents[0] * 0.72) {
       onDismiss();
       return;
     }
-    // Otherwise snap to the nearest detent.
-    const nearest = detents.reduce(
-      (best, d) => (Math.abs(d - heightRef.current) < Math.abs(best - heightRef.current) ? d : best),
-      detents[0],
-    );
-    applyHeight(nearest);
+
+    snapToNearestDetent();
+    if (drag.moved) {
+      suppressClickRef.current = true;
+      requestAnimationFrame(() => {
+        suppressClickRef.current = false;
+      });
+    }
   };
 
-  // Before the entrance has played, push the sheet fully below the screen so the
-  // first transition is a visible slide-up from the bottom edge.
-  const translateY = entered ? 0 : height;
+  const handleToggle = () => {
+    if (suppressClickRef.current) return;
+    const currentDetents = getDetents(viewportHeightRef.current);
+    const isExpanded = visibleHeightRef.current > currentDetents[0] + 1;
+    applyVisibleHeight(isExpanded ? currentDetents[0] : currentDetents[1]);
+  };
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const currentDetents = getDetents(viewportHeightRef.current);
+    const currentIndex = currentDetents.reduce(
+      (bestIndex, detent, index) =>
+        Math.abs(detent - visibleHeightRef.current) <
+        Math.abs(currentDetents[bestIndex] - visibleHeightRef.current)
+          ? index
+          : bestIndex,
+      0,
+    );
+
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowUp') nextIndex = Math.min(currentIndex + 1, currentDetents.length - 1);
+    if (event.key === 'ArrowDown') nextIndex = Math.max(currentIndex - 1, 0);
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = currentDetents.length - 1;
+
+    if (nextIndex !== null) {
+      event.preventDefault();
+      applyVisibleHeight(currentDetents[nextIndex]);
+    } else if (event.key === 'Escape' && onDismiss) {
+      event.preventDefault();
+      onDismiss();
+    }
+  };
+
+  const translateY = entered ? maxHeight - visibleHeight : maxHeight;
+  const isExpanded = visibleHeight > detents[0] + 1;
 
   return (
-    <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[#1a1a1a]/90 backdrop-blur-md border-t border-[#2b2b2b] rounded-t-2xl shadow-2xl"
+    <section
+      aria-label="編集ツール"
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border-t border-[#2b2b2b] bg-[#1a1a1a]/90 shadow-2xl backdrop-blur-md',
+        !isDragging && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
+      )}
       style={{
-        height,
+        height: maxHeight,
+        maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px))',
         transform: `translateY(${translateY}px)`,
-        transition: isDragging
-          ? 'none'
-          : 'height 0.28s cubic-bezier(0.32, 0.72, 0, 1), transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)',
       }}
     >
-      {/* Drag handle - pull up/down to resize, snaps to detents (or dismiss) */}
-      <div
+      <button
+        type="button"
+        aria-label="編集ツールの高さを調整"
+        aria-controls={contentId}
+        aria-expanded={isExpanded}
+        onClick={handleToggle}
+        onKeyDown={handleKeyDown}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className="flex justify-center items-center pt-2.5 pb-2 shrink-0 touch-none cursor-grab active:cursor-grabbing select-none"
+        onPointerUp={finishPointerInteraction}
+        onPointerCancel={finishPointerInteraction}
+        onLostPointerCapture={finishPointerInteraction}
+        className="flex shrink-0 touch-none select-none items-center justify-center pt-2.5 pb-2 cursor-grab focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white active:cursor-grabbing"
       >
-        <div className="w-10 h-1.5 bg-gray-500 rounded-full" />
-      </div>
-      <div className="flex-1 overflow-hidden px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <span aria-hidden="true" className="h-1.5 w-10 rounded-full bg-gray-500" />
+      </button>
+      <div
+        id={contentId}
+        className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] [-webkit-overflow-scrolling:touch]"
+      >
         {children}
       </div>
-    </div>
+    </section>
   );
 };

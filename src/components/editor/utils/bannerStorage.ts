@@ -272,11 +272,11 @@ export const bannerStorage = {
       .from('banners')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching banner:', error);
-      return null;
+      throw error;
     }
 
     const banner = data ? dbToBanner(data) : null;
@@ -327,7 +327,9 @@ export const bannerStorage = {
   async update(id: string, updates: Partial<Omit<Banner, 'id' | 'createdAt'>>): Promise<Banner | null> {
     const supabase = await getSupabase();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) {
+      throw new Error('Authentication required to update a design.');
+    }
 
     const dbUpdates: BannerUpdatePayload = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
@@ -349,7 +351,7 @@ export const bannerStorage = {
 
     if (error) {
       console.error('Error updating banner:', error);
-      return null;
+      throw error;
     } else {
       // Invalidate cache for this banner and the list
       cacheManager.invalidate(`banner:${id}`);
@@ -529,18 +531,31 @@ export const bannerStorage = {
           );
         }
 
-        let savedBanner = await this.update(id, {
-          elements: updates.elements,
-          canvasColor: updates.canvasColor,
-          thumbnailKey: nextThumbnailKey,
-        });
+        let savedBanner: Banner | null;
+        try {
+          savedBanner = await this.update(id, {
+            elements: updates.elements,
+            canvasColor: updates.canvasColor,
+            thumbnailKey: nextThumbnailKey,
+          });
+        } catch (error) {
+          if (nextThumbnailKey) {
+            try {
+              await deleteAssets([nextThumbnailKey]);
+            } catch (cleanupError) {
+              console.warn('Failed to remove orphaned banner thumbnail:', cleanupError);
+            }
+          }
+          throw error;
+        }
 
         if (updates.fullresDataURL) {
           // Full-resolution PNG is heavier than the list thumbnail, so persist it
           // separately to avoid blocking preview freshness when the PNG upload fails.
+          let nextFullresKey: string | undefined;
           try {
             const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
-            const nextFullresKey = await uploadAsset(
+            nextFullresKey = await uploadAsset(
               buildBannerFullKey(user.id, id, createAssetRevision()),
               blob,
               mimeType,
@@ -577,6 +592,14 @@ export const bannerStorage = {
             }
           } catch (fullresError) {
             console.warn('Failed to upload/save banner full-resolution asset:', fullresError);
+            if (nextFullresKey) {
+              try {
+                await deleteAssets([nextFullresKey]);
+              } catch (cleanupError) {
+                console.warn('Failed to remove orphaned banner full-resolution asset:', cleanupError);
+              }
+            }
+            throw fullresError;
           }
         }
 

@@ -46,13 +46,15 @@ export function useEntranceAnimation({
   // Transition to loading when enabled and elements exist
   useEffect(() => {
     if (!enabled || elements.length === 0) {
-      if (!enabled) setPhase('idle');
+      if (!enabled) {
+        queueMicrotask(() => setPhase('idle'));
+      }
       return;
     }
 
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
-    setPhase('loading');
+    queueMicrotask(() => setPhase('loading'));
 
     // Start timeout fallback
     timeoutRef.current = setTimeout(() => {
@@ -73,13 +75,13 @@ export function useEntranceAnimation({
 
     // No images — go straight to animating
     if (totalImageCount === 0) {
-      setPhase('animating');
+      queueMicrotask(() => setPhase('animating'));
       return;
     }
 
     // All images reported
     if (imageLoadStatus.size >= totalImageCount) {
-      setPhase('animating');
+      queueMicrotask(() => setPhase('animating'));
     }
   }, [phase, imageLoadStatus, totalImageCount]);
 
@@ -102,7 +104,7 @@ export function useEntranceAnimation({
       .sort((a, b) => a.y - b.y);
 
     if (sorted.length === 0) {
-      setPhase('complete');
+      queueMicrotask(() => setPhase('complete'));
       return;
     }
 
