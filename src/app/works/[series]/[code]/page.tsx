@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAdminAccess } from "@/lib/admin/access";
+import { Suspense } from "react";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
@@ -10,16 +10,12 @@ import {
   getVariantDisplayImageCandidates,
 } from "@/lib/work-images";
 import { getPublishedWallpaperPack } from "@/lib/wallpaper";
-import { getClubAccess } from "@/lib/club/access";
-import { hasPurchasedWallpaper } from "@/lib/wallpaper-purchases";
-import { getSavedWorkIds } from "@/lib/work-saves";
 import { SavedWorksProvider } from "@/context/SavedWorksContext";
 import { SaveButton } from "@/components/SaveButton";
-import { OtherWallpapers } from "@/components/OtherWallpapers";
+import { NearbyWallpapers } from "./NearbyWallpapers";
 import {
   getAdjacentWorks,
   getGallerySeries,
-  getNearbyWallpapers,
   getWorkBySeriesAndCode,
 } from "@/lib/works";
 
@@ -122,7 +118,7 @@ export default async function WorkDetailPage({
   if (!currentVariant || !currentVariant.originalStorageKey) notFound();
 
   // Catalog data (cached) — fast, forms the static shell.
-  const [seriesOptions, adjacent, wallpaperPack, nearbyWallpapers] = await Promise.all([
+  const [seriesOptions, adjacent, wallpaperPack] = await Promise.all([
     getGallerySeries(),
     getAdjacentWorks(series, work.sequenceNumber),
     getPublishedWallpaperPack(
@@ -130,30 +126,7 @@ export default async function WorkDetailPage({
       work.displayCode,
       currentVariant.variantNumber
     ),
-    getNearbyWallpapers(work.seriesSlug, work.id, work.sequenceNumber, 9),
   ]);
-
-  // User-specific data makes Supabase auth round-trips. Start the work but do
-  // NOT await: stream the resulting flags into the client tree so the page
-  // (image, nav, title, CTAs) paints immediately.
-  const isAdminPromise = getAdminAccess().then((access) => access.isAdmin);
-
-  // Saved-state for this single work, streamed as a list the provider merges in.
-  const initialSavedIdsPromise = getSavedWorkIds().then((ids) =>
-    ids.includes(work.id) ? [work.id] : []
-  );
-
-  // Flag the current variant's wallpaper as purchased for non-premium buyers.
-  // Premium users get access via subscription (shown via the crown), so they
-  // are intentionally excluded from the "purchased" badge.
-  const wallpaperPurchasedPromise: Promise<boolean> = wallpaperPack
-    ? getClubAccess().then(async (access) => {
-        if (access.user && access.status !== "premium") {
-          return hasPurchasedWallpaper(access.user.id, wallpaperPack.projectId);
-        }
-        return false;
-      })
-    : Promise.resolve(false);
 
   const imageCandidates = getVariantDetailImageCandidates(currentVariant);
   const releasedOn = formatDate(work.releasedOn ?? work.createdAt);
@@ -165,6 +138,9 @@ export default async function WorkDetailPage({
   const downloadUrl = `/api/works/${work.seriesSlug}/${work.displayCode}/download?variant=${currentVariant.variantNumber}&filename=${encodeURIComponent(downloadFilename)}`;
   const wallpaperHref = `/works/${work.seriesSlug}/${work.displayCode}/wallpaper${
     currentVariant.variantNumber > 1 ? `?variant=${currentVariant.variantNumber}` : ""
+  }`;
+  const userStateUrl = `/api/works/${work.seriesSlug}/${work.displayCode}/user-state${
+    wallpaperPack ? `?projectId=${encodeURIComponent(wallpaperPack.projectId)}` : ""
   }`;
 
   const dates = [
@@ -201,7 +177,7 @@ export default async function WorkDetailPage({
   };
 
   return (
-    <SavedWorksProvider initialSavedIdsPromise={initialSavedIdsPromise}>
+    <SavedWorksProvider hydrateUrl={userStateUrl}>
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -364,7 +340,6 @@ export default async function WorkDetailPage({
             </div>
 
             <WorkDetailActions
-              isAdminPromise={isAdminPromise}
               editHref={
                 work.legacyEpisodeId
                   ? `/episodes/${work.displayCode}/edit`
@@ -376,11 +351,22 @@ export default async function WorkDetailPage({
               storeUrl={resolveOfferUrl(storeOffer?.targetUrl)}
               wallpaperHref={wallpaperHref}
               wallpaperCoverUrl={wallpaperPack?.cover?.publicUrl ?? null}
-              wallpaperPurchasedPromise={wallpaperPurchasedPromise}
+              wallpaperStateUrl={
+                wallpaperPack
+                  ? `${userStateUrl}&purchaseOnly=1`
+                  : undefined
+              }
               workTitle={work.title}
             />
 
-            <OtherWallpapers items={nearbyWallpapers} />
+            <Suspense fallback={null}>
+              <NearbyWallpapers
+                seriesSlug={work.seriesSlug}
+                workId={work.id}
+                sequenceNumber={work.sequenceNumber}
+                count={9}
+              />
+            </Suspense>
           </div>
 
         </aside>

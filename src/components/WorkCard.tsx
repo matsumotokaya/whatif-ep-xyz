@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import type { WorkListItem } from "@/lib/types";
 import { useLanguage, type Language } from "@/context/LanguageContext";
@@ -41,11 +42,19 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
   // back to imageCandidates (feedImageUrl + variant images) rendered via normal
   // optimized next/image. The full-size feed PNG is NEVER served unoptimized.
   const { feedThumbUrl, imageCandidates, hasWallpaperOffer } = work;
+  const router = useRouter();
   const { lang } = useLanguage();
   const badges = BADGE_COPY[lang];
   const [index, setIndex] = useState(0);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const prefetchedRef = useRef(false);
+
+  const prefetchDetail = useCallback(() => {
+    if (prefetchedRef.current) return;
+    prefetchedRef.current = true;
+    void router.prefetch(`/works/${work.seriesSlug}/${work.displayCode}`);
+  }, [router, work.displayCode, work.seriesSlug]);
 
   // Index 0 = the unoptimized feed_thumb (when available); the remaining indices
   // map into the optimized imageCandidates fallback chain.
@@ -75,6 +84,9 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
     <Link
       href={`/works/${work.seriesSlug}/${work.displayCode}`}
       prefetch={false}
+      onMouseEnter={prefetchDetail}
+      onFocus={prefetchDetail}
+      onTouchStart={prefetchDetail}
       className="hover-lift group relative block overflow-hidden rounded-xl border border-border bg-surface"
       style={style}
     >

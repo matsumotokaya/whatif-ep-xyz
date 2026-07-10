@@ -6,8 +6,6 @@ import {
   getWorkCardsPageBySeries,
   getWorkFilterMetaBySeries,
 } from "@/lib/works";
-import { getPurchasedDisplayCodes } from "@/lib/wallpaper-purchases";
-import { getSavedWorkIds } from "@/lib/work-saves";
 import { WorksPageClient } from "./WorksPageClient";
 
 interface WorksSeriesPageProps {
@@ -49,12 +47,6 @@ export default async function WorksSeriesPage({
   const selectedSeries = seriesOptions.find((item) => item.slug === series);
   if (!selectedSeries) notFound();
 
-  // User-specific data makes Supabase auth round-trips. Start the work here but
-  // do NOT await: the promises are streamed into the client tree so the gallery
-  // paints immediately and the saved/purchased state fills in when it resolves.
-  const purchasedCodesPromise = getPurchasedDisplayCodes(series);
-  const savedWorkIdsPromise = getSavedWorkIds();
-
   return (
     <div className="w-full px-3 py-6 sm:px-5 sm:py-8">
       <div className="mb-8">
@@ -72,8 +64,6 @@ export default async function WorksSeriesPage({
         selectedSeriesSlug={series}
         initialPage={initialPage}
         filterMeta={filterMeta}
-        purchasedCodesPromise={purchasedCodesPromise}
-        savedWorkIdsPromise={savedWorkIdsPromise}
         initialSelectedTagId={initialSelectedTagId ?? null}
       />
     </div>

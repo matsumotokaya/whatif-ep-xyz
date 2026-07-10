@@ -7,7 +7,6 @@ import type {
   WorkListItem,
   WorkListPage,
 } from "@/lib/types";
-import { useResolvedList } from "@/hooks/useResolvedList";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import { SortToggle } from "@/components/SortToggle";
 import { WorkGallery } from "@/components/WorkGallery";
@@ -110,8 +109,6 @@ interface WorksPageClientProps {
   initialPage: WorkListPage;
   filterMeta: WorkFilterMeta;
   initialSelectedTagId?: string | null;
-  purchasedCodesPromise: Promise<string[]>;
-  savedWorkIdsPromise: Promise<string[]>;
 }
 
 function buildWorkRanges(maxSequence: number): WorkRange[] {
@@ -529,12 +526,43 @@ function WorksPageInner({
 }
 
 export function WorksPageClient({
-  savedWorkIdsPromise,
-  purchasedCodesPromise,
   ...rest
 }: WorksPageClientProps) {
-  const savedWorkIds = useResolvedList(savedWorkIdsPromise);
-  const purchasedCodes = useResolvedList(purchasedCodesPromise);
+  const [savedWorkIds, setSavedWorkIds] = useState<string[]>([]);
+  const [purchasedCodes, setPurchasedCodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    void fetch(`/api/works/${rest.selectedSeriesSlug}/user-state`, {
+      credentials: "same-origin",
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: unknown) => {
+        if (!active || !payload || typeof payload !== "object") return;
+        const state = payload as {
+          savedWorkIds?: unknown;
+          purchasedCodes?: unknown;
+        };
+        if (Array.isArray(state.savedWorkIds)) {
+          setSavedWorkIds(
+            state.savedWorkIds.filter((id): id is string => typeof id === "string")
+          );
+        }
+        if (Array.isArray(state.purchasedCodes)) {
+          setPurchasedCodes(
+            state.purchasedCodes.filter((code): code is string => typeof code === "string")
+          );
+        }
+      })
+      .catch(() => {
+        // User-specific highlights are progressive enhancement.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [rest.selectedSeriesSlug]);
 
   return (
     <SavedWorksProvider initialSavedIds={savedWorkIds}>

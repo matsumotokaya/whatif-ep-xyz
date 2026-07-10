@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage, type Language } from "@/context/LanguageContext";
-import { useResolvedFlag } from "@/hooks/useResolvedFlag";
 import { DownloadButton } from "./DownloadButton";
 
 // Localized labels for the work detail aside CTA cluster.
@@ -128,8 +128,6 @@ function DownloadIcon({ className }: { className?: string }) {
 }
 
 interface WorkDetailActionsProps {
-  /** Streamed user flag — admin edit button appears once it resolves true. */
-  isAdminPromise: Promise<boolean>;
   editHref: string | null;
   imagineUrl: string | null;
   downloadUrl: string;
@@ -137,15 +135,12 @@ interface WorkDetailActionsProps {
   storeUrl: string | null;
   wallpaperHref: string;
   wallpaperCoverUrl: string | null;
-  /** Streamed user flag — purchased badge appears once it resolves true. */
-  wallpaperPurchasedPromise?: Promise<boolean>;
+  /** Optional client-side endpoint for the non-critical purchase badge. */
+  wallpaperStateUrl?: string;
   workTitle: string;
 }
 
-const FALSE_PROMISE = Promise.resolve(false);
-
 export function WorkDetailActions({
-  isAdminPromise,
   editHref,
   imagineUrl,
   downloadUrl,
@@ -153,17 +148,32 @@ export function WorkDetailActions({
   storeUrl,
   wallpaperHref,
   wallpaperCoverUrl,
-  wallpaperPurchasedPromise,
+  wallpaperStateUrl,
   workTitle,
 }: WorkDetailActionsProps) {
   const { profile } = useAuth();
   const { lang } = useLanguage();
   const t = COPY[lang];
-  const isAdmin =
-    useResolvedFlag(isAdminPromise) || profile?.role === "admin";
-  const wallpaperPurchased = useResolvedFlag(
-    wallpaperPurchasedPromise ?? FALSE_PROMISE
-  );
+  const isAdmin = profile?.role === "admin";
+  const [wallpaperPurchased, setWallpaperPurchased] = useState(false);
+
+  useEffect(() => {
+    if (!wallpaperStateUrl) return;
+    let active = true;
+    void fetch(wallpaperStateUrl, { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: unknown) => {
+        if (!active || !payload || typeof payload !== "object") return;
+        const purchased = (payload as { purchased?: unknown }).purchased;
+        if (typeof purchased === "boolean") setWallpaperPurchased(purchased);
+      })
+      .catch(() => {
+        // The purchase badge is progressive enhancement.
+      });
+    return () => {
+      active = false;
+    };
+  }, [wallpaperStateUrl]);
 
   return (
     <>

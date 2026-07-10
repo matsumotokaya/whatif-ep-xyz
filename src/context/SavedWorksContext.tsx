@@ -30,6 +30,7 @@ const EMPTY_IDS: string[] = [];
 export function SavedWorksProvider({
   initialSavedIds = EMPTY_IDS,
   initialSavedIdsPromise,
+  hydrateUrl,
   children,
 }: {
   /** Resolved saved ids (used when known synchronously). */
@@ -39,6 +40,8 @@ export function SavedWorksProvider({
    * blocking render and merged into the set once available.
    */
   initialSavedIdsPromise?: Promise<string[]>;
+  /** Optional client-side endpoint for hydrating saved ids after first paint. */
+  hydrateUrl?: string;
   children: React.ReactNode;
 }) {
   const { user } = useAuth();
@@ -64,6 +67,34 @@ export function SavedWorksProvider({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mergedKey]);
+
+  useEffect(() => {
+    if (!hydrateUrl) return;
+    let active = true;
+
+    void fetch(hydrateUrl, { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: unknown) => {
+        if (!active || !payload || typeof payload !== "object") return;
+        const ids = (payload as { savedWorkIds?: unknown }).savedWorkIds;
+        if (!Array.isArray(ids)) return;
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of ids) {
+            if (typeof id === "string") next.add(id);
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        // User-specific highlights are progressive enhancement; keep the
+        // catalog usable when the background request is unavailable.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hydrateUrl]);
 
   const isSaved = useCallback(
     (workId: string) => savedIds.has(workId),

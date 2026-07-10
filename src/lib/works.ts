@@ -576,13 +576,13 @@ export async function getWorkBySeriesAndCode(
   return work ?? undefined;
 }
 
-export async function getAdjacentWorks(
+const _loadAdjacentWorks = async (
   seriesSlug: string,
   sequenceNumber: number
 ): Promise<{
   prev: { id: string; displayCode: string } | undefined;
   next: { id: string; displayCode: string } | undefined;
-}> {
+}> => {
   const supabase = createAnonClient();
   const series = await getSeriesBySlug(seriesSlug);
   if (!series) {
@@ -631,6 +631,22 @@ export async function getAdjacentWorks(
         }
       : undefined,
   };
+};
+
+const _cachedAdjacentWorks = unstable_cache(
+  _loadAdjacentWorks,
+  ["works:adjacent"],
+  { tags: ["works"], revalidate: 3600 }
+);
+
+export async function getAdjacentWorks(
+  seriesSlug: string,
+  sequenceNumber: number
+): Promise<{
+  prev: { id: string; displayCode: string } | undefined;
+  next: { id: string; displayCode: string } | undefined;
+}> {
+  return _cachedAdjacentWorks(seriesSlug, sequenceNumber);
 }
 
 export async function getWorkCountBySeries(seriesSlug: string): Promise<number> {
@@ -807,12 +823,12 @@ export async function getWorkCardsPageBySeries(
 // wallpaper cover and links to that pack's sales page. Candidates are picked by
 // proximity to the current work, then restored to series order for display.
 // Until categories/tags exist, "nearby in the series" is the relatedness rule.
-export async function getNearbyWallpapers(
+const _loadNearbyWallpapers = async (
   seriesSlug: string,
   workId: string,
   sequenceNumber: number,
   count = 9
-): Promise<WallpaperCoverItem[]> {
+): Promise<WallpaperCoverItem[]> => {
   const supabase = createAnonClient();
   const series = await getSeriesBySlug(seriesSlug);
   if (!series) return [];
@@ -891,4 +907,19 @@ export async function getNearbyWallpapers(
       variantNumber,
       coverUrl,
     }));
+};
+
+const _cachedNearbyWallpapers = unstable_cache(
+  _loadNearbyWallpapers,
+  ["works:nearby-wallpapers"],
+  { tags: ["works", "production"], revalidate: 3600 }
+);
+
+export async function getNearbyWallpapers(
+  seriesSlug: string,
+  workId: string,
+  sequenceNumber: number,
+  count = 9
+): Promise<WallpaperCoverItem[]> {
+  return _cachedNearbyWallpapers(seriesSlug, workId, sequenceNumber, count);
 }
