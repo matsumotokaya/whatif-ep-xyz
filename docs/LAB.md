@@ -66,8 +66,8 @@ node scripts/fetch-assets.mjs --role character_cutout --limit 50
 「IMAGINEでデザイン → シーケンスに束ねる → Remotionでレンダリング」の受け渡しを担う。
 
 1. IMAGINEのエディタで動画アスペクト（9:16等）のデザインをシーケンス分（seq1, seq2, …）作る
-2. `/admin/video-factory` でバナーを検索し、クリックで順番に選んで **Download fixtures JSON**
-3. 出てきた `video-fixtures.json` を `lab/video/imagine-promo/src/fixtures/` に置き、Remotionから読む
+2. `/admin/video-factory` でバナーを検索し、クリックで順番に選ぶ。composition slug（ファイル名/ID）は選択中の1件目から自動生成されるが手入力で上書きできる
+3. **Download fixtures JSON** → JSONに加えて画面に **Next steps** パネルが出る。保存先パス・`Root.tsx` に貼るスニペット（1件なら `<Still>` + `BannerRenderer`、複数なら `<Composition>` + `BannerSequence`）・Studioでのプレビューコマンド・`remotion render` コマンドまで**すべて生成済みでコピーボタン1つ**。これをそのままターミナル/エディタに貼れば動画化までたどり着く
 
 裏側は **`GET /api/video-factory/banners`**（バナー版リゾルバ、[src/app/api/video-factory/banners/route.ts](../src/app/api/video-factory/banners/route.ts)）:
 

@@ -12,6 +12,12 @@ interface BannerSummary {
   updatedAt: string | null;
 }
 
+interface FixtureMeta {
+  count: number;
+  width: number;
+  height: number;
+}
+
 type LoadState = "loading" | "ready" | "unauthorized" | "error";
 
 function aspectLabel(width: number | null, height: number | null): string | null {
@@ -36,6 +42,72 @@ function formatDate(value: string | null): string {
   }).format(date);
 }
 
+// slug for filenames/imports, PascalCase for the Remotion composition id
+function slugify(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "sequence";
+}
+
+function toCamel(slug: string): string {
+  return slug.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+function toPascal(slug: string): string {
+  const camel = toCamel(slug);
+  return camel.charAt(0).toUpperCase() + camel.slice(1);
+}
+
+function buildInstructions(slug: string, meta: FixtureMeta): string {
+  const camel = toCamel(slug);
+  const pascal = toPascal(slug);
+  const isSequence = meta.count > 1;
+
+  const rootSnippet = isSequence
+    ? `import ${camel}Raw from "./fixtures/${slug}.json";
+const ${camel} = ${camel}Raw as BannerData[];
+
+// inside <RemotionRoot>:
+<Composition
+  id="${pascal}"
+  component={BannerSequence}
+  durationInFrames={sequenceDuration(${camel})}
+  fps={30}
+  width={${camel}[0].width}
+  height={${camel}[0].height}
+  defaultProps={{ banners: ${camel} }}
+/>`
+    : `import ${camel}Raw from "./fixtures/${slug}.json";
+const ${camel} = (${camel}Raw as BannerData[])[0];
+
+// inside <RemotionRoot>:
+<Still
+  id="${pascal}"
+  component={BannerRenderer}
+  width={${camel}.width}
+  height={${camel}.height}
+  defaultProps={{ banner: ${camel} }}
+/>`;
+
+  return `# 1. Save the downloaded JSON here:
+lab/video/imagine-promo/src/fixtures/${slug}.json
+
+# 2. Add to lab/video/imagine-promo/src/Root.tsx
+#    (BannerRenderer / BannerSequence / sequenceDuration are already
+#    imported there if you have other banner compositions; add them
+#    from "./banner/BannerRenderer" and "./banner/BannerSequence" if not)
+${rootSnippet}
+
+# 3. Preview
+cd lab/video/imagine-promo && npm run dev
+# -> Remotion Studio, select "${pascal}" in the sidebar
+
+# 4. Render the final MP4
+npx remotion render ${pascal} out/${slug}.mp4`;
+}
+
 export function VideoFactoryClient() {
   const [state, setState] = useState<LoadState>("loading");
   const [banners, setBanners] = useState<BannerSummary[]>([]);
@@ -43,6 +115,10 @@ export function VideoFactoryClient() {
   const [sequence, setSequence] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [fixtureMeta, setFixtureMeta] = useState<FixtureMeta | null>(null);
+  const [slug, setSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async (searchTerm: string) => {
     setState("loading");
@@ -76,7 +152,20 @@ export function VideoFactoryClient() {
     [banners]
   );
 
+  // keep the slug in sync with the sequence until the user edits it by hand
+  useEffect(() => {
+    if (slugTouched) return;
+    if (sequence.length === 0) {
+      setSlug("");
+      return;
+    }
+    const first = bannerById.get(sequence[0]);
+    const base = first ? slugify(first.name) : "sequence";
+    setSlug(sequence.length > 1 ? `${base}-seq${sequence.length}` : base);
+  }, [sequence, bannerById, slugTouched]);
+
   const toggle = (id: string) => {
+    setFixtureMeta(null);
     setSequence((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -96,6 +185,7 @@ export function VideoFactoryClient() {
     if (sequence.length === 0) return;
     setDownloading(true);
     setDownloadError(null);
+    setFixtureMeta(null);
     try {
       const res = await fetch(
         `/api/video-factory/banners?id=${sequence.join(",")}`
@@ -105,20 +195,42 @@ export function VideoFactoryClient() {
         return;
       }
       const payload = await res.json();
-      const blob = new Blob([JSON.stringify(payload.fixtures, null, 2)], {
+      const fixtures = payload.fixtures ?? [];
+      if (fixtures.length === 0) {
+        setDownloadError("取得できるバナーがありませんでした");
+        return;
+      }
+      const blob = new Blob([JSON.stringify(fixtures, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "video-fixtures.json";
+      anchor.download = `${slug || "sequence"}.json`;
       anchor.click();
       URL.revokeObjectURL(url);
+      setFixtureMeta({
+        count: fixtures.length,
+        width: fixtures[0].width,
+        height: fixtures[0].height,
+      });
     } catch {
       setDownloadError("取得に失敗しました");
     } finally {
       setDownloading(false);
     }
+  };
+
+  const instructions = useMemo(
+    () => (fixtureMeta ? buildInstructions(slug || "sequence", fixtureMeta) : null),
+    [fixtureMeta, slug]
+  );
+
+  const copyInstructions = async () => {
+    if (!instructions) return;
+    await navigator.clipboard.writeText(instructions);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   if (state === "unauthorized") {
@@ -153,17 +265,29 @@ export function VideoFactoryClient() {
 
       {/* sequence tray */}
       <div className="mt-6 border border-white/15 bg-white/[0.03] p-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.4em] text-white/60">
             Sequence — {sequence.length} banners
           </h2>
-          <button
-            onClick={downloadFixtures}
-            disabled={sequence.length === 0 || downloading}
-            className="border border-[#ff6b35] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff6b35] transition-colors hover:bg-[#ff6b35] hover:text-black disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            {downloading ? "Fetching…" : "Download fixtures JSON"}
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              value={slug}
+              onChange={(event) => {
+                setSlugTouched(true);
+                setSlug(slugify(event.target.value));
+              }}
+              placeholder="composition-slug"
+              disabled={sequence.length === 0}
+              className="w-48 border border-white/20 bg-black/30 px-2.5 py-2 font-mono text-xs text-white placeholder:text-white/30 focus:border-white/50 focus:outline-none disabled:opacity-40"
+            />
+            <button
+              onClick={downloadFixtures}
+              disabled={sequence.length === 0 || downloading}
+              className="border border-[#ff6b35] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff6b35] transition-colors hover:bg-[#ff6b35] hover:text-black disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              {downloading ? "Fetching…" : "Download fixtures JSON"}
+            </button>
+          </div>
         </div>
         {downloadError && (
           <p className="mt-2 text-xs text-red-400">{downloadError}</p>
@@ -216,10 +340,25 @@ export function VideoFactoryClient() {
             })}
           </ol>
         )}
-        <p className="mt-3 font-mono text-[9px] leading-relaxed tracking-[0.15em] text-white/35">
-          JSONは lab/video/imagine-promo/src/fixtures/ に置いて Remotion から読み込む。
-          個別取得は scripts/fetch-banner.sh &lt;ID&gt; &lt;slug&gt; でも可。
-        </p>
+
+        {instructions && (
+          <div className="mt-4 border border-white/15 bg-black/40">
+            <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+              <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/50">
+                Next steps
+              </span>
+              <button
+                onClick={copyInstructions}
+                className="font-mono text-[9px] uppercase tracking-[0.3em] text-[#ff6b35] hover:text-white"
+              >
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <pre className="overflow-x-auto whitespace-pre p-3 font-mono text-[11px] leading-relaxed text-white/80">
+              {instructions}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* banner grid */}
