@@ -23,6 +23,17 @@ interface Experiment {
 
 const EXPERIMENTS: Experiment[] = [
   {
+    code: "EXP-05",
+    title: "ORBIT",
+    concept:
+      "GLBキャラクターを中心にカメラが周回するThree.jsヒーローセクション。パーティクル雲とガラスパネルが漂う宇宙空間を、ドラッグで自由に周回できる。",
+    href: "/lab/orbit-hero/index.html",
+    thumb: "/lab/orbit-hero/assets/thumb.svg",
+    stack: "THREE.JS · ORBIT CAMERA · BLOOM",
+    date: "2026.07",
+    accent: "#b18cff",
+  },
+  {
     code: "EXP-04",
     title: "DETAIL FLOW",
     concept:

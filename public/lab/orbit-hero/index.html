@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>WHATIF LAB — EXP-05 ORBIT</title>
+<style>
+  :root {
+    /* White-gallery theme: dark ink UI on warm paper white */
+    --violet: #6d4fd0;        /* accent, readable on white */
+    --violet-soft: #9a7cff;   /* hover glow */
+    --magenta: #d63bb0;
+    --cyan: #2bb8d6;
+    --ink: #2a2233;           /* primary text on white */
+    --ink-70: rgba(42,34,51,0.72);
+    --ink-45: rgba(42,34,51,0.45);
+    --paper: #f4f2ec;
+    --glass: rgba(255,255,255,0.55);
+    --hair: rgba(42,34,51,0.22);
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Soft paper gradient sits behind the canvas edges */
+  #bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(120% 90% at 50% 42%, #ffffff 0%, #f4f2ec 48%, #e7e2d6 100%);
+  }
+  #stage {
+    position: fixed; inset: 0; z-index: 1;
+    opacity: 0;
+    transition: opacity 1.6s ease;
+  }
+  #stage.on { opacity: 1; }
+  canvas { display: block; }
+
+  /* ---- subtle grain texture (multiply reads on white) ---- */
+  #scan {
+    position: fixed; inset: 0; z-index: 3;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.014) 0px,
+      rgba(0,0,0,0.014) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: multiply;
+  }
+  /* Faint cool corners — grounds the frame without darkening the white */
+  #vignette {
+    position: fixed; inset: 0; z-index: 2;
+    pointer-events: none;
+    background: radial-gradient(92% 92% at 50% 50%, transparent 62%, rgba(90,80,120,0.12) 100%);
+  }
+
+  /* ---- UI chrome ---- */
+  .ui { position: fixed; z-index: 5; }
+  .tl { top: 22px; left: 24px; }
+  .tr { top: 18px; right: 24px; }
+  .bl { bottom: 26px; left: 24px; }
+  .br { bottom: 26px; right: 24px; }
+
+  .brand {
+    font-size: 10px;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--ink-70);
+  }
+  .brand small {
+    display: block;
+    margin-top: 6px;
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    color: var(--violet);
+  }
+
+  .navpill {
+    display: flex; align-items: center; gap: 14px;
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+    padding: 9px 20px;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    backdrop-filter: blur(6px);
+    background: var(--glass);
+  }
+  .navpill a {
+    color: var(--ink-70);
+    text-decoration: none;
+    transition: color 0.25s ease, text-shadow 0.25s ease;
+  }
+  .navpill a:hover { color: #000; text-shadow: 0 0 12px var(--violet-soft); }
+  .navpill .rule {
+    width: 34px; height: 1px;
+    background: var(--hair);
+  }
+
+  .ask h2 {
+    font-size: clamp(15px, 2.2vw, 22px);
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--ink);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    text-shadow: 0 1px 18px rgba(255,255,255,0.6);
+  }
+  .ask ul { list-style: none; }
+  .ask li { margin: 5px 0; }
+  .ask a {
+    color: var(--violet);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    transition: color 0.25s ease, text-shadow 0.25s ease, transform 0.25s ease;
+    display: inline-block;
+  }
+  .ask a:hover {
+    color: #4a2fb0;
+    text-shadow: 0 0 14px rgba(154,124,255,0.55);
+    transform: translateX(4px);
+  }
+  .askbtn {
+    margin-top: 18px;
+    display: inline-block;
+    border: 1px solid rgba(109,79,208,0.5);
+    border-radius: 999px;
+    padding: 10px 22px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--ink-70);
+    background: var(--glass);
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+  }
+  .askbtn:hover {
+    border-color: var(--violet);
+    color: #000;
+    box-shadow: 0 0 22px rgba(154,124,255,0.35), inset 0 0 12px rgba(154,124,255,0.12);
+  }
+
+  .brgroup {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .surfacechip {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-70);
+    border: 1px solid rgba(109,79,208,0.45);
+    border-radius: 999px;
+    padding: 8px 16px;
+    background: var(--glass);
+    backdrop-filter: blur(6px);
+    cursor: pointer;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+  }
+  .surfacechip:hover {
+    border-color: var(--violet);
+    color: #000;
+    box-shadow: 0 0 18px rgba(154,124,255,0.32), inset 0 0 10px rgba(154,124,255,0.12);
+  }
+
+  .hint {
+    font-size: 9px;
+    letter-spacing: 0.34em;
+    color: var(--ink-45);
+    text-transform: uppercase;
+    animation: hintPulse 3.2s ease-in-out infinite;
+  }
+  @keyframes hintPulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 0.9; }
+  }
+
+  /* ---- loading overlay ---- */
+  #loader {
+    position: fixed; inset: 0; z-index: 10;
+    background: var(--paper);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px;
+    transition: opacity 0.9s ease;
+  }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #pct {
+    font-size: 36px;
+    font-weight: 300;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+  }
+  #loader .lbl {
+    font-size: 9px;
+    letter-spacing: 0.5em;
+    color: var(--violet);
+    text-transform: uppercase;
+  }
+  #bar {
+    width: 180px; height: 1px;
+    background: rgba(42,34,51,0.15);
+    position: relative; overflow: hidden;
+  }
+  #bar i {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--magenta), var(--violet), var(--cyan));
+    transition: width 0.2s ease;
+  }
+
+  @media (max-width: 640px) {
+    .tr { display: none; }
+    .bl { bottom: 20px; left: 18px; }
+    .tl { left: 18px; }
+    .br { right: 18px; bottom: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div id="stage"></div>
+<div id="vignette"></div>
+<div id="scan"></div>
+
+<!-- ===== UI chrome ===== -->
+<header class="ui tl brand">
+  WHATIF — LAB
+  <small>EXP-05 ORBIT</small>
+</header>
+
+<nav class="ui tr navpill">
+  <a href="#">EPISODES</a>
+  <span class="rule"></span>
+  <a href="#">IMAGINE</a>
+</nav>
+
+<section class="ui bl ask">
+  <h2>What are you looking for?</h2>
+  <ul>
+    <li><a href="#">-&gt; EPISODES</a></li>
+    <li><a href="#">-&gt; WALLPAPERS</a></li>
+    <li><a href="#">-&gt; IMAGINE</a></li>
+    <li><a href="#">-&gt; THE CLUB</a></li>
+  </ul>
+  <button class="askbtn" type="button">ASK ME ANYTHING...</button>
+</section>
+
+<div class="ui br brgroup">
+  <button id="surfacechip" class="surfacechip" type="button">SURFACE &#9656; ORIGINAL</button>
+  <aside class="hint">DRAG TO ORBIT &middot; [T] SURFACE</aside>
+</div>
+
+<!-- ===== loading overlay ===== -->
+<div id="loader">
+  <span class="lbl">WHATIF // ORBIT</span>
+  <span id="pct">0%</span>
+  <div id="bar"><i id="barfill"></i></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.min.js",
+    "three/addons/": "./vendor/addons/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+/* ================= renderer / scene ================= */
+
+const stage = document.getElementById("stage");
+const DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(DPR);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+// White bg: keep ACES but drop exposure to ~1.0 so the bright field doesn't
+// clip/wash out (1.15 blew out highlights against white).
+renderer.toneMappingExposure = 1.0;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+// Warm gallery white — flatters the bonsai more than a clinical pure white.
+const BG = 0xf4f2ec;
+scene.background = new THREE.Color(BG);
+// Fog fades depth to the SAME white (not black). Density is low because the
+// camera is now close (see below) — enough to fade distant particles/panels
+// into the white without washing out the crisp bonsai.
+scene.fog = new THREE.FogExp2(BG, 0.02);
+
+const camera = new THREE.PerspectiveCamera(
+  42,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  100
+);
+// Roughly DOUBLE the zoom vs. before: distance ~2.8 from target so the top and
+// bottom of the bonsai crop out of frame (intentional close-up).
+camera.position.set(0, 0.42, 2.78);
+
+/* IBL base lighting */
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+// Slightly lower than the dark-scene value (0.55) so the model doesn't blow out
+// against the bright white field.
+scene.environmentIntensity = 0.5;
+
+/* Colored rim / accent lights for the iridescent look */
+const lightMagenta = new THREE.PointLight(0xff4fd8, 60, 0, 2);
+lightMagenta.position.set(3.2, 2.4, 2.6);
+const lightCyan = new THREE.PointLight(0x4fd8ff, 55, 0, 2);
+lightCyan.position.set(-3.4, 1.2, -2.4);
+const lightViolet = new THREE.PointLight(0x8b5cf6, 45, 0, 2);
+lightViolet.position.set(0.4, -2.6, 2.2);
+scene.add(lightMagenta, lightCyan, lightViolet);
+
+/* ================= crystalline particles ================= */
+/*
+ * One THREE.Points, one draw call, one custom ShaderMaterial.
+ * Reworked for the WHITE background: the old "invisible-until-a-facet-glints-
+ * white" logic inverts on white (white glints vanish, dark baseline shows), so
+ * here specks are tiny faint COLORED/dark motes — a barely-visible haze of dust
+ * that briefly pops to a saturated color when a facet (aAxis) catches a light as
+ * the camera orbits. All motion + shading lives in the vertex shader.
+ */
+
+const PARTICLE_COUNT = 7000;
+const CLUSTER_COUNT = 12;
+
+// Box-Muller: returns a normally-distributed value (mean 0, sigma 1).
+function gaussian() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function buildParticleGeometry() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const axes = new Float32Array(PARTICLE_COUNT * 3);
+  const seeds = new Float32Array(PARTICLE_COUNT);
+  const sizes = new Float32Array(PARTICLE_COUNT);
+
+  // Cluster centers on a shell around the model, with varied weight + spread.
+  const clusters = [];
+  let totalWeight = 0;
+  for (let i = 0; i < CLUSTER_COUNT; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const radius = 1.8 + Math.random() * 2.4;   // 1.8 .. 4.2
+    const y = -1.6 + Math.random() * 3.4;        // -1.6 .. +1.8
+    const weight = 0.4 + Math.random() * 1.2;    // point-count weight
+    const sigma = 0.35 + Math.random() * 0.55;   // 0.35 .. 0.9 (tight vs loose)
+    clusters.push({
+      x: Math.cos(theta) * radius,
+      y,
+      z: Math.sin(theta) * radius,
+      weight,
+      sigma,
+    });
+    totalWeight += weight;
+  }
+
+  // ~18% of points form a sparse thin halo on a larger radius so the
+  // clusters don't read as isolated balls floating in a void.
+  const haloCount = Math.floor(PARTICLE_COUNT * 0.18);
+  const clusteredCount = PARTICLE_COUNT - haloCount;
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    let px, py, pz;
+    if (i < clusteredCount) {
+      // Weighted cluster pick, then gaussian offset scaled by cluster sigma.
+      let r = Math.random() * totalWeight;
+      let ci = 0;
+      for (; ci < CLUSTER_COUNT; ci++) {
+        r -= clusters[ci].weight;
+        if (r <= 0) break;
+      }
+      if (ci >= CLUSTER_COUNT) ci = CLUSTER_COUNT - 1;
+      const c = clusters[ci];
+      px = c.x + gaussian() * c.sigma;
+      py = c.y + gaussian() * c.sigma;
+      pz = c.z + gaussian() * c.sigma;
+    } else {
+      // Sparse halo: uniform on a big sphere, slightly flattened in y.
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2.0 * Math.random() - 1.0);
+      const radius = 3.5 + Math.random() * 3.5; // 3.5 .. 7.0
+      px = Math.sin(phi) * Math.cos(theta) * radius;
+      py = Math.cos(phi) * radius * 0.7;
+      pz = Math.sin(phi) * Math.sin(theta) * radius;
+    }
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+
+    // Random unit vector — the speck's pseudo-normal / facet orientation.
+    let ax = gaussian(), ay = gaussian(), az = gaussian();
+    const len = Math.hypot(ax, ay, az) || 1;
+    axes[i * 3] = ax / len;
+    axes[i * 3 + 1] = ay / len;
+    axes[i * 3 + 2] = az / len;
+
+    seeds[i] = Math.random();
+    // Most specks small; a rare ~5% are large for sparkle variety.
+    sizes[i] = Math.random() < 0.05
+      ? 1.8 + Math.random() * 0.4
+      : 0.6 + Math.random() * 0.8;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("aAxis", new THREE.BufferAttribute(axes, 3));
+  geo.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 1));
+  geo.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+  return geo;
+}
+
+// World-space light directions derived from the accent light positions.
+const particleLightDirs = [
+  lightMagenta.position.clone().normalize(),
+  lightCyan.position.clone().normalize(),
+  lightViolet.position.clone().normalize(),
+];
+
+const particleMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0 },
+    uSize: { value: 1.1 }, // tiny specks (was 2.6) — "barely visible" on white
+    uPixelRatio: { value: DPR },
+    uLightDirs: { value: particleLightDirs },
+    uTintWarm: { value: new THREE.Color(0xffd9a0) }, // subtle warm gold
+    uTintCool: { value: new THREE.Color(0x9fd8ff) }, // subtle cool cyan-violet
+  },
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  blending: THREE.NormalBlending, // NOT additive — motes must darken white, not add light
+  vertexShader: /* glsl */`
+    uniform float uTime;
+    uniform float uSize;
+    uniform float uPixelRatio;
+    uniform vec3 uLightDirs[3];
+    uniform vec3 uTintWarm;
+    uniform vec3 uTintCool;
+
+    attribute vec3 aAxis;
+    attribute float aSeed;
+    attribute float aSize;
+
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+      // Tiny organic drift so the whole cloud breathes (no obvious rotation).
+      float s = aSeed * 6.2831853;
+      vec3 pos = position;
+      pos.x += sin(uTime * 0.6 + s) * 0.05;
+      pos.y += sin(uTime * 0.5 + s * 1.7) * 0.04;
+      pos.z += cos(uTime * 0.55 + s * 2.3) * 0.05;
+
+      vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+
+      // Perspective size attenuation, clamped low so nearby motes stay tiny.
+      float sz = uSize * aSize * uPixelRatio * (300.0 / -mvPosition.z);
+      gl_PointSize = min(sz, 3.0 * uPixelRatio);
+
+      // Pseudo-specular glint: facet normal vs each light's half-vector.
+      // V depends on the camera, so glints shimmer as the camera orbits.
+      vec3 N = normalize(normalMatrix * aAxis);
+      vec3 V = normalize(-mvPosition.xyz);
+      float spec = 0.0;
+      for (int i = 0; i < 3; i++) {
+        vec3 L = normalize((viewMatrix * vec4(uLightDirs[i], 0.0)).xyz);
+        vec3 H = normalize(L + V);
+        spec += pow(max(dot(N, H), 0.0), 40.0);
+      }
+      // Subtle time twinkle.
+      spec *= (0.6 + 0.4 * sin(uTime * 3.0 + aSeed * 30.0));
+      float specC = clamp(spec, 0.0, 1.0);
+
+      // Black motes on white: solid near-black specks that read as dust on paper.
+      // Colored reflection pops only worked on a dark field, so here the glint
+      // term just nudges alpha for a faint twinkle as the camera orbits.
+      vColor = vec3(0.02, 0.02, 0.045);
+      vAlpha = 0.30 + specC * 0.22;
+
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+      // Solid circular speck: hard-ish edge, uniform interior (no glow).
+      float d = length(gl_PointCoord - 0.5);
+      float mask = smoothstep(0.5, 0.44, d);
+      // vColor is the display color directly (not premultiplied); NormalBlending
+      // then darkens/tints the white field by vAlpha.
+      gl_FragColor = vec4(vColor, mask * vAlpha);
+    }
+  `,
+});
+
+const particles = new THREE.Points(buildParticleGeometry(), particleMaterial);
+particles.frustumCulled = false; // cloud surrounds the camera on close orbits
+scene.add(particles);
+
+/* ================= glass panels ================= */
+
+function roundedRectGeometry(w, h, r) {
+  const s = new THREE.Shape();
+  const x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y);
+  s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r);
+  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h);
+  s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r);
+  s.quadraticCurveTo(x, y, x + r, y);
+  return new THREE.ShapeGeometry(s, 6);
+}
+
+// Glass panels use opacity + env reflections instead of `transmission`.
+// Real transmission forces the renderer to re-render the whole scene into a
+// separate target every frame, which pegged the GPU (fan spin-up) with 8 panels.
+// Tuned for the WHITE field: dropped opacity (0.3 -> 0.14) and a hair more
+// blue in the tint so the panels read as very faint floating glass with an
+// iridescent sheen instead of dirty gray smudges. Iridescence kept for the
+// edge color that survives on white.
+const glassMat = new THREE.MeshPhysicalMaterial({
+  color: 0xc4cffb,
+  metalness: 0.12,
+  roughness: 0.14,
+  transparent: true,
+  opacity: 0.14,
+  iridescence: 0.55,
+  iridescenceIOR: 1.4,
+  envMapIntensity: 1.2,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+
+const panels = new THREE.Group();
+const PANEL_DEFS = [
+  { w: 1.5, h: 0.9, ang: 0.4, rad: 2.6, y: 0.9 },
+  { w: 1.0, h: 1.3, ang: 1.4, rad: 3.1, y: -0.5 },
+  { w: 1.7, h: 1.0, ang: 2.3, rad: 2.4, y: 0.2 },
+  { w: 0.8, h: 0.8, ang: 3.2, rad: 3.4, y: 1.2 },
+  { w: 1.3, h: 0.8, ang: 4.1, rad: 2.8, y: -0.9 },
+  { w: 1.0, h: 1.5, ang: 5.0, rad: 3.0, y: 0.6 },
+  { w: 1.6, h: 0.9, ang: 5.8, rad: 2.5, y: -0.2 },
+  { w: 0.9, h: 0.9, ang: 0.9, rad: 3.6, y: -1.3 },
+];
+const panelStates = [];
+for (const d of PANEL_DEFS) {
+  const mesh = new THREE.Mesh(roundedRectGeometry(d.w, d.h, 0.1), glassMat);
+  mesh.position.set(Math.cos(d.ang) * d.rad, d.y, Math.sin(d.ang) * d.rad);
+  mesh.rotation.set(
+    (Math.random() - 0.5) * 0.5,
+    -d.ang + Math.PI / 2 + (Math.random() - 0.5) * 0.6,
+    (Math.random() - 0.5) * 0.3
+  );
+  panels.add(mesh);
+  panelStates.push({
+    mesh,
+    baseY: d.y,
+    phase: Math.random() * Math.PI * 2,
+    bobSpeed: 0.4 + Math.random() * 0.4,
+    spin: (Math.random() - 0.5) * 0.12,
+  });
+}
+scene.add(panels);
+
+/* ================= model ================= */
+
+const modelGroup = new THREE.Group();
+scene.add(modelGroup);
+
+/* ---- surface / material override set (proves textures are swappable) ---- */
+
+// Matcap for the GRADIENT surface, painted on a canvas (no external file).
+function makeGradientMatcap() {
+  const size = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const g = c.getContext("2d");
+  // Radial sphere lit from upper-left: violet -> cyan -> dark.
+  const grad = g.createRadialGradient(
+    size * 0.35, size * 0.32, size * 0.05,
+    size * 0.5, size * 0.5, size * 0.62
+  );
+  grad.addColorStop(0.0, "#e9d5ff");
+  grad.addColorStop(0.35, "#b18cff");
+  grad.addColorStop(0.7, "#3aa6c8");
+  grad.addColorStop(1.0, "#0a0714");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const surfaceMaterials = {
+  ORIGINAL: null, // sentinel — restore each mesh's authored material
+  CHROME: new THREE.MeshStandardMaterial({
+    color: 0xffffff, metalness: 1.0, roughness: 0.04, envMapIntensity: 1.6,
+  }),
+  OBSIDIAN: new THREE.MeshStandardMaterial({
+    color: 0x0f1220, metalness: 1.0, roughness: 0.18, envMapIntensity: 1.3,
+  }),
+  MATTE: new THREE.MeshStandardMaterial({
+    color: 0xd9deea, metalness: 0.0, roughness: 0.85,
+  }),
+  GRADIENT: new THREE.MeshMatcapMaterial({ matcap: makeGradientMatcap() }),
+};
+const SURFACE_ORDER = ["ORIGINAL", "CHROME", "OBSIDIAN", "MATTE", "GRADIENT"];
+
+const modelMeshes = [];        // every collected mesh
+const originalMaterials = new Map(); // mesh -> its authored material
+let currentSurface = "ORIGINAL";
+
+function applySurface(name) {
+  const override = surfaceMaterials[name];
+  for (const mesh of modelMeshes) {
+    mesh.material = override || originalMaterials.get(mesh);
+  }
+  currentSurface = name;
+  if (surfaceChip) surfaceChip.textContent = "SURFACE ▸ " + name;
+}
+
+function cycleSurface() {
+  const idx = SURFACE_ORDER.indexOf(currentSurface);
+  applySurface(SURFACE_ORDER[(idx + 1) % SURFACE_ORDER.length]);
+}
+
+const loaderEl = document.getElementById("loader");
+const pctEl = document.getElementById("pct");
+const barEl = document.getElementById("barfill");
+
+const gltfLoader = new GLTFLoader();
+// Required for the incoming meshopt-compressed bonsai.glb (harmless for the
+// current uncompressed file). EXT_texture_webp is decoded natively by r185.
+gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+gltfLoader.load(
+  "./assets/bonsai.glb",
+  (gltf) => {
+    const root = gltf.scene;
+    // Center via bounding box and normalize scale
+    const box = new THREE.Box3().setFromObject(root);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const scale = 2.6 / Math.max(size.x, size.y, size.z);
+    root.position.sub(center).multiplyScalar(scale);
+    root.scale.setScalar(scale);
+    root.traverse((o) => {
+      if (o.isMesh && o.material) {
+        // Keep authored materials, just tune env response for the dark scene
+        o.material.envMapIntensity = 0.9;
+        // Collect meshes + remember originals so surfaces can be swapped.
+        modelMeshes.push(o);
+        originalMaterials.set(o, o.material);
+      }
+    });
+    modelGroup.add(root);
+    applySurface("ORIGINAL"); // default surface on load
+
+    pctEl.textContent = "100%";
+    barEl.style.width = "100%";
+    // Fade the loader out, fade the scene in
+    requestAnimationFrame(() => {
+      loaderEl.classList.add("done");
+      stage.classList.add("on");
+    });
+  },
+  (xhr) => {
+    if (xhr.total > 0) {
+      const p = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
+      pctEl.textContent = p + "%";
+      barEl.style.width = p + "%";
+    } else {
+      pctEl.textContent = (xhr.loaded / 1048576).toFixed(1) + "MB";
+    }
+  },
+  (err) => {
+    pctEl.textContent = "LOAD ERROR";
+    console.error(err);
+  }
+);
+
+/* ================= surface toggle UI ================= */
+
+const surfaceChip = document.getElementById("surfacechip");
+surfaceChip.addEventListener("click", cycleSurface);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "t" || e.key === "T") cycleSurface();
+});
+
+/* ================= controls ================= */
+
+const controls = new OrbitControls(camera, renderer.domElement);
+// Target sits a little up the trunk (model is centered at origin, ~2.6u tall).
+controls.target.set(0, 0.3, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.enablePan = false;
+controls.enableZoom = true;
+// Halved working distance for the close-up crop (was 4.2 / 7.5).
+controls.minDistance = 2.2;
+controls.maxDistance = 4.0;
+controls.minPolarAngle = THREE.MathUtils.degToRad(65);
+controls.maxPolarAngle = THREE.MathUtils.degToRad(105);
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4; // 80% of the previous 0.5
+
+let idleTimer = 0;
+controls.addEventListener("start", () => {
+  controls.autoRotate = false;
+  clearTimeout(idleTimer);
+});
+controls.addEventListener("end", () => {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { controls.autoRotate = true; }, 2600);
+});
+
+/* Pointer parallax: shifts the orbit target slightly for a floaty feel */
+const pointer = { x: 0, y: 0 };
+window.addEventListener("pointermove", (e) => {
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+});
+
+/* ================= post processing ================= */
+
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(DPR);
+composer.setSize(window.innerWidth, window.innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+// On a white field bloom easily gray-washes everything (it adds light
+// everywhere), so keep it very subtle: high threshold so almost nothing on
+// white qualifies, low strength. It's borderline removable on white — kept
+// only for the faint sheen on the brightest model highlights.
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
+  0.3,   // strength
+  0.5,   // radius
+  0.95   // threshold — only the very brightest highlights bloom
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// Force bloom to render at half resolution for cost. composer.addPass sized
+// it at full (DPR-scaled) resolution, so override here (and on resize).
+bloom.resolution.set(window.innerWidth / 2, window.innerHeight / 2);
+bloom.setSize(window.innerWidth / 2, window.innerHeight / 2);
+
+/* ================= resize ================= */
+
+window.addEventListener("resize", () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  // Keep bloom at half resolution (composer.setSize resized it to full).
+  bloom.resolution.set(w / 2, h / 2);
+  bloom.setSize(w / 2, h / 2);
+});
+
+/* ================= render loop ================= */
+
+const clock = new THREE.Clock();
+const TARGET_BASE_Y = 0.3;
+
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // Idle spin of the character itself
+  modelGroup.rotation.y += dt * 0.12;
+
+  // Particles: all drift/shading is in the shader. Just advance time and add
+  // a very slow group rotation so glints sweep. No per-point CPU work.
+  particleMaterial.uniforms.uTime.value = t;
+  particles.rotation.y += dt * 0.01;
+
+  // Glass panels bob and slowly tumble
+  for (let i = 0; i < panelStates.length; i++) {
+    const p = panelStates[i];
+    p.mesh.position.y = p.baseY + Math.sin(t * p.bobSpeed + p.phase) * 0.12;
+    p.mesh.rotation.z += dt * p.spin;
+    p.mesh.rotation.y += dt * p.spin * 0.5;
+  }
+
+  // Accent lights breathe slightly
+  lightMagenta.intensity = 60 + Math.sin(t * 0.7) * 12;
+  lightCyan.intensity = 55 + Math.cos(t * 0.55) * 10;
+
+  // Pointer parallax on the orbit target (lerped, no allocations)
+  controls.target.x += (pointer.x * 0.18 - controls.target.x) * 0.04;
+  controls.target.y += (TARGET_BASE_Y - pointer.y * 0.12 - controls.target.y) * 0.04;
+
+  controls.update();
+  composer.render();
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

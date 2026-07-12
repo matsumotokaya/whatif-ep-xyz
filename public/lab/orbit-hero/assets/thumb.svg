@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <!-- Placeholder card thumbnail for EXP-05 ORBIT -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#1b1030"/>
+      <stop offset="55%" stop-color="#0d0718"/>
+      <stop offset="100%" stop-color="#05030a"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#4c2a8c" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <circle cx="640" cy="360" r="330" fill="url(#glow)"/>
+  <!-- orbit rings -->
+  <g fill="none" stroke-width="1.5" opacity="0.7">
+    <ellipse cx="640" cy="360" rx="380" ry="120" stroke="#b18cff" opacity="0.5" transform="rotate(-8 640 360)"/>
+    <ellipse cx="640" cy="360" rx="470" ry="150" stroke="#5ee7ff" opacity="0.3" transform="rotate(6 640 360)"/>
+  </g>
+  <!-- particles -->
+  <g>
+    <circle cx="240" cy="180" r="3" fill="#ff4fd8"/>
+    <circle cx="1050" cy="220" r="2.4" fill="#5ee7ff"/>
+    <circle cx="880" cy="560" r="3.4" fill="#b18cff"/>
+    <circle cx="360" cy="540" r="2" fill="#ffc46b"/>
+    <circle cx="160" cy="420" r="2.6" fill="#5ee7ff"/>
+    <circle cx="1130" cy="440" r="2" fill="#ff4fd8"/>
+    <circle cx="720" cy="120" r="2.2" fill="#ffc46b"/>
+    <circle cx="480" cy="90" r="1.8" fill="#b18cff"/>
+    <circle cx="980" cy="120" r="1.6" fill="#ff7ab8"/>
+    <circle cx="560" cy="630" r="2.2" fill="#7aa8ff"/>
+  </g>
+  <!-- glass panels -->
+  <g fill="#cfd6ff" stroke="#e6d9ff" stroke-opacity="0.5">
+    <rect x="300" y="260" width="150" height="92" rx="12" fill-opacity="0.1" transform="rotate(-10 375 306)"/>
+    <rect x="840" y="300" width="130" height="160" rx="12" fill-opacity="0.12" transform="rotate(12 905 380)"/>
+    <rect x="520" y="470" width="170" height="96" rx="12" fill-opacity="0.08" transform="rotate(-5 605 518)"/>
+  </g>
+  <!-- character silhouette -->
+  <g transform="translate(640 380)">
+    <ellipse cx="0" cy="150" rx="120" ry="18" fill="#000" opacity="0.6"/>
+    <path d="M -55 150 C -70 60 -60 -20 -30 -60 C -45 -95 -40 -120 -20 -135
+             C -30 -160 -18 -178 0 -178 C 18 -178 30 -160 20 -135
+             C 40 -120 45 -95 30 -60 C 60 -20 70 60 55 150 Z"
+          fill="#120a22" stroke="#b18cff" stroke-opacity="0.6" stroke-width="2"/>
+    <path d="M -20 -135 C -60 -150 -80 -185 -75 -215 C -50 -195 -30 -175 -18 -150 Z" fill="#120a22" stroke="#ff4fd8" stroke-opacity="0.6" stroke-width="2"/>
+    <path d="M 20 -135 C 60 -150 80 -185 75 -215 C 50 -195 30 -175 18 -150 Z" fill="#120a22" stroke="#5ee7ff" stroke-opacity="0.6" stroke-width="2"/>
+    <circle cx="-14" cy="-115" r="4" fill="#ff4fd8"/>
+    <circle cx="14" cy="-115" r="4" fill="#5ee7ff"/>
+  </g>
+  <!-- label -->
+  <text x="64" y="656" font-family="ui-monospace, Menlo, monospace" font-size="26" letter-spacing="14" fill="#f4f2ec" opacity="0.9">ORBIT</text>
+  <text x="64" y="688" font-family="ui-monospace, Menlo, monospace" font-size="13" letter-spacing="6" fill="#b18cff" opacity="0.8">EXP-05 // THREE.JS HERO</text>
+</svg>
