@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#08080b">
+<title>WHATIF — DETAIL FLOW (experiment)</title>
+<style>
+  :root {
+    --ac: #ff6b35;
+    --ink: #f4f2ec;
+    --bg: #08080b;
+    --sans: "Helvetica Neue", Helvetica, "Arial Black", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+  body { font-family: var(--sans); -webkit-font-smoothing: antialiased; touch-action: none; overscroll-behavior: none; }
+  img { -webkit-user-drag: none; }
+
+  /* ================= ambient backdrop ================= */
+  #back { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+  #back img {
+    position: absolute; left: 50%; top: 50%;
+    width: 120vmax; height: 120vmax; object-fit: cover;
+    transform: translate(-50%, -50%);
+    filter: blur(90px) saturate(1.15) brightness(0.34);
+    opacity: 0; transition: opacity 1.1s ease;
+    will-change: opacity;
+  }
+  #back img.live { opacity: 1; }
+  /* accent wash over the blurred art */
+  #back .wash {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120vmax 90vmax at 50% 118%, color-mix(in srgb, var(--ac) 16%, transparent), transparent 55%),
+      radial-gradient(90vmax 70vmax at 50% -22%, color-mix(in srgb, var(--ac) 9%, transparent), transparent 60%);
+    transition: background 0.8s;
+  }
+  #back .floor {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(8,8,11,0.72), transparent 34% 62%, rgba(8,8,11,0.86));
+  }
+  /* perspective grid floor, drifts with scroll (transform set from JS) */
+  #back .rails {
+    position: absolute; left: 50%; bottom: -6%;
+    width: 240vmax; height: 62vh;
+    transform-origin: 50% 100%;
+    background:
+      repeating-linear-gradient(90deg, rgba(244,242,236,0.05) 0 1px, transparent 1px 9vmin);
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 78%);
+    mask-image: linear-gradient(180deg, transparent, #000 78%);
+    opacity: 0.6;
+  }
+
+  .grain {
+    position: fixed; inset: -100px; z-index: 80; pointer-events: none; opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    animation: grain 0.7s steps(4) infinite;
+  }
+  @keyframes grain {
+    0% { transform: translate(0,0); } 25% { transform: translate(-40px,30px); }
+    50% { transform: translate(30px,-50px); } 75% { transform: translate(-30px,-20px); }
+    100% { transform: translate(0,0); }
+  }
+  .vig {
+    position: fixed; inset: 0; z-index: 75; pointer-events: none;
+    background: radial-gradient(120% 90% at 50% 50%, transparent 58%, rgba(0,0,0,0.5));
+  }
+
+  /* ================= 3D corridor ================= */
+  #world {
+    position: fixed; inset: 0; z-index: 10;
+    perspective: 1150px; perspective-origin: 50% 46%;
+  }
+  #tilt { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; }
+  .item {
+    position: absolute; left: 50%; top: 46%;
+    transform-style: preserve-3d;
+    will-change: transform;
+    visibility: hidden;
+  }
+  .item.on { visibility: visible; }
+
+  /* giant serial number floating BEHIND the artwork (real 3D parallax) */
+  .item .num {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) translateZ(-340px);
+    font-size: clamp(150px, 46vmin, 420px);
+    font-weight: 900; font-style: italic; letter-spacing: -0.04em;
+    color: transparent; -webkit-text-stroke: 1.5px rgba(244,242,236,0.20);
+    white-space: nowrap; pointer-events: none;
+  }
+  .item .num i { font-style: italic; -webkit-text-stroke-color: color-mix(in srgb, var(--c) 52%, transparent); }
+
+  /* the artwork plate */
+  .plate {
+    position: absolute; left: 50%; top: 50%;
+    width: min(74vw, 58vmin); aspect-ratio: 4 / 5;
+    transform: translate(-50%, -50%);
+    background: #101014;
+    will-change: filter;
+  }
+  .plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* accent edge light + frame */
+  .plate::before {
+    content: ""; position: absolute; inset: -1px; pointer-events: none;
+    border: 1px solid color-mix(in srgb, var(--c) 60%, rgba(244,242,236,0.2));
+    opacity: 0.55;
+  }
+  .plate::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    box-shadow:
+      0 40px 90px rgba(0,0,0,0.62),
+      0 0 90px color-mix(in srgb, var(--c) 20%, transparent);
+  }
+  /* corner brackets, museum-tag flavour */
+  .plate .ck { position: absolute; width: 14px; height: 14px; border: 1.5px solid rgba(244,242,236,0.65); pointer-events: none; }
+  .plate .ck.a { left: -7px; top: -7px; border-right: 0; border-bottom: 0; }
+  .plate .ck.b { right: -7px; top: -7px; border-left: 0; border-bottom: 0; }
+  .plate .ck.c { left: -7px; bottom: -7px; border-right: 0; border-top: 0; }
+  .plate .ck.d { right: -7px; bottom: -7px; border-left: 0; border-top: 0; }
+
+  /* light spill under the plate (fake museum spotlight) */
+  .item .spill {
+    position: absolute; left: 50%; top: 50%;
+    width: 90vmin; height: 90vmin;
+    transform: translate(-50%, -42%) translateZ(-120px);
+    background: radial-gradient(circle, color-mix(in srgb, var(--c) 20%, transparent) 0%, transparent 55%);
+    pointer-events: none;
+  }
+
+  /* ================= HUD chrome ================= */
+  .top {
+    position: fixed; z-index: 50; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(14px + env(safe-area-inset-top)) 18px 12px;
+    pointer-events: none;
+  }
+  .top .mark { font-weight: 900; font-size: 15px; letter-spacing: 0.34em; color: var(--ink); text-decoration: none; pointer-events: auto; }
+  .top .mark i { font-style: normal; color: var(--ac); transition: color 0.5s; }
+  .top .label { font-family: var(--mono); font-size: 8px; letter-spacing: 0.5em; text-transform: uppercase; color: rgba(244,242,236,0.5); }
+  .counter { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; display: flex; }
+  .counter .cur { color: var(--ac); overflow: hidden; height: 14px; transition: color 0.5s; }
+  .counter .cur span { display: block; transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.25, 1); }
+  .counter .tot { color: rgba(244,242,236,0.45); }
+
+  /* progress rail (right edge) */
+  .rail {
+    position: fixed; z-index: 50; right: 14px; top: 50%;
+    height: min(38vh, 340px); width: 20px;
+    transform: translateY(-50%);
+    display: flex; justify-content: center;
+    pointer-events: none;
+  }
+  .rail .line { width: 1px; height: 100%; background: rgba(244,242,236,0.16); }
+  .rail .dot {
+    position: absolute; left: 50%; top: 0;
+    width: 7px; height: 7px; margin-left: -3.5px;
+    background: var(--ac); transform: rotate(45deg);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--ac) 80%, transparent);
+    transition: background 0.5s, box-shadow 0.5s;
+    will-change: top;
+  }
+  .rail .tick { position: absolute; left: 50%; width: 5px; height: 1px; margin-left: -2.5px; background: rgba(244,242,236,0.3); }
+
+  /* ================= meta dock ================= */
+  .meta {
+    position: fixed; z-index: 40; left: 20px; right: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    pointer-events: none;
+  }
+  .meta .file {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.44em;
+    text-transform: uppercase; color: var(--ac); transition: color 0.5s;
+  }
+  .meta .file b { color: var(--ink); font-weight: 400; }
+  .meta h1 {
+    margin-top: 4px;
+    font-size: clamp(38px, 9.4vw, 84px);
+    font-weight: 900; font-style: italic; text-transform: uppercase;
+    letter-spacing: -0.01em; line-height: 0.94;
+    text-shadow: 0 4px 30px rgba(0,0,0,0.6);
+  }
+  .meta .tags { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .meta .tag {
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.26em; text-transform: uppercase;
+    padding: 5px 10px 4px; border: 1px solid rgba(244,242,236,0.26);
+    color: rgba(244,242,236,0.8); background: rgba(8,8,11,0.42);
+  }
+  .meta .tag.hot { border-color: var(--ac); color: var(--ac); }
+
+  /* spec column — slides in late, from the right */
+  .spec {
+    position: fixed; z-index: 40; right: 20px;
+    bottom: calc(22px + env(safe-area-inset-bottom));
+    width: 168px; text-align: right;
+    font-family: var(--mono); pointer-events: none;
+  }
+  .spec .row { margin-top: 9px; }
+  .spec .k { font-size: 7.5px; letter-spacing: 0.34em; text-transform: uppercase; color: rgba(244,242,236,0.46); }
+  .spec .v { font-size: 12px; letter-spacing: 0.14em; margin-top: 2px; color: var(--ink); }
+  .spec .v i { font-style: normal; color: var(--ac); transition: color 0.5s; }
+  .spec .bar { height: 2px; margin-top: 4px; background: rgba(244,242,236,0.12); overflow: hidden; }
+  .spec .bar i {
+    display: block; height: 100%; background: var(--ac);
+    transform-origin: 100% 0; transform: scaleX(0);
+    transition: transform 0.7s cubic-bezier(0.2, 0.9, 0.2, 1), background 0.5s;
+  }
+
+  /* staggered reveal choreography */
+  .meta .file, .meta h1, .meta .tags, .spec .row {
+    opacity: 0; transform: translateY(16px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .spec .row { transform: translateX(26px); }
+  .show .meta .file { opacity: 1; transform: none; transition: opacity 0.5s ease 0.30s, transform 0.55s cubic-bezier(0.2, 1, 0.3, 1) 0.30s; }
+  .show .meta h1    { opacity: 1; transform: none; transition: opacity 0.5s ease 0.38s, transform 0.6s cubic-bezier(0.2, 1, 0.3, 1) 0.38s; }
+  .show .meta .tags { opacity: 1; transform: none; transition: opacity 0.5s ease 0.50s, transform 0.55s cubic-bezier(0.2, 1, 0.3, 1) 0.50s; }
+  .show .spec .row:nth-child(1) { opacity: 1; transform: none; transition: opacity 0.45s ease 0.55s, transform 0.5s cubic-bezier(0.2, 1, 0.3, 1) 0.55s; }
+  .show .spec .row:nth-child(2) { opacity: 1; transform: none; transition: opacity 0.45s ease 0.64s, transform 0.5s cubic-bezier(0.2, 1, 0.3, 1) 0.64s; }
+  .show .spec .row:nth-child(3) { opacity: 1; transform: none; transition: opacity 0.45s ease 0.73s, transform 0.5s cubic-bezier(0.2, 1, 0.3, 1) 0.73s; }
+  .show .spec .row:nth-child(4) { opacity: 1; transform: none; transition: opacity 0.45s ease 0.82s, transform 0.5s cubic-bezier(0.2, 1, 0.3, 1) 0.82s; }
+
+  /* title letters */
+  .meta h1 span { display: inline-block; will-change: transform, opacity; }
+  @keyframes chIn {
+    0% { transform: translateY(0.5em) skewX(-10deg); opacity: 0; }
+    100% { transform: none; opacity: 1; }
+  }
+  .show .meta h1 span { animation: chIn 0.4s cubic-bezier(0.2, 1, 0.3, 1) both; }
+
+  .hint {
+    position: fixed; z-index: 40; left: 50%; bottom: calc(7px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    font-family: var(--mono); font-size: 7.5px; letter-spacing: 0.5em; text-indent: 0.5em;
+    text-transform: uppercase; color: rgba(244,242,236,0.3);
+    pointer-events: none;
+  }
+
+  /* desktop: meta on the left mid, spec right mid — gallery wall label feel */
+  @media (min-width: 900px) {
+    #world { perspective-origin: 50% 50%; }
+    .item { top: 50%; }
+    .plate { width: min(30vw, 62vmin); }
+    .meta { left: 5vw; right: auto; width: 34vw; bottom: auto; top: 50%; transform: translateY(-50%); }
+    .meta h1 { font-size: clamp(44px, 4.6vw, 84px); }
+    .spec { right: 5vw; bottom: auto; top: 50%; transform: translateY(-46%); }
+    .hint { bottom: 18px; }
+  }
+
+  /* ================= loader ================= */
+  #loader {
+    position: fixed; inset: 0; z-index: 300;
+    background: #050507;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: transform 0.55s cubic-bezier(0.75, 0, 0.2, 1), opacity 0.4s ease 0.1s;
+  }
+  #loader.done { transform: translateY(-102%) skewY(-1.2deg); opacity: 0.6; pointer-events: none; }
+  .ld-logo { font-size: clamp(40px, 10vw, 72px); font-weight: 900; font-style: italic; letter-spacing: 0.06em; }
+  .ld-logo i { font-style: italic; color: var(--ac); }
+  .ld-sub { margin-top: 10px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.6em; text-indent: 0.6em; text-transform: uppercase; color: rgba(244,242,236,0.5); }
+  .ld-bar { width: min(60vw, 300px); height: 2px; margin-top: 40px; background: rgba(244,242,236,0.12); overflow: hidden; }
+  .ld-bar i { display: block; height: 100%; background: var(--ac); transform-origin: 0 0; transform: scaleX(0); transition: transform 0.25s ease-out; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .grain { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="back">
+  <img alt="" aria-hidden="true">
+  <img alt="" aria-hidden="true">
+  <div class="wash"></div>
+  <div class="rails" id="rails"></div>
+  <div class="floor"></div>
+</div>
+
+<div id="world"><div id="tilt"></div></div>
+
+<div class="vig"></div>
+<div class="grain"></div>
+
+<div class="top">
+  <a class="mark" href="https://whatif-ep.xyz/works/episode" target="_blank" rel="noopener">WHAT<i>IF</i></a>
+  <div class="label">Detail Flow — EXP.01</div>
+  <div class="counter"><div class="cur"><span id="cnum">01</span></div><div class="tot">&nbsp;/ 08</div></div>
+</div>
+
+<div class="rail" id="rail"><div class="line"></div><div class="dot" id="railDot"></div></div>
+
+<div id="dock">
+  <div class="meta">
+    <div class="file" id="mFile"></div>
+    <h1 id="mTitle"></h1>
+    <div class="tags" id="mTags"></div>
+  </div>
+  <div class="spec" id="spec">
+    <div class="row"><div class="k">Series</div><div class="v" id="sSeries"></div></div>
+    <div class="row"><div class="k">Released</div><div class="v" id="sDate"></div></div>
+    <div class="row"><div class="k">Wallpaper Pack</div><div class="v"><i>◆</i> <span id="sPack"></span></div></div>
+    <div class="row"><div class="k">Resonance</div><div class="v" id="sRes"></div><div class="bar"><i id="sBar"></i></div></div>
+  </div>
+</div>
+
+<div class="hint">Scroll · Swipe · ↑↓</div>
+
+<div id="loader">
+  <div class="ld-logo">WHAT<i>IF</i></div>
+  <div class="ld-sub">Detail Flow</div>
+  <div class="ld-bar"><i id="ldbar"></i></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ============================================================
+     WORKS — real feed images, placeholder lore.
+     ============================================================ */
+  const WORKS = [
+    { ep: "0450", title: "AFTERGLOW",  ac: "#ff6b35", img: "assets/ep/e01.webp",
+      tags: ["CITYPOP", "DUSK", "NEON"], date: "2026.03.14", pack: "¥480", res: 74 },
+    { ep: "0452", title: "SIGNAL",     ac: "#56ccf2", img: "assets/ep/e02.webp",
+      tags: ["STATIC", "MIDNIGHT"], date: "2026.03.29", pack: "¥480", res: 61 },
+    { ep: "0453", title: "HALF LIFE",  ac: "#ff2d55", img: "assets/ep/e03.webp",
+      tags: ["PORTRAIT", "CRIMSON", "VOID"], date: "2026.04.06", pack: "¥480", res: 88 },
+    { ep: "0454", title: "PARADE",     ac: "#d4f34a", img: "assets/ep/e04.webp",
+      tags: ["DAYLIGHT", "ACID"], date: "2026.04.18", pack: "¥480", res: 57 },
+    { ep: "0455", title: "UNDERTOW",   ac: "#3ee08c", img: "assets/ep/e05.webp",
+      tags: ["DEEP", "SLEEP", "TIDE"], date: "2026.05.02", pack: "¥480", res: 69 },
+    { ep: "0456", title: "MONOLITH",   ac: "#ffd60a", img: "assets/ep/e06.webp",
+      tags: ["STRUCTURE", "GOLD"], date: "2026.05.21", pack: "¥480", res: 93 },
+    { ep: "0457", title: "STRAY",      ac: "#b18cff", img: "assets/ep/e07.webp",
+      tags: ["WANDER", "VIOLET", "RAIN"], date: "2026.06.09", pack: "¥480", res: 66 },
+    { ep: "0458", title: "TERMINAL",   ac: "#e9e4d4", img: "assets/ep/e08.webp",
+      tags: ["ARRIVAL", "BONE"], date: "2026.06.27", pack: "¥480", res: 81 },
+  ];
+  const N = WORKS.length;
+
+  /* ============================================================
+     DOM build — each work gets a 3D group (big number behind,
+     spotlight spill, framed plate).
+     ============================================================ */
+  const tiltEl = document.getElementById("tilt");
+  const items = WORKS.map((w, i) => {
+    const el = document.createElement("div");
+    el.className = "item";
+    el.style.setProperty("--c", w.ac);
+    el.innerHTML = `
+      <div class="num">${w.ep.slice(0, 2)}<i>${w.ep.slice(2)}</i></div>
+      <div class="spill"></div>
+      <div class="plate">
+        <img alt="${w.title}">
+        <div class="ck a"></div><div class="ck b"></div><div class="ck c"></div><div class="ck d"></div>
+      </div>`;
+    tiltEl.appendChild(el);
+    return { el, plate: el.querySelector(".plate"), img: el.querySelector("img") };
+  });
+
+  const backImgs = [...document.querySelectorAll("#back img")];
+  const rails = document.getElementById("rails");
+  const dock = document.getElementById("dock");
+  const cnum = document.getElementById("cnum");
+  const railDot = document.getElementById("railDot");
+  const rail = document.getElementById("rail");
+  const mFile = document.getElementById("mFile");
+  const mTitle = document.getElementById("mTitle");
+  const mTags = document.getElementById("mTags");
+  const sSeries = document.getElementById("sSeries");
+  const sDate = document.getElementById("sDate");
+  const sPack = document.getElementById("sPack");
+  const sRes = document.getElementById("sRes");
+  const sBar = document.getElementById("sBar");
+
+  // rail ticks
+  for (let i = 0; i < N; i++) {
+    const t = document.createElement("div");
+    t.className = "tick";
+    t.style.top = `${(i / (N - 1)) * 100}%`;
+    rail.appendChild(t);
+  }
+
+  /* ============================================================
+     Virtual scroll core.
+     `pos` is a float in "works" units. One rAF loop owns every
+     transform — nothing animates via layout, only transform/
+     opacity/filter, so the corridor keeps native-refresh fluidity.
+     ============================================================ */
+  let target = 0;          // where we want to be
+  let pos = 0;             // where we are (lerped)
+  let vel = 0;             // per-frame velocity (for dynamic tilt/blur)
+  let dragging = false;
+  let freeUntil = 0;       // while wheeling, don't snap yet
+  let focused = -1;
+  let settled = false;
+  let booted = false;
+
+  const clampT = (v) => Math.max(-0.25, Math.min(N - 0.75, v));
+  const UNIT_VH = 0.86;    // vertical distance between works (fraction of vh)
+
+  let vh = innerHeight, vw = innerWidth, unit = vh * UNIT_VH;
+  addEventListener("resize", () => { vh = innerHeight; vw = innerWidth; unit = vh * UNIT_VH; });
+
+  /* -------- input: wheel (desktop / trackpad) -------- */
+  addEventListener("wheel", (e) => {
+    if (!booted) return;
+    target = clampT(target + e.deltaY / unit * 0.9);
+    freeUntil = performance.now() + 160;
+  }, { passive: true });
+
+  /* -------- input: touch — 1:1 finger tracking + flick -------- */
+  let tY = 0, tStartPos = 0, tHist = [];
+  addEventListener("touchstart", (e) => {
+    if (!booted) return;
+    dragging = true;
+    tY = e.touches[0].clientY;
+    tStartPos = pos;
+    target = pos;
+    tHist = [[performance.now(), tY]];
+  }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    if (!dragging) return;
+    const y = e.touches[0].clientY;
+    target = clampT(tStartPos + (tY - y) / unit * 1.15);
+    tHist.push([performance.now(), y]);
+    if (tHist.length > 6) tHist.shift();
+  }, { passive: true });
+  addEventListener("touchend", () => {
+    if (!dragging) return;
+    dragging = false;
+    // flick velocity from recent samples → advance max ±1 (app-like paging)
+    let fv = 0;
+    if (tHist.length >= 2) {
+      const [t0, y0] = tHist[0];
+      const [t1, y1] = tHist[tHist.length - 1];
+      if (t1 > t0) fv = (y0 - y1) / (t1 - t0); // px/ms, + = swipe up
+    }
+    const base = Math.abs(fv) > 0.35 ? Math.round(pos) + Math.sign(fv) : Math.round(target);
+    target = clampT(Math.max(Math.round(pos) - 1, Math.min(Math.round(pos) + 1, base)));
+  }, { passive: true });
+
+  /* -------- input: keys -------- */
+  addEventListener("keydown", (e) => {
+    if (!booted) return;
+    if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") target = clampT(Math.round(target) + 1);
+    if (e.key === "ArrowUp" || e.key === "PageUp") target = clampT(Math.round(target) - 1);
+  });
+
+  /* -------- pointer tilt (desktop only, subtle) -------- */
+  let mx = 0, my = 0, tx = 0, ty2 = 0;
+  addEventListener("mousemove", (e) => {
+    mx = (e.clientX / vw - 0.5) * 2;
+    my = (e.clientY / vh - 0.5) * 2;
+  });
+
+  /* ============================================================
+     Meta dock — swap copy on focus change; reveal only when the
+     corridor has physically settled, so specs arrive "late".
+     ============================================================ */
+  function setDock(i) {
+    const w = WORKS[i];
+    document.documentElement.style.setProperty("--ac", w.ac);
+    mFile.innerHTML = `FILE // EP-${w.ep} — <b>WHAT THE LAND</b>`;
+    mTitle.innerHTML = [...w.title].map((ch, k) =>
+      ch === " " ? " " : `<span style="animation-delay:${(0.34 + k * 0.03).toFixed(3)}s">${ch}</span>`).join("");
+    mTags.innerHTML = w.tags.map((t, k) =>
+      `<span class="tag${k === 0 ? " hot" : ""}">${t}</span>`).join("");
+    sSeries.textContent = "EPISODE";
+    sDate.textContent = w.date;
+    sPack.textContent = w.pack;
+    sRes.textContent = String(w.res).padStart(3, "0");
+    // counter roll
+    cnum.style.transition = "none";
+    cnum.style.transform = "translateY(100%)";
+    cnum.textContent = String(i + 1).padStart(2, "0");
+    requestAnimationFrame(() => {
+      cnum.style.transition = "";
+      cnum.style.transform = "translateY(0)";
+    });
+    // ambient backdrop crossfade (double buffer)
+    const idle = backImgs.find((im) => !im.classList.contains("live")) || backImgs[0];
+    const live = backImgs.find((im) => im !== idle);
+    idle.src = w.img;
+    idle.classList.add("live");
+    if (live) live.classList.remove("live");
+    // spec meter re-arms on each reveal
+    sBar.style.transform = "scaleX(0)";
+  }
+
+  function setSettled(on) {
+    if (on === settled) return;
+    settled = on;
+    dock.classList.toggle("show", on);
+    if (on) requestAnimationFrame(() => { sBar.style.transform = `scaleX(${WORKS[focused].res / 100})`; });
+  }
+
+  /* ============================================================
+     The one loop.
+     ============================================================ */
+  const lerp = (a, b, k) => a + (b - a) * k;
+
+  function frame(now) {
+    // snap to nearest work when input is idle
+    if (!dragging && now > freeUntil) {
+      target = clampT(lerp(target, Math.round(target), 0.085));
+    }
+    const prev = pos;
+    pos = lerp(pos, target, dragging ? 0.32 : 0.11);
+    vel = pos - prev;
+    const speed = Math.min(Math.abs(vel) * 30, 1); // 0..1 motion energy
+
+    // focus bookkeeping
+    const f = Math.max(0, Math.min(N - 1, Math.round(pos)));
+    if (f !== focused) {
+      focused = f;
+      setDock(f);
+      setSettled(false);
+    }
+    setSettled(Math.abs(pos - focused) < 0.02 && Math.abs(vel) < 0.0004);
+
+    // gentle camera tilt toward pointer
+    tx = lerp(tx, mx, 0.06);
+    ty2 = lerp(ty2, my, 0.06);
+    tiltEl.style.transform = `rotateY(${tx * 2.4}deg) rotateX(${ty2 * -1.6}deg)`;
+
+    // corridor layout
+    for (let i = 0; i < N; i++) {
+      const it = items[i];
+      const off = i - pos;                    // 0 = center stage
+      const a = Math.abs(off);
+      if (a > 2.6) { it.el.classList.remove("on"); continue; }
+      it.el.classList.add("on");
+
+      const y = off * unit;
+      const z = -Math.pow(a, 1.12) * 520;
+      // plates lean away as they leave/approach + dynamic velocity lean
+      const rx = off * -30 - vel * 900;
+      const sc = 1 - Math.min(a * 0.05, 0.28);
+
+      it.el.style.transform =
+        `translate3d(-50%, ${y - vh * 0.04}px, ${z}px) rotateX(${rx}deg) scale(${sc})`;
+
+      // focused plate is crisp & lit; neighbours dim into the dark
+      const dim = Math.min(a * 0.5, 0.68);
+      const blur = speed * Math.min(a + 0.35, 1) * 5;
+      it.plate.style.filter =
+        `brightness(${1 - dim}) saturate(${1 - dim * 0.5})` +
+        (blur > 0.4 ? ` blur(${blur.toFixed(1)}px)` : "");
+      it.el.style.opacity = a > 1.7 ? String(Math.max(0, 1 - (a - 1.7) / 0.9)) : "1";
+    }
+
+    // floor rails drift with motion (cheap speed feedback)
+    rails.style.transform =
+      `translateX(-50%) rotateX(74deg) translateY(${(pos % 1) * 9}vmin) scaleY(${1 + speed * 0.25})`;
+
+    // progress dot
+    railDot.style.top = `${(Math.max(0, Math.min(N - 1, pos)) / (N - 1)) * 100}%`;
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ============================================================
+     Preload → boot.
+     ============================================================ */
+  const ldbar = document.getElementById("ldbar");
+  let loaded = 0;
+  Promise.all(WORKS.map((w, i) => {
+    const im = new Image();
+    im.src = w.img;
+    return (im.decode ? im.decode() : Promise.resolve())
+      .catch(() => {})
+      .then(() => {
+        items[i].img.src = w.img;
+        loaded++;
+        ldbar.style.transform = `scaleX(${loaded / N})`;
+      });
+  })).then(() => {
+    setTimeout(() => {
+      document.getElementById("loader").classList.add("done");
+      booted = true;
+      // tiny opening push so the corridor is felt immediately
+      pos = -0.35;
+      target = 0;
+    }, 250);
+  });
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
