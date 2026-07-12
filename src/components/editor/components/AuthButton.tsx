@@ -166,6 +166,14 @@ export const AuthButton = () => {
                   <span>{sharedChromeCopy[headerLang].contentFactory}</span>
                 </Link>
                 <Link
+                  to="/admin/video-factory"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
+                >
+                  <span className="material-symbols-outlined text-[20px]">movie</span>
+                  <span>{sharedChromeCopy[headerLang].videoFactory}</span>
+                </Link>
+                <Link
                   to="/lab"
                   onClick={() => setIsMenuOpen(false)}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"

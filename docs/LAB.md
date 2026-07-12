@@ -60,6 +60,29 @@ node scripts/fetch-assets.mjs --role character_cutout --limit 50
 # → public/library/<name> に保存。コード側は staticFile("library/<name>")
 ```
 
+## Video Factory（動画の生産ライン）
+
+**`/admin/video-factory`** — Content Factory の兄弟にあたる動画製造の管理板（admin専用・アバターメニューから）。
+「IMAGINEでデザイン → シーケンスに束ねる → Remotionでレンダリング」の受け渡しを担う。
+
+1. IMAGINEのエディタで動画アスペクト（9:16等）のデザインをシーケンス分（seq1, seq2, …）作る
+2. `/admin/video-factory` でバナーを検索し、クリックで順番に選んで **Download fixtures JSON**
+3. 出てきた `video-fixtures.json` を `lab/video/imagine-promo/src/fixtures/` に置き、Remotionから読む
+
+裏側は **`GET /api/video-factory/banners`**（バナー版リゾルバ、[src/app/api/video-factory/banners/route.ts](../src/app/api/video-factory/banners/route.ts)）:
+
+- `?search=&limit=` — バナー一覧（サムネ・寸法・要素数）
+- `?id=<uuid>,<uuid>,…` — **指定順どおり**のfixture配列（`{ id, name, canvasColor, width, height, elements }`、
+  `scripts/fetch-banner.sh` の出力と同形式 = BannerRenderer互換）
+- バナーはユーザーの私有デザインのため **admin認証必須**（`/api/lab/assets` と違い公開しない）。
+  認証後はservice roleで読むので、どのアカウントのバナーでも取得できる
+
+CLIからの個別取得は従来どおり `scripts/fetch-banner.sh <BANNER_ID> <slug>` も使える。
+
+> 将来メモ: LAB / Content Factory / Video Factory は性質が近いので、ゆくゆく1つのシェル
+> （タブ: Episodes / Videos / Experiments）へ統合する構想。現状は `/admin/*` 兄弟ルート＋
+> `/lab` として並べてあり、統合はルーティング整理だけで済む配置にしてある。
+
 ## 動画制作ワークスペース（ローカル）
 
 映像制作のソースは git 管理外のローカルワークスペース **`projects/whatif/lab/video/`** に集約
