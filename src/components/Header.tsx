@@ -146,6 +146,13 @@ function UserMenu() {
                 {sharedChromeCopy[lang].contentFactory}
               </Link>
               <Link
+                href="/lab"
+                onClick={() => setOpen(false)}
+                className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"
+              >
+                {sharedChromeCopy[lang].lab}
+              </Link>
+              <Link
                 href="/episodes/new"
                 onClick={() => setOpen(false)}
                 className="block w-full border-t border-border px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover"

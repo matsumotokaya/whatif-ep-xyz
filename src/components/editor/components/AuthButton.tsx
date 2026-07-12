@@ -166,6 +166,14 @@ export const AuthButton = () => {
                   <span>{sharedChromeCopy[headerLang].contentFactory}</span>
                 </Link>
                 <Link
+                  to="/lab"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"
+                >
+                  <span className="material-symbols-outlined text-[20px]">science</span>
+                  <span>{sharedChromeCopy[headerLang].lab}</span>
+                </Link>
+                <Link
                   to="/episodes/new"
                   onClick={() => setIsMenuOpen(false)}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/6"

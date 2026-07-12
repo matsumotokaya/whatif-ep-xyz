@@ -26,9 +26,39 @@
 
 ## 素材の共通ソース
 
-- キャラクター切り抜き: `character-archive/assets/chars/`（元は Content Factory の `character_cutout`）
-- 実作品feed画像: `detail-scroll/assets/ep/`（元は `projects/whatif/_feed/`）
-- 将来的には R2 の共有プレフィックス（例 `lab/shared/`）へ集約し、各プロトタイプから共通参照する方針
+**素材の正本 = `default_images`（クリーンな公式アセットライブラリ）。** クレジット入りfeed画像や
+有料壁紙ではなく、Content Factory が登録したノンクレジットの公式素材（キャラ切り抜き等）を使う。
+実体は全件 R2（`assets.whatif-ep.xyz/default-images/…`）にあり、**コピーせず直接参照**する。
+
+### リゾルバAPI: `GET /api/lab/assets`
+
+`default_images` を解決済みの公開R2 URLに変換して返す読み取り専用API
+（[src/app/api/lab/assets/route.ts](../src/app/api/lab/assets/route.ts)、CORS開放・5分キャッシュ）。
+これでラボ・Remotionから**全121件（今後増える分も）を無制限に参照できる**。
+
+| パラメータ | 例 | 意味 |
+|---|---|---|
+| `role` | `character_cutout` \| `general` | アセット種別 |
+| `work` | `407` | 作品番号（EP番号）で絞り込み |
+| `tag` | `Character` | Asset Tags で絞り込み |
+| `search` | `0407` | ファイル名部分一致 |
+| `limit` | `100`（max 500） | 件数 |
+
+レスポンス: `{ count, assets: [{ id, name, url, thumbnailUrl, width, height, role, tags, workNumber, seriesSlug, variantNumber }] }`
+
+- **ラボのプロトタイプから**: `fetch("/api/lab/assets?role=character_cutout")` して `url` を `<img>` に直接使う（同一オリジン。R2から直配信されるので枚数・容量の心配は不要）
+- **既存プロトタイプのローカル素材はそのまま**（変換しない）。新規制作からこのAPIを使う
+
+### Remotion から使う
+
+レンダリングの再現性のため、Remotion は直接URL参照ではなく**ワンコマンドで事前ダウンロード → `staticFile()`** の形をとる:
+
+```bash
+cd lab/video/imagine-promo
+node scripts/fetch-assets.mjs --work 407          # EP0407の素材を取得
+node scripts/fetch-assets.mjs --role character_cutout --limit 50
+# → public/library/<name> に保存。コード側は staticFile("library/<name>")
+```
 
 ## 動画制作ワークスペース（ローカル）
 

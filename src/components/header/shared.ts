@@ -11,6 +11,7 @@ export type SharedAccountItemKey =
   | "account"
   | "adminDashboard"
   | "contentFactory"
+  | "lab"
   | "addEpisode"
   | "logout";
 
@@ -51,6 +52,7 @@ export const sharedChromeCopy: Record<
     account: "My account",
     adminDashboard: "Admin dashboard",
     contentFactory: "Content Factory",
+    lab: "LAB",
     addEpisode: "Add episode",
   },
   ja: {
@@ -60,6 +62,7 @@ export const sharedChromeCopy: Record<
     account: "マイアカウント",
     adminDashboard: "Admin Dashboard",
     contentFactory: "Content Factory",
+    lab: "LAB",
     addEpisode: "エピソードを追加",
   },
   "zh-CN": {
@@ -69,6 +72,7 @@ export const sharedChromeCopy: Record<
     account: "我的账户",
     adminDashboard: "管理后台",
     contentFactory: "Content Factory",
+    lab: "LAB",
     addEpisode: "添加作品",
   },
   "zh-TW": {
@@ -78,6 +82,7 @@ export const sharedChromeCopy: Record<
     account: "我的帳戶",
     adminDashboard: "管理後台",
     contentFactory: "Content Factory",
+    lab: "LAB",
     addEpisode: "新增作品",
   },
   ko: {
@@ -87,6 +92,7 @@ export const sharedChromeCopy: Record<
     account: "내 계정",
     adminDashboard: "관리 대시보드",
     contentFactory: "Content Factory",
+    lab: "LAB",
     addEpisode: "에피소드 추가",
   },
 };
