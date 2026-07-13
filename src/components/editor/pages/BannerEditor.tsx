@@ -185,6 +185,18 @@ export const BannerEditor = () => {
   // DesktopRecommendedModal disclaimer.
   const storiesMode = useStoriesMode();
 
+  // Stories drag-to-trash coordination (E2-b): Canvas reports drag progress,
+  // StoriesShell renders the trash zone whose DOM rect Canvas hit-tests.
+  const storiesTrashRef = useRef<HTMLDivElement>(null);
+  const [storiesDragState, setStoriesDragState] = useState<{ dragging: boolean; overTrash: boolean }>({
+    dragging: false,
+    overTrash: false,
+  });
+  const handleStoriesDragStateChange = useCallback(
+    (state: { dragging: boolean; overTrash: boolean }) => setStoriesDragState(state),
+    []
+  );
+
   // Custom hooks
   const { resetHistory, saveToHistory, undo, redo, canUndo } = useHistory();
   const getInitialZoom = () => {
@@ -1007,6 +1019,13 @@ export const BannerEditor = () => {
     }
   };
 
+  // Stories mode: delete the element that was dropped on the trash zone.
+  const handleStoriesDeleteElement = (id: string) => {
+    elementOps.deleteElements([id]);
+    setSelectedElementIds((prev) => prev.filter((selectedId) => selectedId !== id));
+    immediateSave();
+  };
+
   // Undo/Redo handlers
   const handleUndo = () => {
     const prevElements = undo();
@@ -1799,6 +1818,11 @@ export const BannerEditor = () => {
           onBackgroundTouchStart={interactionMode === 'stories' ? undefined : handleCanvasPanTouchStart}
           onTransformingChange={handleTransformingChange}
           interactionMode={interactionMode}
+          onElementTransientUpdate={elementOps.updateElementTransient}
+          onInteractionCommit={elementOps.commitInteraction}
+          onStoriesDragStateChange={handleStoriesDragStateChange}
+          onStoriesDeleteElement={handleStoriesDeleteElement}
+          storiesTrashRef={storiesTrashRef}
         />
       </Suspense>
       {(animationPhase === 'loading' || animationPhase === 'animating') && (
@@ -1830,6 +1854,9 @@ export const BannerEditor = () => {
           onBringToFront={handleBringToFront}
           onSendToBack={handleSendToBack}
           onClearSelection={() => handleSelectElement([])}
+          isDraggingElement={storiesDragState.dragging}
+          isOverTrash={storiesDragState.overTrash}
+          trashRef={storiesTrashRef}
         />
 
         {/* Guest-only notice: download is fine, saving needs login */}

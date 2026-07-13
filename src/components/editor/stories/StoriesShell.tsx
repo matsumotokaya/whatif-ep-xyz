@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { computeFitScale } from './fitScale';
 
@@ -26,6 +26,12 @@ interface StoriesShellProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onClearSelection: () => void;
+  // Drag-to-trash (E2-b): while an element is being dragged the shell swaps
+  // the selection chips for a trash drop zone. Canvas hit-tests the pointer
+  // against `trashRef` and reports hover via `isOverTrash`.
+  isDraggingElement: boolean;
+  isOverTrash: boolean;
+  trashRef: RefObject<HTMLDivElement | null>;
 }
 
 // Padding kept around the artboard inside the canvas area (CSS px).
@@ -54,6 +60,9 @@ export const StoriesShell = ({
   onBringToFront,
   onSendToBack,
   onClearSelection,
+  isDraggingElement,
+  isOverTrash,
+  trashRef,
 }: StoriesShellProps) => {
   const { t } = useTranslation('editor');
   const canvasAreaRef = useRef<HTMLDivElement>(null);
@@ -137,8 +146,25 @@ export const StoriesShell = ({
       >
         {fitScale !== null && renderCanvas(fitScale)}
 
+        {/* Trash drop zone: shown while an element is being dragged */}
+        {isDraggingElement && (
+          <div
+            ref={trashRef}
+            className={`absolute bottom-4 left-1/2 z-40 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-150 ${
+              isOverTrash
+                ? 'scale-125 border-red-400 bg-red-500/90 text-white'
+                : 'border-white/40 bg-black/50 text-white/90'
+            }`}
+            aria-hidden="true"
+          >
+            <span className={`material-symbols-outlined ${isOverTrash ? 'text-[28px]' : 'text-[24px]'}`}>
+              delete
+            </span>
+          </div>
+        )}
+
         {/* Selection chips: only visible while an element is selected */}
-        {hasSelection && (
+        {hasSelection && !isDraggingElement && (
           <div
             className="absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2"
             onClick={(event) => event.stopPropagation()}
