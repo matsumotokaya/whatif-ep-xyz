@@ -2,6 +2,13 @@ import { useRef, memo } from 'react';
 import { Rect, Line, Star, Circle, Path } from 'react-konva';
 import type Konva from 'konva';
 import type { ShapeElement } from '../../types/template';
+import {
+  readNodeTransform,
+  resetNodeScale,
+  isCenterOriginShape,
+  centerToTopLeft,
+  buildShapeTransformUpdates,
+} from '../../utils/konvaCommit';
 
 interface ShapeRendererProps {
   shape: ShapeElement;
@@ -93,14 +100,21 @@ const ShapeRendererComponent = ({ shape, isShiftPressed, isMultiDragging, isMult
       onDragMove?.(shape.id, e);
     },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      // First call Canvas's multi-drag handler
       const handled = onDragEnd?.(shape.id, e);
       resetDragState();
-      if (!handled && onUpdate) {
-        onUpdate(shape.id, {
-          x: e.target.x(),
-          y: e.target.y(),
-        });
-      }
+
+      // If handled by multi-drag, don't update individually
+      if (handled || !onUpdate) return;
+
+      // Single drag: Star/Circle nodes are center-origin, convert to top-left
+      const nodePos = { x: e.target.x(), y: e.target.y() };
+      onUpdate(
+        shape.id,
+        isCenterOriginShape(shape.shapeType)
+          ? centerToTopLeft(nodePos, { width: safeWidth, height: safeHeight })
+          : nodePos
+      );
     },
   };
 
@@ -109,43 +123,24 @@ const ShapeRendererComponent = ({ shape, isShiftPressed, isMultiDragging, isMult
     if (isMultiSelected) return;
 
     const node = e.target;
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
-
-    node.scaleX(1);
-    node.scaleY(1);
+    const t = readNodeTransform(node);
+    resetNodeScale(node);
 
     if (onUpdate) {
-      // Ensure width and height are valid numbers
-      const safeWidth = Number.isFinite(shape.width) ? shape.width : 200;
-      const safeHeight = Number.isFinite(shape.height) ? shape.height : 150;
-      const safeScaleX = Number.isFinite(scaleX) ? scaleX : 1;
-      const safeScaleY = Number.isFinite(scaleY) ? scaleY : 1;
+      // Ensure width, height and scale are valid numbers
+      const safeScaleX = Number.isFinite(t.scaleX) ? t.scaleX : 1;
+      const safeScaleY = Number.isFinite(t.scaleY) ? t.scaleY : 1;
 
-      if (isCentered) {
-        // For center-positioned shapes (star, circle)
-        const centerX = node.x();
-        const centerY = node.y();
-        const newWidth = Math.max(5, safeWidth * safeScaleX);
-        const newHeight = Math.max(5, safeHeight * safeScaleY);
-
-        onUpdate(shape.id, {
-          x: centerX - newWidth / 2,
-          y: centerY - newHeight / 2,
-          width: newWidth,
-          height: newHeight,
-          rotation: node.rotation(),
-        });
-      } else {
-        // For corner-positioned shapes (rectangle, triangle, heart)
-        onUpdate(shape.id, {
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(5, safeWidth * safeScaleX),
-          height: Math.max(5, safeHeight * safeScaleY),
-          rotation: node.rotation(),
-        });
-      }
+      onUpdate(
+        shape.id,
+        buildShapeTransformUpdates({ width: safeWidth, height: safeHeight }, isCentered, {
+          x: t.x,
+          y: t.y,
+          scaleX: safeScaleX,
+          scaleY: safeScaleY,
+          rotation: t.rotation,
+        })
+      );
     }
   };
 
@@ -203,24 +198,6 @@ const ShapeRendererComponent = ({ shape, isShiftPressed, isMultiDragging, isMult
         numPoints={5}
         innerRadius={Math.min(safeWidth, safeHeight) / 4}
         outerRadius={Math.min(safeWidth, safeHeight) / 2}
-        onDragEnd={(e) => {
-          // First call Canvas's multi-drag handler
-          const handled = onDragEnd?.(shape.id, e);
-          resetDragState();
-
-          // If handled by multi-drag, don't update individually
-          if (handled) return;
-
-          // Single drag: convert center coordinate and update
-          if (onUpdate) {
-            const centerX = e.target.x();
-            const centerY = e.target.y();
-            onUpdate(shape.id, {
-              x: centerX - safeWidth / 2,
-              y: centerY - safeHeight / 2,
-            });
-          }
-        }}
         onTransformEnd={(e) => handleTransformEnd(e, true)}
       />
     );
@@ -244,24 +221,6 @@ const ShapeRendererComponent = ({ shape, isShiftPressed, isMultiDragging, isMult
         y={safeY + safeHeight / 2}
         radiusX={safeWidth / 2}
         radiusY={safeHeight / 2}
-        onDragEnd={(e) => {
-          // First call Canvas's multi-drag handler
-          const handled = onDragEnd?.(shape.id, e);
-          resetDragState();
-
-          // If handled by multi-drag, don't update individually
-          if (handled) return;
-
-          // Single drag: convert center coordinate and update
-          if (onUpdate) {
-            const centerX = e.target.x();
-            const centerY = e.target.y();
-            onUpdate(shape.id, {
-              x: centerX - safeWidth / 2,
-              y: centerY - safeHeight / 2,
-            });
-          }
-        }}
         onTransformEnd={(e) => handleTransformEnd(e, true)}
       />
     );

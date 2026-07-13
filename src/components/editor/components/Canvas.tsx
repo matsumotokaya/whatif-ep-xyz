@@ -6,6 +6,16 @@ import type Konva from 'konva';
 import { ShapeRenderer } from './canvas/ShapeRenderer';
 import { TextRenderer } from './canvas/TextRenderer';
 import { ImageRenderer } from './canvas/ImageRenderer';
+import {
+  readNodeTransform,
+  resetNodeScale,
+  nodePositionToElementPosition,
+  elementPositionToNodePosition,
+  buildMultiDragDelta,
+  offsetPosition,
+  buildTransformUpdates,
+  type NodeTransformSnapshot,
+} from '../utils/konvaCommit';
 
 interface CanvasProps {
   template: Template;
@@ -458,20 +468,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     // Calculate delta using logical coordinates
     // For Star/Circle, node.x() is center coordinate, so convert to top-left
-    let currentX = event.target.x();
-    let currentY = event.target.y();
+    const currentPos = nodePositionToElementPosition(draggedElement, {
+      x: event.target.x(),
+      y: event.target.y(),
+    });
 
-    if (draggedElement.type === 'shape') {
-      const shapeEl = draggedElement as ShapeElement;
-      if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-        // Convert center coordinate to top-left coordinate
-        currentX = currentX - shapeEl.width / 2;
-        currentY = currentY - shapeEl.height / 2;
-      }
-    }
-
-    const dx = currentX - draggedStart.x;
-    const dy = currentY - draggedStart.y;
+    const dx = currentPos.x - draggedStart.x;
+    const dy = currentPos.y - draggedStart.y;
     let constrainedDx = dx;
     let constrainedDy = dy;
 
@@ -497,16 +500,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     const constrainedY = draggedStart.y + constrainedDy;
 
     // Ensure dragged node follows the constrained path
-    let draggedNodeX = constrainedX;
-    let draggedNodeY = constrainedY;
-    if (draggedElement.type === 'shape') {
-      const shapeEl = draggedElement as ShapeElement;
-      if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-        draggedNodeX = constrainedX + shapeEl.width / 2;
-        draggedNodeY = constrainedY + shapeEl.height / 2;
-      }
-    }
-    event.target.position({ x: draggedNodeX, y: draggedNodeY });
+    event.target.position(
+      elementPositionToNodePosition(draggedElement, { x: constrainedX, y: constrainedY })
+    );
 
     // Move other selected elements (visual update)
     startPositions.forEach((startPos, elementId) => {
@@ -515,20 +511,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const element = elementMap.get(elementId);
       if (!node || !element) return;
 
-      // Set node position based on element type
-      let nodeX = startPos.x + constrainedDx;
-      let nodeY = startPos.y + constrainedDy;
-
-      if (element.type === 'shape') {
-        const shapeEl = element as ShapeElement;
-        if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-          // Convert top-left coordinate to center coordinate for rendering
-          nodeX = nodeX + shapeEl.width / 2;
-          nodeY = nodeY + shapeEl.height / 2;
-        }
-      }
-
-      node.position({ x: nodeX, y: nodeY });
+      // Set node position based on element type (top-left -> center for Star/Circle)
+      node.position(
+        elementPositionToNodePosition(element, {
+          x: startPos.x + constrainedDx,
+          y: startPos.y + constrainedDy,
+        })
+      );
     });
 
     event.target.getStage()?.batchDraw();
@@ -550,39 +539,18 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     // Calculate delta using logical coordinates
     // For Star/Circle, node.x() is center coordinate, so convert to top-left
-    let currentX = event.target.x();
-    let currentY = event.target.y();
-
-    if (draggedElement.type === 'shape') {
-      const shapeEl = draggedElement as ShapeElement;
-      if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-        // Convert center coordinate to top-left coordinate
-        currentX = currentX - shapeEl.width / 2;
-        currentY = currentY - shapeEl.height / 2;
-      }
-    }
-
-    let dx = currentX - draggedStart.x;
-    let dy = currentY - draggedStart.y;
-
-    if (multiDragLockAxisRef.current === 'x') {
-      dx = 0;
-    } else if (multiDragLockAxisRef.current === 'y') {
-      dy = 0;
-    }
+    const committedPos = nodePositionToElementPosition(draggedElement, {
+      x: event.target.x(),
+      y: event.target.y(),
+    });
+    const delta = buildMultiDragDelta(committedPos, draggedStart, multiDragLockAxisRef.current);
 
     if (onElementsUpdate) {
       const ids = selectedIdsRef.current.length > 0 ? selectedIdsRef.current : Array.from(startPositions.keys());
-      onElementsUpdate(ids, (element) => ({
-        x: element.x + dx,
-        y: element.y + dy,
-      }));
+      onElementsUpdate(ids, (element) => offsetPosition(element, delta));
     } else if (onElementUpdate) {
       startPositions.forEach((startPos, elementId) => {
-        onElementUpdate(elementId, {
-          x: startPos.x + dx,
-          y: startPos.y + dy,
-        });
+        onElementUpdate(elementId, offsetPosition(startPos, delta));
       });
     }
 
@@ -601,36 +569,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     // Phase 1: Collect ALL node transform data BEFORE resetting any scales
     // This prevents cascade effects where resetting one node's scale
     // could affect another node's Transformer computation.
-    const nodeData = new Map<string, {
-      scaleX: number;
-      scaleY: number;
-      x: number;
-      y: number;
-      rotation: number;
-      width: number;
-      height: number;
-    }>();
+    const nodeData = new Map<string, NodeTransformSnapshot>();
 
     currentIds.forEach(id => {
       const node = nodesRef.current.get(id);
       if (!node) return;
-      nodeData.set(id, {
-        scaleX: node.scaleX(),
-        scaleY: node.scaleY(),
-        x: node.x(),
-        y: node.y(),
-        rotation: node.rotation(),
-        width: node.width(),
-        height: node.height(),
-      });
+      nodeData.set(id, readNodeTransform(node));
     });
 
     // Phase 2: Reset ALL node scales at once
     currentIds.forEach(id => {
       const node = nodesRef.current.get(id);
       if (!node) return;
-      node.scaleX(1);
-      node.scaleY(1);
+      resetNodeScale(node);
     });
 
     // Phase 3: Compute updates using collected data
@@ -641,50 +592,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const element = elements.find(el => el.id === id);
       if (!data || !element) return;
 
-      const { scaleX, scaleY, x, y, rotation } = data;
-
-      if (element.type === 'text') {
-        const textEl = element as TextElement;
-        updatesMap.set(id, {
-          x,
-          y,
-          fontSize: Math.max(10, textEl.fontSize * scaleY),
-          rotation,
-        });
-      } else if (element.type === 'shape') {
-        const shape = element as ShapeElement;
-        const isCentered = shape.shapeType === 'star' || shape.shapeType === 'circle';
-        const newWidth = Math.max(5, shape.width * scaleX);
-        const newHeight = Math.max(5, shape.height * scaleY);
-
-        if (isCentered) {
-          updatesMap.set(id, {
-            x: x - newWidth / 2,
-            y: y - newHeight / 2,
-            width: newWidth,
-            height: newHeight,
-            rotation,
-          });
-        } else {
-          updatesMap.set(id, {
-            x,
-            y,
-            width: newWidth,
-            height: newHeight,
-            rotation,
-          });
-        }
-      } else if (element.type === 'image') {
-        const imageEl = element as ImageElement;
-        updatesMap.set(id, {
-          x,
-          y,
-          width: Math.max(5, imageEl.width * scaleX),
-          height: Math.max(5, imageEl.height * scaleY),
-          rotation,
-        });
-      }
-
+      updatesMap.set(id, buildTransformUpdates(element, data));
     });
 
     onElementsUpdate(currentIds, (element) => updatesMap.get(element.id) || {});
