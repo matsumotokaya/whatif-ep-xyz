@@ -28,6 +28,7 @@ import { exportImageFromDataUrl } from '../utils/exportImage';
 import { createSilhouetteBlob } from '../utils/imageShadow';
 import { insertUserImageRecord } from '../utils/libraryAssets';
 import { getFitToCanvasPlacement } from '../utils/canvasPlacement';
+import { migrateElements } from '../utils/elementMigration';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
@@ -557,44 +558,7 @@ export const BannerEditor = () => {
       previewDirtyRef.current = false;
 
       // Migrate existing shapes and text to new fill/stroke structure
-      const migratedElements = banner.elements.map((el) => {
-        if (el.type === 'shape') {
-          const shape = el as ShapeElement;
-          return {
-            ...shape,
-            fillEnabled: shape.fillEnabled !== undefined ? shape.fillEnabled : true,
-            stroke: shape.stroke || '#000000',
-            strokeWidth: shape.strokeWidth || 2,
-            strokeEnabled: shape.strokeEnabled !== undefined ? shape.strokeEnabled : false,
-            visible: shape.visible ?? true,
-            locked: shape.locked ?? false,
-          } as ShapeElement;
-        }
-        if (el.type === 'text') {
-          const text = el as TextElement;
-          // Migrate old strokeOnly property to new structure
-          const strokeOnly = text.strokeOnly;
-          return {
-            ...text,
-            fillEnabled: text.fillEnabled !== undefined ? text.fillEnabled : (strokeOnly === undefined ? true : !strokeOnly),
-            stroke: text.stroke || text.fill || '#000000',
-            strokeWidth: text.strokeWidth || Math.max(text.fontSize * 0.03, 2),
-            strokeEnabled: text.strokeEnabled !== undefined ? text.strokeEnabled : (strokeOnly || false),
-            letterSpacing: text.letterSpacing ?? 0,
-            visible: text.visible ?? true,
-            locked: text.locked ?? false,
-          } as TextElement;
-        }
-        if (el.type === 'image') {
-          const image = el as ImageElement;
-          return {
-            ...image,
-            visible: image.visible ?? true,
-            locked: image.locked ?? false,
-          } as ImageElement;
-        }
-        return el;
-      });
+      const migratedElements = migrateElements(banner.elements);
 
       const recovery = user?.id ? readEditorRecovery(user.id, banner.id) : null;
       const recoveryIsNewer = Boolean(
@@ -1063,11 +1027,18 @@ export const BannerEditor = () => {
   };
 
   // Arrow key movement handlers (Photoshop-style: 1px normal, 10px with Shift)
+  // A single shared coalesceKey across all four directions so a nudge
+  // gesture (holding an arrow key, possibly changing direction while held)
+  // collapses into one undo step instead of one entry per keydown-repeat
+  // event. Any other edit in between uses no key / a different key, which
+  // naturally breaks the coalescing chain in useHistory.
+  const NUDGE_COALESCE_KEY = 'nudge';
+
   const handleMoveUp = (distance: number) => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         y: el.y - distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1075,7 +1046,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         y: el.y + distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1083,7 +1054,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         x: el.x - distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1091,7 +1062,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         x: el.x + distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1818,123 +1789,35 @@ export const BannerEditor = () => {
       />
 
 
-      {/* Desktop Layout */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
-        <Sidebar
-          canvasColor={canvasColor}
-          canvasWidth={banner.template.width}
-          canvasHeight={banner.template.height}
-          onSelectColor={setCanvasColor}
-          onCanvasSizeChange={handleCanvasSizeChange}
-          onAddText={handleAddText}
-          onAddShape={handleAddShape}
-          onAddImage={handleAddImage}
-          elements={elements}
-          selectedElementIds={selectedElementIds}
-          onSelectElement={handleSelectElement}
-          onReorderElements={handleReorderElements}
-          onToggleLock={handleToggleLock}
-          onToggleVisibility={handleToggleVisibility}
-          textPlacementMode={textPlacementMode}
-          panMode={panMode}
-          onPanModeChange={setPanMode}
-        />
+      {/* Editor layout: single EditorCanvas mount. Only the surrounding chrome
+          (sidebar, toolbars, panels) is swapped responsively via CSS so that
+          two Konva Stages never compete for the same canvasRef. */}
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden relative">
+        {/* Desktop sidebar */}
+        <div className="hidden md:flex">
+          <Sidebar
+            canvasColor={canvasColor}
+            canvasWidth={banner.template.width}
+            canvasHeight={banner.template.height}
+            onSelectColor={setCanvasColor}
+            onCanvasSizeChange={handleCanvasSizeChange}
+            onAddText={handleAddText}
+            onAddShape={handleAddShape}
+            onAddImage={handleAddImage}
+            elements={elements}
+            selectedElementIds={selectedElementIds}
+            onSelectElement={handleSelectElement}
+            onReorderElements={handleReorderElements}
+            onToggleLock={handleToggleLock}
+            onToggleVisibility={handleToggleVisibility}
+            textPlacementMode={textPlacementMode}
+            panMode={panMode}
+            onPanModeChange={setPanMode}
+          />
+        </div>
 
-        <main
-          ref={mainRef}
-          className="flex-1 overflow-hidden bg-[#151515] flex items-center justify-center"
-          style={{ touchAction: 'none', cursor: textPlacementMode ? 'text' : (panMode || isPanning) ? (isPanning ? 'grabbing' : 'grab') : 'default' }}
-          onMouseDown={handlePanMouseDown}
-          onMouseMove={handlePanMouseMove}
-          onMouseUp={handlePanMouseUp}
-          onMouseLeave={handlePanMouseUp}
-          onTouchStart={handleMainTouchStart}
-          onClick={(e) => {
-            if (wasPanningRef.current) {
-              wasPanningRef.current = false;
-              return;
-            }
-            const target = e.target as HTMLElement;
-            const isCanvasStage = target.tagName === 'CANVAS';
-            if (!isCanvasStage) {
-              handleSelectElement([]);
-            }
-          }}
-        >
-          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }} className="relative">
-            <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
-              <EditorCanvas
-                  ref={canvasRef}
-                  template={banner.template}
-                  elements={elements}
-                  scale={safeZoom / 100}
-                  canvasColor={canvasColor}
-                  fileName={`${banner.name}.png`}
-                  onTextChange={handleTextChange}
-                  selectedElementIds={selectedElementIds}
-                  onSelectElement={handleSelectElement}
-                  onElementUpdate={handleElementUpdate}
-                  onElementsUpdate={handleElementsUpdate}
-                  onImageDrop={handleImageDrop}
-                  onImageLoad={handleImageLoad}
-                  entranceAnimationPhase={animationPhase}
-                  textPlacementMode={textPlacementMode}
-                  onPlaceText={handleCanvasPlaceText}
-                  onEditingChange={setIsCanvasEditing}
-                  onBackgroundTouchStart={handleCanvasPanTouchStart}
-                  onTransformingChange={handleTransformingChange}
-                />
-            </Suspense>
-            {(animationPhase === 'loading' || animationPhase === 'animating') && (
-              <LoadingOverlay
-                elements={elements}
-                template={banner.template}
-                scale={safeZoom / 100}
-                phase={animationPhase}
-                canvasColor={canvasColor}
-              />
-            )}
-          </div>
-        </main>
-
-        <PropertyPanel
-          selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
-          onColorChange={handlePropertyColorChange}
-          onInteractionEnd={commitPropertyInteraction}
-          onFontChange={handleFontChange}
-          onSizeChange={handleSizeChange}
-          onWeightChange={handleWeightChange}
-          onLetterSpacingChange={handleLetterSpacingChange}
-          onLineHeightChange={handleLineHeightChange}
-          onAlignChange={handleAlignChange}
-          onOpacityChange={handleOpacityChange}
-          onBringToFront={handleBringToFront}
-          onSendToBack={handleSendToBack}
-          onFillEnabledChange={handleFillEnabledChange}
-          onStrokeChange={handleStrokeChange}
-          onStrokeWidthChange={handleStrokeWidthChange}
-          onStrokeEnabledChange={handleStrokeEnabledChange}
-          onShadowEnabledChange={handleShadowEnabledChange}
-          onShadowColorChange={handleShadowColorChange}
-          onShadowBlurChange={handleShadowBlurChange}
-          onShadowOffsetXChange={handleShadowOffsetXChange}
-          onShadowOffsetYChange={handleShadowOffsetYChange}
-          onShadowOpacityChange={handleShadowOpacityChange}
-          onImageBlurChange={handleImageBlurChange}
-          onGenerateShadow={handleGenerateShadow}
-          isGeneratingShadow={isGeneratingShadow}
-          onFitToCanvas={handleFitToCanvas}
-          selectedCount={selectedElementIds.length}
-          selectedElements={elements.filter(el => selectedElementIds.includes(el.id))}
-          onCenterHorizontal={handleCenterHorizontal}
-          onCenterVertical={handleCenterVertical}
-        />
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="flex md:hidden flex-1 flex-col overflow-hidden relative">
         {/* Mobile floating toolbar: Select / Pan / Undo */}
-        <div className="absolute top-3 right-3 z-40 flex gap-2">
+        <div className="md:hidden absolute top-3 right-3 z-40 flex gap-2">
           <button
             onClick={() => { setPanMode(false); setTextPlacementMode(false); }}
             className={`w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center shadow-lg active:scale-95 transition-all ${!panMode && !textPlacementMode ? 'bg-white/90 text-gray-900' : 'bg-black/50 text-white'}`}
@@ -2018,27 +1901,8 @@ export const BannerEditor = () => {
           </div>
         </main>
 
-        {/* Mobile Toolbar - Floating buttons + Drawer */}
-        <MobileToolbar
-          canvasColor={canvasColor}
-          onSelectColor={setCanvasColor}
-          onAddText={handleAddText}
-          onAddShape={handleAddShape}
-          onAddImage={handleAddImage}
-          elements={elements}
-          selectedElementIds={selectedElementIds}
-          onSelectElement={handleSelectElement}
-          onReorderElements={handleReorderElements}
-          onToggleLock={handleToggleLock}
-          onToggleVisibility={handleToggleVisibility}
-          textPlacementMode={textPlacementMode}
-          panMode={panMode}
-          onPanModeChange={setPanMode}
-          onDrawerOpenChange={setIsMobileToolDrawerOpen}
-        />
-
-        {/* Mobile PropertyPanel - Hidden during inline text editing */}
-        {!isCanvasEditing && !isMobileToolDrawerOpen && (
+        {/* Desktop property panel */}
+        <div className="hidden md:flex">
           <PropertyPanel
             selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
             onColorChange={handlePropertyColorChange}
@@ -2067,12 +1931,71 @@ export const BannerEditor = () => {
             isGeneratingShadow={isGeneratingShadow}
             onFitToCanvas={handleFitToCanvas}
             selectedCount={selectedElementIds.length}
+            selectedElements={elements.filter(el => selectedElementIds.includes(el.id))}
             onCenterHorizontal={handleCenterHorizontal}
             onCenterVertical={handleCenterVertical}
-            isMobile={true}
-            onClose={() => handleSelectElement([])}
-            onDelete={handleDelete}
           />
+        </div>
+
+        {/* Mobile Toolbar - Floating buttons + Drawer */}
+        <div className="md:hidden">
+          <MobileToolbar
+            canvasColor={canvasColor}
+            onSelectColor={setCanvasColor}
+            onAddText={handleAddText}
+            onAddShape={handleAddShape}
+            onAddImage={handleAddImage}
+            elements={elements}
+            selectedElementIds={selectedElementIds}
+            onSelectElement={handleSelectElement}
+            onReorderElements={handleReorderElements}
+            onToggleLock={handleToggleLock}
+            onToggleVisibility={handleToggleVisibility}
+            textPlacementMode={textPlacementMode}
+            panMode={panMode}
+            onPanModeChange={setPanMode}
+            onDrawerOpenChange={setIsMobileToolDrawerOpen}
+          />
+        </div>
+
+        {/* Mobile PropertyPanel - Hidden during inline text editing */}
+        {!isCanvasEditing && !isMobileToolDrawerOpen && (
+          <div className="md:hidden">
+            <PropertyPanel
+              selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
+              onColorChange={handlePropertyColorChange}
+              onInteractionEnd={commitPropertyInteraction}
+              onFontChange={handleFontChange}
+              onSizeChange={handleSizeChange}
+              onWeightChange={handleWeightChange}
+              onLetterSpacingChange={handleLetterSpacingChange}
+              onLineHeightChange={handleLineHeightChange}
+              onAlignChange={handleAlignChange}
+              onOpacityChange={handleOpacityChange}
+              onBringToFront={handleBringToFront}
+              onSendToBack={handleSendToBack}
+              onFillEnabledChange={handleFillEnabledChange}
+              onStrokeChange={handleStrokeChange}
+              onStrokeWidthChange={handleStrokeWidthChange}
+              onStrokeEnabledChange={handleStrokeEnabledChange}
+              onShadowEnabledChange={handleShadowEnabledChange}
+              onShadowColorChange={handleShadowColorChange}
+              onShadowBlurChange={handleShadowBlurChange}
+              onShadowOffsetXChange={handleShadowOffsetXChange}
+              onShadowOffsetYChange={handleShadowOffsetYChange}
+              onShadowOpacityChange={handleShadowOpacityChange}
+              onImageBlurChange={handleImageBlurChange}
+              onGenerateShadow={handleGenerateShadow}
+              isGeneratingShadow={isGeneratingShadow}
+              onFitToCanvas={handleFitToCanvas}
+              selectedCount={selectedElementIds.length}
+              onCenterHorizontal={handleCenterHorizontal}
+              onCenterVertical={handleCenterVertical}
+              isMobile={true}
+              onClose={() => handleSelectElement([])}
+              onDelete={handleDelete}
+            />
+          </div>
         )}
       </div>
 
