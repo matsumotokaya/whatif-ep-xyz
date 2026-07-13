@@ -128,5 +128,13 @@
     "hide": "숨기기"
   },
   "lock": "잠금",
-  "unlock": "잠금 해제"
+  "unlock": "잠금 해제",
+  "stories": {
+    "done": "완료",
+    "text": "텍스트",
+    "stamps": "스탬프",
+    "background": "배경",
+    "effects": "효과",
+    "comingSoon": "곧 제공"
+  }
 }

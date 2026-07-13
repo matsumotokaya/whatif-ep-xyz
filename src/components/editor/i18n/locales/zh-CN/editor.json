@@ -128,5 +128,13 @@
     "hide": "隐藏"
   },
   "lock": "锁定",
-  "unlock": "解锁"
+  "unlock": "解锁",
+  "stories": {
+    "done": "完成",
+    "text": "文字",
+    "stamps": "贴纸",
+    "background": "背景",
+    "effects": "特效",
+    "comingSoon": "即将推出"
+  }
 }

@@ -67,12 +67,6 @@
       "upgradeButton": "플랜 업그레이드"
     }
   },
-  "desktopRecommended": {
-    "title": "PC \uc0ac\uc6a9 \uad8c\uc7a5",
-    "description": "\uc774 \ub3c4\uad6c\ub294 \ub178\ud2b8\ubd81 \ub4f1 \ud070 \ud654\uba74\uc5d0\uc11c\uc758 \ud3b8\uc9d1\uc5d0 \ucd5c\uc801\ud654\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ubaa8\ubc14\uc77c\uc5d0\uc11c\ub294 \uc77c\ubd80 \uae30\ub2a5\uc774 \uc81c\ud55c\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
-    "dontShowAgain": "\ub2e4\uc2dc \ud45c\uc2dc\ud558\uc9c0 \uc54a\uae30",
-    "gotIt": "\ud655\uc778"
-  },
   "imageLibrary": {
     "title": "이미지 라이브러리",
     "tabs": {

@@ -8,8 +8,9 @@ import { PropertyPanel } from '../components/PropertyPanel';
 import { BottomBar } from '../components/BottomBar';
 import { MobileToolbar } from '../components/MobileToolbar';
 import { UpgradeModal } from '../components/UpgradeModal';
-import { DesktopRecommendedModal } from '../components/DesktopRecommendedModal';
 import { SaveAsTemplateModal } from '../components/SaveAsTemplateModal';
+import { StoriesShell } from '../stories/StoriesShell';
+import { useStoriesMode } from '../stories/useStoriesMode';
 import { GuestEditorNoticeModal } from '../components/GuestEditorNoticeModal';
 import { useBanner, useBatchSaveBanner, useUpdateBanner, useUpdateBannerName } from '../hooks/useBanners';
 import type { Banner, Template, CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
@@ -57,7 +58,6 @@ export const BannerEditor = () => {
   const { profile, user, loading: authLoading } = useAuth();
   const { t } = useTranslation(['common', 'message', 'banner']);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [showDesktopModal, setShowDesktopModal] = useState(false);
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
   const [isMobileToolDrawerOpen, setIsMobileToolDrawerOpen] = useState(false);
   const [showSaveAsTemplateModal, setShowSaveAsTemplateModal] = useState(false);
@@ -180,17 +180,13 @@ export const BannerEditor = () => {
     }
   }, [animationPhase]);
 
-  // Show desktop recommended modal on mobile
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    const dismissed = localStorage.getItem('imagine_desktop_modal_dismissed');
-    if (isMobile && !dismissed) {
-      setShowDesktopModal(true);
-    }
-  }, []);
+  // Stories mode: the mobile-dedicated shell (<768px, or forced via
+  // ?stories=1 for desktop DevTools work). Replaces the former
+  // DesktopRecommendedModal disclaimer.
+  const storiesMode = useStoriesMode();
 
   // Custom hooks
-  const { resetHistory, saveToHistory, undo, redo } = useHistory();
+  const { resetHistory, saveToHistory, undo, redo, canUndo } = useHistory();
   const getInitialZoom = () => {
     const isMobile = window.innerWidth < 768;
     return isMobile ? 30 : 40;
@@ -1776,6 +1772,100 @@ export const BannerEditor = () => {
     }
   };
 
+  // Shared canvas renderer so Studio and Stories mount the exact same
+  // EditorCanvas instance shape (the two shells render exclusively, keeping
+  // the Konva Stage single-mounted). Only scale and interaction mode differ.
+  const renderEditorCanvas = (canvasScale: number, interactionMode: 'studio' | 'stories') => (
+    <div className="relative">
+      <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
+        <EditorCanvas
+          ref={canvasRef}
+          template={banner.template}
+          elements={elements}
+          scale={canvasScale}
+          canvasColor={canvasColor}
+          fileName={`${banner.name}.png`}
+          onTextChange={handleTextChange}
+          selectedElementIds={selectedElementIds}
+          onSelectElement={handleSelectElement}
+          onElementUpdate={handleElementUpdate}
+          onElementsUpdate={handleElementsUpdate}
+          onImageDrop={handleImageDrop}
+          onImageLoad={handleImageLoad}
+          entranceAnimationPhase={animationPhase}
+          textPlacementMode={textPlacementMode}
+          onPlaceText={handleCanvasPlaceText}
+          onEditingChange={setIsCanvasEditing}
+          onBackgroundTouchStart={interactionMode === 'stories' ? undefined : handleCanvasPanTouchStart}
+          onTransformingChange={handleTransformingChange}
+          interactionMode={interactionMode}
+        />
+      </Suspense>
+      {(animationPhase === 'loading' || animationPhase === 'animating') && (
+        <LoadingOverlay
+          elements={elements}
+          template={banner.template}
+          scale={canvasScale}
+          phase={animationPhase}
+          canvasColor={canvasColor}
+        />
+      )}
+    </div>
+  );
+
+  if (storiesMode) {
+    return (
+      <div className="flex h-dvh flex-col bg-[#1e1e1e]">
+        <StoriesShell
+          canvasWidth={banner.template.width}
+          canvasHeight={banner.template.height}
+          renderCanvas={(fitScale) => renderEditorCanvas(fitScale, 'stories')}
+          onClose={handleBackToManager}
+          onDone={handleBackToManager}
+          onUndo={handleUndo}
+          canUndo={canUndo}
+          saveStatus={saveStatus}
+          hasSelection={selectedElementIds.length > 0}
+          onDelete={handleDelete}
+          onBringToFront={handleBringToFront}
+          onSendToBack={handleSendToBack}
+          onClearSelection={() => handleSelectElement([])}
+        />
+
+        {/* Guest-only notice: download is fine, saving needs login */}
+        <GuestEditorNoticeModal
+          isOpen={showGuestNotice}
+          onConfirm={handleGuestNoticeConfirm}
+          title={t('banner:guestNoticeTitle')}
+          message={t('banner:guestNoticeMessage')}
+          confirmLabel={t('banner:guestNoticeConfirm')}
+        />
+
+        {/* Upgrade Modal */}
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            navigate(editorReturnTo);
+          }}
+        />
+
+        {/* Loading overlay when navigating */}
+        {isNavigating && (
+          <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center">
+            <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4 shadow-2xl">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600"></div>
+              <div className="text-center">
+                <p className="text-base font-semibold text-gray-800">{t('thumbnail.generating')}</p>
+                <p className="text-sm text-gray-500 mt-1">{t('thumbnail.pleaseWait')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-dvh flex-col bg-[#1e1e1e]">
       <Header
@@ -1865,39 +1955,8 @@ export const BannerEditor = () => {
             }
           }}
         >
-          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }} className="relative">
-            <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
-              <EditorCanvas
-                  ref={canvasRef}
-                  template={banner.template}
-                  elements={elements}
-                  scale={safeZoom / 100}
-                  canvasColor={canvasColor}
-                  fileName={`${banner.name}.png`}
-                  onTextChange={handleTextChange}
-                  selectedElementIds={selectedElementIds}
-                  onSelectElement={handleSelectElement}
-                  onElementUpdate={handleElementUpdate}
-                  onElementsUpdate={handleElementsUpdate}
-                  onImageDrop={handleImageDrop}
-                  onImageLoad={handleImageLoad}
-                  entranceAnimationPhase={animationPhase}
-                  textPlacementMode={textPlacementMode}
-                  onPlaceText={handleCanvasPlaceText}
-                  onEditingChange={setIsCanvasEditing}
-                  onBackgroundTouchStart={handleCanvasPanTouchStart}
-                  onTransformingChange={handleTransformingChange}
-                />
-            </Suspense>
-            {(animationPhase === 'loading' || animationPhase === 'animating') && (
-              <LoadingOverlay
-                elements={elements}
-                template={banner.template}
-                scale={safeZoom / 100}
-                phase={animationPhase}
-                canvasColor={canvasColor}
-              />
-            )}
+          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }}>
+            {renderEditorCanvas(safeZoom / 100, 'studio')}
           </div>
         </main>
 
@@ -2025,12 +2084,6 @@ export const BannerEditor = () => {
           setShowUpgradeModal(false);
           navigate(editorReturnTo);
         }}
-      />
-
-      {/* Desktop Recommended Modal (mobile only) */}
-      <DesktopRecommendedModal
-        isOpen={showDesktopModal}
-        onClose={() => setShowDesktopModal(false)}
       />
 
       <SaveAsTemplateModal

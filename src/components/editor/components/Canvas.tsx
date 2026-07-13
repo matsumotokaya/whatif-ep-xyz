@@ -36,6 +36,10 @@ interface CanvasProps {
   onEditingChange?: (isEditing: boolean) => void;
   onBackgroundTouchStart?: (clientX: number, clientY: number) => void;
   onTransformingChange?: (isTransforming: boolean) => void;
+  // 'studio' (default) keeps the full desktop interaction set. 'stories' is
+  // the constrained mobile mode: selection frame without resize/rotate
+  // handles and no lasso selection (scale/rotate arrives with pinch in E2-b).
+  interactionMode?: 'studio' | 'stories';
 }
 
 export interface CanvasRef {
@@ -61,10 +65,11 @@ const TEXT_PLACEMENT_CURSOR = (() => {
 })();
 
 export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
-  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange },
+  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio' },
   ref
 ) {
   const { t } = useTranslation('editor');
+  const isStoriesMode = interactionMode === 'stories';
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRefsMap = useRef<Map<string, Konva.Transformer>>(new Map());
   const multiTransformerRef = useRef<Konva.Transformer>(null);
@@ -821,7 +826,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               isEditing
             });
 
-            if ((isStage || isBackgroundRect) && !isEditing && !textPlacementMode) {
+            // Lasso selection is a Studio-only interaction (multi-select is
+            // not part of the Stories mode feature set).
+            if ((isStage || isBackgroundRect) && !isEditing && !textPlacementMode && !isStoriesMode) {
               // Get mouse position in canvas coordinates (accounting for scale)
               const stage = e.target.getStage();
               if (!stage) return;
@@ -1080,13 +1087,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                     anchorFill="#FFFFFF"
                     anchorSize={8}
                     enabledAnchors={
-                      isMulti
+                      // Stories mode shows the selection frame only: no
+                      // resize anchors, no rotate handle (finger-sized
+                      // gestures replace them in E2-b).
+                      isStoriesMode || isMulti
                         ? []
                         : isText
                           ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                           : ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     }
-                    rotateEnabled={!isMulti}
+                    rotateEnabled={!isMulti && !isStoriesMode}
                     rotationSnaps={isShiftPressed ? [0, 45, 90, 135, 180, 225, 270, 315] : []}
                     rotationSnapTolerance={5}
                     keepRatio={isText}
@@ -1105,8 +1115,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                   anchorStroke="#4F46E5"
                   anchorFill="#FFFFFF"
                   anchorSize={10}
-                  enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-                  rotateEnabled={true}
+                  enabledAnchors={isStoriesMode ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+                  rotateEnabled={!isStoriesMode}
                   rotationSnaps={isShiftPressed ? [0, 45, 90, 135, 180, 225, 270, 315] : []}
                   rotationSnapTolerance={5}
                   keepRatio={true}

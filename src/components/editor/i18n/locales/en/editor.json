@@ -128,5 +128,13 @@
     "hide": "Hide"
   },
   "lock": "Lock",
-  "unlock": "Unlock"
+  "unlock": "Unlock",
+  "stories": {
+    "done": "Done",
+    "text": "Text",
+    "stamps": "Stamps",
+    "background": "Background",
+    "effects": "Effects",
+    "comingSoon": "Soon"
+  }
 }
