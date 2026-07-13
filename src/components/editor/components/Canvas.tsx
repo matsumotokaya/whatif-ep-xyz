@@ -22,6 +22,7 @@ import {
   buildPinchTransformInput,
   getCenterSnap,
   isPointInRect,
+  reconcilePinchFlagsOnTouchEnd,
   CENTER_SNAP_SCREEN_PX,
   TRASH_HIT_INFLATE_PX,
   type TouchPoint,
@@ -266,22 +267,60 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   const endStoriesPinch = useEffectEvent((e: TouchEvent) => {
     const session = pinchSessionRef.current;
-    if (!session) return;
+    const activeTouchCount = e.touches.length;
+    const wasActive = isPinchingRef.current || !!session;
 
-    // Keep the session alive while both gesture fingers are still down.
-    const remaining = new Set<number>();
-    for (let i = 0; i < e.touches.length; i++) {
-      remaining.add(e.touches[i].identifier);
+    if (session) {
+      // Keep the session alive only while BOTH gesture fingers are still down
+      // (a stray third finger lifting must not end the pinch).
+      const remaining = new Set<number>();
+      for (let i = 0; i < e.touches.length; i++) {
+        remaining.add(e.touches[i].identifier);
+      }
+      const bothFingersDown =
+        remaining.has(session.touchIds[0]) && remaining.has(session.touchIds[1]);
+      if (bothFingersDown) return;
+
+      pinchSessionRef.current = null;
+      onInteractionCommit?.();
     }
-    if (remaining.has(session.touchIds[0]) && remaining.has(session.touchIds[1])) return;
 
-    pinchSessionRef.current = null;
-    onInteractionCommit?.();
+    // Authoritative reset: reconcile the flags from the true remaining-touch
+    // count whether or not a session existed. This is what stops isPinching
+    // from latching true when a two-finger press produced no session (0 or 2+
+    // selected, or a locked element) and the fingers then lifted off the
+    // canvas, where the Stage-level touchend/cancel never fires.
+    const flags = reconcilePinchFlagsOnTouchEnd(
+      { isPinching: isPinchingRef.current, hadPinchGesture: hadPinchGestureRef.current },
+      activeTouchCount,
+    );
+    isPinchingRef.current = flags.isPinching;
+    hadPinchGestureRef.current = flags.hadPinchGesture;
+    if (wasActive && activeTouchCount < 2) {
+      pinchBlockUntilRef.current = Date.now() + 180;
+    }
+  });
+
+  // Hard reset of the entire Stories gesture machine. Used when an external
+  // event (the fullscreen text editor opening, unmount) can swallow the
+  // in-progress touch stream so the matching touchend/touchcancel never
+  // arrives — without this the pinch session / isPinching would stay latched
+  // and block every canvas interaction afterwards.
+  const forceEndStoriesGesture = useEffectEvent(() => {
+    if (pinchSessionRef.current) {
+      pinchSessionRef.current = null;
+      // Commit whatever transient transform was in flight so nothing is lost.
+      onInteractionCommit?.();
+    }
     isPinchingRef.current = false;
-    pinchBlockUntilRef.current = Date.now() + 180;
-    if (e.touches.length === 0) {
-      hadPinchGestureRef.current = false;
+    hadPinchGestureRef.current = false;
+    pinchBlockUntilRef.current = 0;
+    if (storiesDragRef.current.elementId) {
+      onStoriesDragStateChange?.({ dragging: false, overTrash: false });
     }
+    stopActiveDrags();
+    storiesDragRef.current = { elementId: null, overTrash: false };
+    setSnapGuides((prev) => (prev.v || prev.h ? { v: false, h: false } : prev));
   });
 
   useEffect(() => {
@@ -314,6 +353,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       pinchSessionRef.current = null;
     };
   }, [isStoriesMode]);
+
+  // Opening the fullscreen text editor overlay can steal the in-progress touch
+  // stream (iOS may never deliver the matching touchend/touchcancel). That
+  // would leave the pinch session / isPinching latched, so once the editor
+  // closes NOTHING on the canvas could be selected or dragged — and because a
+  // latched session makes the window touchstart handler call preventDefault on
+  // every tap, even the shell buttons stop responding. Force the gesture
+  // machine back to a clean state whenever the overlay opens.
+  useEffect(() => {
+    if (isStoriesMode && storiesTextEditActive) {
+      forceEndStoriesGesture();
+    }
+  }, [isStoriesMode, storiesTextEditActive]);
 
   // Track Shift key state
   useEffect(() => {

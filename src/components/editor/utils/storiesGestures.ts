@@ -27,6 +27,36 @@ export interface PinchDelta {
   dy: number;
 }
 
+// Transient flags that gate Stories-mode element interaction while a
+// two-finger gesture is in flight. Kept as a plain shape so the reset
+// invariant can be unit-tested without any DOM/Konva glue.
+export interface PinchFlags {
+  isPinching: boolean;
+  hadPinchGesture: boolean;
+}
+
+// Authoritative reconciliation of the pinch flags after a touchend/touchcancel,
+// derived solely from how many touches are still down. The window receives
+// these events for EVERY touch regardless of where it lands, so this is the
+// reset of record: a pinch needs >= 2 active touches, and zero touches means no
+// gesture is in flight at all.
+//
+// Without this, `isPinching` could latch true forever: e.g. two fingers press
+// the canvas (Stage sets isPinching) with no valid single-element pinch session,
+// then lift OFF the small canvas area — the Stage-level touchend never fires and
+// the session-based window handler would early-return, leaving isPinching stuck
+// and blocking all element selection/drag. Feeding the true remaining-touch
+// count through here guarantees the flags always relax back to a usable state.
+export function reconcilePinchFlagsOnTouchEnd(
+  prev: PinchFlags,
+  activeTouchCount: number,
+): PinchFlags {
+  return {
+    isPinching: prev.isPinching && activeTouchCount >= 2,
+    hadPinchGesture: activeTouchCount === 0 ? false : prev.hadPinchGesture,
+  };
+}
+
 // Rotation snapping: 0/90/180/270 (any multiple of 90) within this tolerance.
 export const ROTATION_SNAP_TOLERANCE_DEG = 5;
 

@@ -5,9 +5,52 @@ import {
   buildPinchTransformInput,
   getCenterSnap,
   isPointInRect,
+  reconcilePinchFlagsOnTouchEnd,
   type TouchPair,
   type PinchStartSnapshot,
 } from './storiesGestures';
+
+describe('reconcilePinchFlagsOnTouchEnd', () => {
+  it('releases a latched isPinching when the last fingers lift (no session)', () => {
+    // The core stuck-selection bug: two fingers pressed the canvas with no
+    // pinch session, then lifted off it. isPinching must relax to false so
+    // element interaction is not blocked forever.
+    const result = reconcilePinchFlagsOnTouchEnd(
+      { isPinching: true, hadPinchGesture: true },
+      0,
+    );
+    expect(result.isPinching).toBe(false);
+    expect(result.hadPinchGesture).toBe(false);
+  });
+
+  it('clears isPinching when fewer than two touches remain', () => {
+    const result = reconcilePinchFlagsOnTouchEnd(
+      { isPinching: true, hadPinchGesture: true },
+      1,
+    );
+    expect(result.isPinching).toBe(false);
+    // A finger is still down, so the post-pinch guard flag stays until 0.
+    expect(result.hadPinchGesture).toBe(true);
+  });
+
+  it('keeps isPinching while two or more touches are still down', () => {
+    const result = reconcilePinchFlagsOnTouchEnd(
+      { isPinching: true, hadPinchGesture: true },
+      2,
+    );
+    expect(result.isPinching).toBe(true);
+    expect(result.hadPinchGesture).toBe(true);
+  });
+
+  it('never turns isPinching on by itself', () => {
+    const result = reconcilePinchFlagsOnTouchEnd(
+      { isPinching: false, hadPinchGesture: false },
+      3,
+    );
+    expect(result.isPinching).toBe(false);
+    expect(result.hadPinchGesture).toBe(false);
+  });
+});
 
 describe('getPinchDelta', () => {
   it('computes scale from the distance ratio (pure spread)', () => {
