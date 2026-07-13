@@ -136,6 +136,7 @@
     "background": "背景",
     "effects": "特效",
     "comingSoon": "即将推出",
-    "textPlaceholder": "输入文字"
+    "textPlaceholder": "输入文字",
+    "shadowColor": "阴影颜色"
   }
 }

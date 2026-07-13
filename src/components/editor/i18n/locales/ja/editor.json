@@ -136,6 +136,7 @@
     "background": "背景",
     "effects": "エフェクト",
     "comingSoon": "近日",
-    "textPlaceholder": "文字を入力"
+    "textPlaceholder": "文字を入力",
+    "shadowColor": "影の色"
   }
 }

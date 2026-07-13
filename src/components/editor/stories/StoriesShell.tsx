@@ -37,19 +37,18 @@ interface StoriesShellProps {
   // so the canvas area keeps its size and the fit scale stays stable).
   onAddText: () => void;
   isTextEditing: boolean;
+  // Add-tools wired in E3: stamps (image library), background (canvas color),
+  // effects (opacity/blur/shadow on the selected element). Effects are only
+  // available when a single unlocked element is selected; otherwise the button
+  // is disabled.
+  onOpenStamps: () => void;
+  onOpenBackground: () => void;
+  onOpenEffects: () => void;
+  canApplyEffects: boolean;
 }
 
 // Padding kept around the artboard inside the canvas area (CSS px).
 const CANVAS_AREA_PADDING = 16;
-
-// E3 will wire these to their bottom sheets; until then they are visual
-// placeholders with tap feedback only. The text tool went live in E2-c and
-// is rendered separately.
-const PLACEHOLDER_TOOLS = [
-  { key: 'stamps', icon: 'image' },
-  { key: 'background', icon: 'palette' },
-  { key: 'effects', icon: 'auto_awesome' },
-] as const;
 
 export const StoriesShell = ({
   canvasWidth,
@@ -70,6 +69,10 @@ export const StoriesShell = ({
   trashRef,
   onAddText,
   isTextEditing,
+  onOpenStamps,
+  onOpenBackground,
+  onOpenEffects,
+  canApplyEffects,
 }: StoriesShellProps) => {
   const { t } = useTranslation('editor');
   const canvasAreaRef = useRef<HTMLDivElement>(null);
@@ -205,8 +208,7 @@ export const StoriesShell = ({
         )}
       </div>
 
-      {/* Bottom bar: add-tools (text is live; the rest are placeholders
-          until E3) */}
+      {/* Bottom bar: add-tools — all wired as of E3 */}
       <div
         className={`flex items-stretch justify-around border-t border-white/10 bg-[#101010] px-2 pt-2 ${isTextEditing ? 'invisible' : ''}`}
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
@@ -219,20 +221,31 @@ export const StoriesShell = ({
           <span className="material-symbols-outlined text-[24px]">text_fields</span>
           <span className="text-[11px] leading-tight">{t('stories.text')}</span>
         </button>
-        {PLACEHOLDER_TOOLS.map((tool) => (
-          <button
-            key={tool.key}
-            type="button"
-            aria-disabled="true"
-            className="relative flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-white/45 transition-transform active:scale-90"
-          >
-            <span className="material-symbols-outlined text-[24px]">{tool.icon}</span>
-            <span className="text-[11px] leading-tight">{t(`stories.${tool.key}`)}</span>
-            <span className="absolute -top-1 right-0 rounded-full bg-white/15 px-1.5 py-px text-[9px] font-medium text-white/70">
-              {t('stories.comingSoon')}
-            </span>
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={onOpenStamps}
+          className="flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-white transition-transform active:scale-90"
+        >
+          <span className="material-symbols-outlined text-[24px]">image</span>
+          <span className="text-[11px] leading-tight">{t('stories.stamps')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenBackground}
+          className="flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-white transition-transform active:scale-90"
+        >
+          <span className="material-symbols-outlined text-[24px]">palette</span>
+          <span className="text-[11px] leading-tight">{t('stories.background')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenEffects}
+          disabled={!canApplyEffects}
+          className="flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-white transition-transform active:scale-90 disabled:text-white/35 disabled:active:scale-100"
+        >
+          <span className="material-symbols-outlined text-[24px]">auto_awesome</span>
+          <span className="text-[11px] leading-tight">{t('stories.effects')}</span>
+        </button>
       </div>
     </div>
   );

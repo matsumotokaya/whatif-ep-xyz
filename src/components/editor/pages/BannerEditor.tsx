@@ -12,7 +12,10 @@ import { SaveAsTemplateModal } from '../components/SaveAsTemplateModal';
 import { StoriesShell } from '../stories/StoriesShell';
 import { useStoriesMode } from '../stories/useStoriesMode';
 import { StoriesTextEditor, type StoriesTextValue } from '../stories/StoriesTextEditor';
+import { StoriesBackgroundSheet } from '../stories/StoriesBackgroundSheet';
+import { StoriesEffectsSheet } from '../stories/StoriesEffectsSheet';
 import { estimateTextBlockSize, centeredPlacement } from '../stories/storiesTextTools';
+import { ImageLibraryModal } from '../components/ImageLibraryModal';
 import { GuestEditorNoticeModal } from '../components/GuestEditorNoticeModal';
 import { useBanner, useBatchSaveBanner, useUpdateBanner, useUpdateBannerName } from '../hooks/useBanners';
 import type { Banner, Template, CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
@@ -207,6 +210,11 @@ export const BannerEditor = () => {
   // overlay is mounted, the shell chrome is hidden and canvas interactions
   // (pinch/drag/trash) are blocked.
   const [storiesTextSession, setStoriesTextSession] = useState<StoriesTextSession | null>(null);
+
+  // Stories add-tool sheets (E3): image library / background color / effects.
+  // Only one is open at a time; the effects sheet targets the single selected
+  // unlocked element.
+  const [storiesSheet, setStoriesSheet] = useState<'stamps' | 'background' | 'effects' | null>(null);
 
   // Custom hooks
   const { resetHistory, saveToHistory, undo, redo, canUndo } = useHistory();
@@ -1965,6 +1973,14 @@ export const BannerEditor = () => {
   );
 
   if (storiesMode) {
+    // Effects target a single unlocked element; locked elements can't be
+    // selected in Stories mode, but the lock guard keeps it explicit.
+    const storiesSelectedElement =
+      selectedElementIds.length === 1
+        ? elements.find((el) => el.id === selectedElementIds[0]) ?? null
+        : null;
+    const canApplyEffects = !!storiesSelectedElement && !storiesSelectedElement.locked;
+
     return (
       <div className="flex h-dvh flex-col bg-[#1e1e1e]">
         <StoriesShell
@@ -1986,7 +2002,50 @@ export const BannerEditor = () => {
           trashRef={storiesTrashRef}
           onAddText={handleStoriesAddText}
           isTextEditing={storiesTextSession !== null}
+          onOpenStamps={() => setStoriesSheet('stamps')}
+          onOpenBackground={() => setStoriesSheet('background')}
+          onOpenEffects={() => setStoriesSheet('effects')}
+          canApplyEffects={canApplyEffects}
         />
+
+        {/* Stories image library (E3): reuses the existing ImageLibraryModal.
+            Selecting an image runs the same handleAddImage path as desktop
+            (upload guard, centered placement, immediate save). The modal calls
+            onClose after a selection, which closes the sheet. */}
+        <ImageLibraryModal
+          isOpen={storiesSheet === 'stamps'}
+          onClose={() => setStoriesSheet(null)}
+          onSelectImage={handleAddImage}
+        />
+
+        {/* Stories background color (E3): presets-only ColorSelector wired to
+            the same canvasColor state the desktop Sidebar drives. */}
+        {storiesSheet === 'background' && (
+          <StoriesBackgroundSheet
+            color={canvasColor}
+            onColorChange={setCanvasColor}
+            onClose={() => setStoriesSheet(null)}
+          />
+        )}
+
+        {/* Stories effects (E3): opacity / blur / shadow on the selected
+            element via the same handlers as the desktop PropertyPanel. Closes
+            itself if the selection changes so it never targets a stale one. */}
+        {storiesSheet === 'effects' && storiesSelectedElement ? (
+          <StoriesEffectsSheet
+            element={storiesSelectedElement}
+            onOpacityChange={handleOpacityChange}
+            onImageBlurChange={handleImageBlurChange}
+            onShadowEnabledChange={handleShadowEnabledChange}
+            onShadowColorChange={handleShadowColorChange}
+            onShadowBlurChange={handleShadowBlurChange}
+            onShadowOffsetXChange={handleShadowOffsetXChange}
+            onShadowOffsetYChange={handleShadowOffsetYChange}
+            onShadowOpacityChange={handleShadowOpacityChange}
+            onInteractionEnd={commitPropertyInteraction}
+            onClose={() => setStoriesSheet(null)}
+          />
+        ) : null}
 
         {/* Fullscreen text editor overlay (E2-c). Keyed by session identity
             so switching sessions always remounts with fresh initial state. */}
