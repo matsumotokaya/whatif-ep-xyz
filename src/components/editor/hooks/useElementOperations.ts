@@ -1,60 +1,38 @@
 import { useRef } from 'react';
-import type { CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
+import type { CanvasElement } from '../types/template';
+import { applyCommand } from '../utils/documentCommands';
 
 interface UseElementOperationsProps {
   setElements: React.Dispatch<React.SetStateAction<CanvasElement[]>>;
-  saveToHistory: (elements: CanvasElement[]) => void;
+  saveToHistory: (elements: CanvasElement[], coalesceKey?: string) => void;
 }
 
 export const useElementOperations = ({
   setElements,
   saveToHistory,
 }: UseElementOperationsProps) => {
+  // Tracks whether a continuous interaction (slider drag, color scrub, ...)
+  // has produced transient updates that still need one history commit.
   const interactionDirtyRef = useRef(false);
 
-  // Update a single element with partial updates
-  // Using functional update pattern to avoid closure issues
-  const updateElement = (id: string, updates: Partial<CanvasElement>) => {
+  // Update a single element with partial updates.
+  // Optional coalesceKey lets continuous gestures (e.g. arrow-key nudge)
+  // collapse into a single undo entry — see useHistory's coalescing rules.
+  const updateElement = (id: string, updates: Partial<CanvasElement>, coalesceKey?: string) => {
     setElements((prevElements) => {
-      const newElements = prevElements.map((el) => {
-        if (el.id === id) {
-          // Type-safe merge based on element type
-          if (el.type === 'text' && updates.type === 'text') {
-            return { ...el, ...updates } as TextElement;
-          } else if (el.type === 'shape' && updates.type === 'shape') {
-            return { ...el, ...updates } as ShapeElement;
-          } else if (el.type === 'image' && updates.type === 'image') {
-            return { ...el, ...updates } as ImageElement;
-          } else {
-            // For updates without type change
-            return { ...el, ...updates } as CanvasElement;
-          }
-        }
-        return el;
-      });
-
-      // Save to history with the new elements
-      saveToHistory(newElements);
+      const newElements = applyCommand(prevElements, { type: 'updateElement', id, updates });
+      saveToHistory(newElements, coalesceKey);
       return newElements;
     });
   };
 
   // Update during a continuous interaction without adding an undo snapshot.
+  // The gesture is committed as ONE history entry via commitInteraction().
   const updateElementTransient = (id: string, updates: Partial<CanvasElement>) => {
     interactionDirtyRef.current = true;
-    setElements((prevElements) => prevElements.map((el) => {
-      if (el.id !== id) return el;
-
-      if (el.type === 'text' && updates.type === 'text') {
-        return { ...el, ...updates } as TextElement;
-      } else if (el.type === 'shape' && updates.type === 'shape') {
-        return { ...el, ...updates } as ShapeElement;
-      } else if (el.type === 'image' && updates.type === 'image') {
-        return { ...el, ...updates } as ImageElement;
-      }
-
-      return { ...el, ...updates } as CanvasElement;
-    }));
+    setElements((prevElements) =>
+      applyCommand(prevElements, { type: 'updateElement', id, updates })
+    );
   };
 
   // Update multiple elements during a continuous interaction without adding a snapshot.
@@ -63,10 +41,9 @@ export const useElementOperations = ({
     updateFn: (element: CanvasElement) => Partial<CanvasElement>
   ) => {
     interactionDirtyRef.current = true;
-    setElements((prevElements) => prevElements.map((el) => {
-      if (!ids.includes(el.id)) return el;
-      return { ...el, ...updateFn(el) } as CanvasElement;
-    }));
+    setElements((prevElements) =>
+      applyCommand(prevElements, { type: 'updateElements', ids, updateFn })
+    );
   };
 
   // Commit the latest state once when a continuous interaction ends.
@@ -82,18 +59,12 @@ export const useElementOperations = ({
   // Update multiple elements (by IDs) with same property changes
   const updateElements = (
     ids: string[],
-    updateFn: (element: CanvasElement) => Partial<CanvasElement>
+    updateFn: (element: CanvasElement) => Partial<CanvasElement>,
+    coalesceKey?: string
   ) => {
     setElements((prevElements) => {
-      const newElements = prevElements.map((el) => {
-        if (ids.includes(el.id)) {
-          const updates = updateFn(el);
-          return { ...el, ...updates } as CanvasElement;
-        }
-        return el;
-      });
-
-      saveToHistory(newElements);
+      const newElements = applyCommand(prevElements, { type: 'updateElements', ids, updateFn });
+      saveToHistory(newElements, coalesceKey);
       return newElements;
     });
   };
@@ -101,7 +72,7 @@ export const useElementOperations = ({
   // Delete elements by IDs
   const deleteElements = (ids: string[]) => {
     setElements((prevElements) => {
-      const newElements = prevElements.filter((el) => !ids.includes(el.id));
+      const newElements = applyCommand(prevElements, { type: 'deleteElements', ids });
       saveToHistory(newElements);
       return newElements;
     });
@@ -110,7 +81,7 @@ export const useElementOperations = ({
   // Add new element
   const addElement = (element: CanvasElement) => {
     setElements((prevElements) => {
-      const newElements = [...prevElements, element];
+      const newElements = applyCommand(prevElements, { type: 'addElement', element });
       saveToHistory(newElements);
       return newElements;
     });
@@ -119,38 +90,27 @@ export const useElementOperations = ({
   // Bring elements to front (z-index)
   const bringToFront = (ids: string[]) => {
     setElements((prevElements) => {
-      const selectedElements = ids
-        .map(id => prevElements.find(el => el.id === id))
-        .filter((el): el is CanvasElement => el !== undefined);
-
-      const remainingElements = prevElements.filter(el => !ids.includes(el.id));
-      const reordered = [...remainingElements, ...selectedElements];
-
-      saveToHistory(reordered);
-      return reordered;
+      const newElements = applyCommand(prevElements, { type: 'bringToFront', ids });
+      saveToHistory(newElements);
+      return newElements;
     });
   };
 
   // Send elements to back (z-index)
   const sendToBack = (ids: string[]) => {
     setElements((prevElements) => {
-      const selectedElements = ids
-        .map(id => prevElements.find(el => el.id === id))
-        .filter((el): el is CanvasElement => el !== undefined);
-
-      const remainingElements = prevElements.filter(el => !ids.includes(el.id));
-      const reordered = [...selectedElements, ...remainingElements];
-
-      saveToHistory(reordered);
-      return reordered;
+      const newElements = applyCommand(prevElements, { type: 'sendToBack', ids });
+      saveToHistory(newElements);
+      return newElements;
     });
   };
 
   // Reorder elements (for layer drag & drop)
   const reorderElements = (newOrder: CanvasElement[]) => {
-    setElements(() => {
-      saveToHistory(newOrder);
-      return newOrder;
+    setElements((prevElements) => {
+      const newElements = applyCommand(prevElements, { type: 'reorderElements', elements: newOrder });
+      saveToHistory(newElements);
+      return newElements;
     });
   };
 

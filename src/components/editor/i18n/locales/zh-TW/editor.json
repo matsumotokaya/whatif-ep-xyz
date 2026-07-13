@@ -128,5 +128,16 @@
     "hide": "隱藏"
   },
   "lock": "鎖定",
-  "unlock": "解鎖"
+  "unlock": "解鎖",
+  "stories": {
+    "saveAndExit": "儲存並返回",
+    "done": "完成",
+    "text": "文字",
+    "stamps": "貼紙",
+    "background": "背景",
+    "effects": "特效",
+    "comingSoon": "即將推出",
+    "textPlaceholder": "輸入文字",
+    "shadowColor": "陰影顏色"
+  }
 }

@@ -1,11 +1,33 @@
-import { useRef, forwardRef, useImperativeHandle, useEffect, useEffectEvent, useState } from 'react';
+import { useRef, forwardRef, useImperativeHandle, useEffect, useEffectEvent, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Stage, Layer, Group, Rect, Transformer } from 'react-konva';
+import { Stage, Layer, Group, Rect, Line, Transformer } from 'react-konva';
 import type { Template, CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
 import type Konva from 'konva';
 import { ShapeRenderer } from './canvas/ShapeRenderer';
 import { TextRenderer } from './canvas/TextRenderer';
 import { ImageRenderer } from './canvas/ImageRenderer';
+import {
+  readNodeTransform,
+  resetNodeScale,
+  nodePositionToElementPosition,
+  elementPositionToNodePosition,
+  buildMultiDragDelta,
+  offsetPosition,
+  buildTransformUpdates,
+  isCenterOriginElement,
+  type NodeTransformSnapshot,
+} from '../utils/konvaCommit';
+import {
+  getPinchDelta,
+  buildPinchTransformInput,
+  getCenterSnap,
+  isPointInRect,
+  reconcilePinchFlagsOnTouchEnd,
+  CENTER_SNAP_SCREEN_PX,
+  TRASH_HIT_INFLATE_PX,
+  type TouchPoint,
+  type PinchStartSnapshot,
+} from '../utils/storiesGestures';
 
 interface CanvasProps {
   template: Template;
@@ -26,6 +48,32 @@ interface CanvasProps {
   onEditingChange?: (isEditing: boolean) => void;
   onBackgroundTouchStart?: (clientX: number, clientY: number) => void;
   onTransformingChange?: (isTransforming: boolean) => void;
+  // 'studio' (default) keeps the full desktop interaction set. 'stories' is
+  // the constrained mobile mode: selection frame without resize/rotate
+  // handles and no lasso selection; scale/rotate happens via two-finger
+  // pinch/twist on the selected element (E2-b).
+  interactionMode?: 'studio' | 'stories';
+  // Stories-only gesture plumbing (all unused in studio mode).
+  // Transient update path: live preview during pinch, committed as ONE undo
+  // entry via onInteractionCommit when the fingers lift.
+  onElementTransientUpdate?: (id: string, updates: Partial<CanvasElement>) => void;
+  onInteractionCommit?: () => void;
+  // Reports single-element drag progress so the shell can show/highlight the
+  // trash drop zone.
+  onStoriesDragStateChange?: (state: { dragging: boolean; overTrash: boolean }) => void;
+  // Invoked instead of the position commit when the element is dropped on
+  // the trash zone.
+  onStoriesDeleteElement?: (id: string) => void;
+  // DOM node of the trash drop zone rendered by the Stories shell.
+  storiesTrashRef?: RefObject<HTMLDivElement | null>;
+  // Stories text editing (E2-c): tapping an already-selected text element
+  // (or double-tapping any unlocked text) opens the fullscreen text editor
+  // instead of the inline textarea used in studio mode.
+  onStoriesTextEdit?: (element: TextElement) => void;
+  // True while the fullscreen text editor overlay is open. Blocks the
+  // window-level pinch listeners (which would otherwise react to touches
+  // landing on the overlay) and any element interaction underneath it.
+  storiesTextEditActive?: boolean;
 }
 
 export interface CanvasRef {
@@ -34,6 +82,9 @@ export interface CanvasRef {
   exportThumbnail: () => string;
   getNodesMap: () => Map<string, Konva.Node>;
   getLayerNode: () => Konva.Layer | null;
+  // Resolves after the canvas has had a chance to reflect the latest props in
+  // the DOM/Konva node tree and paint. Await this before a synchronous export
+  // so `toDataURL()` snapshots the current state instead of a stale frame.
   waitForNextRender: () => Promise<void>;
 }
 
@@ -48,10 +99,11 @@ const TEXT_PLACEMENT_CURSOR = (() => {
 })();
 
 export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
-  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange },
+  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
   ref
 ) {
   const { t } = useTranslation('editor');
+  const isStoriesMode = interactionMode === 'stories';
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRefsMap = useRef<Map<string, Konva.Transformer>>(new Map());
   const multiTransformerRef = useRef<Konva.Transformer>(null);
@@ -75,6 +127,24 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   }>({ active: false, draggedId: null, startPositions: new Map(), elementMap: new Map() });
   const multiDragLockAxisRef = useRef<'x' | 'y' | null>(null);
 
+  // --- Stories mode gesture state (E2-b) ---
+  // Active two-finger pinch/twist session on the selected element.
+  const pinchSessionRef = useRef<{
+    elementId: string;
+    touchIds: [number, number];
+    startTouches: [TouchPoint, TouchPoint];
+    start: PinchStartSnapshot;
+    // Element snapshot at gesture start: the transform is always applied to
+    // the START values so transient updates stay absolute and idempotent.
+    startElement: CanvasElement;
+  } | null>(null);
+  // Single-element drag tracking for snap guides and trash drop.
+  const storiesDragRef = useRef<{ elementId: string | null; overTrash: boolean }>({
+    elementId: null,
+    overTrash: false,
+  });
+  const [snapGuides, setSnapGuides] = useState<{ v: boolean; h: boolean }>({ v: false, h: false });
+
   // Always-current ref for selectedElementIds — prevents stale closure bugs
   // in event handlers (handleElementClick, handleElementDragStart) that may
   // fire before React has re-rendered with the latest props.
@@ -84,10 +154,27 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   }, [selectedElementIds]);
 
   const isElementInteractionBlocked = () => {
-    return isPinchingRef.current || Date.now() < pinchBlockUntilRef.current;
+    return (
+      isPinchingRef.current ||
+      Date.now() < pinchBlockUntilRef.current ||
+      // While the fullscreen text editor overlay is open, nothing on the
+      // canvas may react (drag, trash, selection).
+      (isStoriesMode && storiesTextEditActive)
+    );
   };
 
   const stopActiveDrags = () => {
+    // A programmatic drag stop (pinch takeover) must never count as a trash
+    // drop: clear the hover flag and restore the preview dim BEFORE stopDrag
+    // fires the synchronous dragend that reads it.
+    if (storiesDragRef.current.elementId && storiesDragRef.current.overTrash) {
+      const { elementId } = storiesDragRef.current;
+      storiesDragRef.current.overTrash = false;
+      const node = nodesRef.current.get(elementId);
+      const element = elements.find((el) => el.id === elementId);
+      node?.opacity(element?.opacity ?? 1);
+    }
+
     nodesRef.current.forEach((node) => {
       const draggableNode = node as Konva.Node & { isDragging?: () => boolean; stopDrag?: () => void };
       if (typeof draggableNode.isDragging === 'function' && draggableNode.isDragging()) {
@@ -99,6 +186,186 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     setIsMultiDragging(false);
     multiDragLockAxisRef.current = null;
   };
+
+  // --- Stories mode: two-finger pinch/twist on the selected element ---
+  //
+  // Instagram-style: while exactly one element is selected, two fingers
+  // ANYWHERE on the screen scale (pinch), rotate (twist) and move (midpoint
+  // drag) that element. Listeners live on window so the gesture also works
+  // when the fingers land outside the Konva Stage. Updates go through the
+  // transient path and are committed as one undo entry on release.
+
+  const tryStartStoriesPinch = useEffectEvent((e: TouchEvent) => {
+    // storiesTextEditActive: the fullscreen text editor overlay is open —
+    // these are WINDOW-level listeners, so without this guard two fingers
+    // on the overlay would pinch the element behind it.
+    if (pinchSessionRef.current || e.touches.length < 2 || isEditing || storiesTextEditActive) return;
+
+    const ids = selectedIdsRef.current;
+    if (ids.length !== 1) return;
+    const element = elements.find((el) => el.id === ids[0]);
+    if (!element || element.locked || !(element.visible ?? true)) return;
+    const node = nodesRef.current.get(element.id);
+    if (!node) return;
+
+    // A second finger interrupts an in-progress one-finger drag. stopDrag()
+    // fires dragend synchronously, so the drag's position commit lands
+    // before the pinch snapshot below reads the node.
+    isPinchingRef.current = true;
+    hadPinchGestureRef.current = true;
+    pinchBlockUntilRef.current = Date.now() + 180;
+    stopActiveDrags();
+
+    const t0 = e.touches[0];
+    const t1 = e.touches[1];
+    pinchSessionRef.current = {
+      elementId: element.id,
+      touchIds: [t0.identifier, t1.identifier],
+      startTouches: [
+        { x: t0.clientX, y: t0.clientY },
+        { x: t1.clientX, y: t1.clientY },
+      ],
+      start: {
+        nodeX: node.x(),
+        nodeY: node.y(),
+        width: node.width(),
+        height: node.height(),
+        rotation: node.rotation(),
+        isCenterOrigin: isCenterOriginElement(element),
+      },
+      startElement: element,
+    };
+  });
+
+  const moveStoriesPinch = useEffectEvent((e: TouchEvent) => {
+    const session = pinchSessionRef.current;
+    if (!session) return;
+
+    const findTouch = (id: number) => {
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === id) return e.touches[i];
+      }
+      return null;
+    };
+    const t0 = findTouch(session.touchIds[0]);
+    const t1 = findTouch(session.touchIds[1]);
+    if (!t0 || !t1) return;
+
+    isPinchingRef.current = true;
+    pinchBlockUntilRef.current = Date.now() + 180;
+
+    const delta = getPinchDelta(session.startTouches, [
+      { x: t0.clientX, y: t0.clientY },
+      { x: t1.clientX, y: t1.clientY },
+    ]);
+    const input = buildPinchTransformInput(session.start, delta, 1 / scale);
+    onElementTransientUpdate?.(
+      session.elementId,
+      buildTransformUpdates(session.startElement, input)
+    );
+  });
+
+  const endStoriesPinch = useEffectEvent((e: TouchEvent) => {
+    const session = pinchSessionRef.current;
+    const activeTouchCount = e.touches.length;
+    const wasActive = isPinchingRef.current || !!session;
+
+    if (session) {
+      // Keep the session alive only while BOTH gesture fingers are still down
+      // (a stray third finger lifting must not end the pinch).
+      const remaining = new Set<number>();
+      for (let i = 0; i < e.touches.length; i++) {
+        remaining.add(e.touches[i].identifier);
+      }
+      const bothFingersDown =
+        remaining.has(session.touchIds[0]) && remaining.has(session.touchIds[1]);
+      if (bothFingersDown) return;
+
+      pinchSessionRef.current = null;
+      onInteractionCommit?.();
+    }
+
+    // Authoritative reset: reconcile the flags from the true remaining-touch
+    // count whether or not a session existed. This is what stops isPinching
+    // from latching true when a two-finger press produced no session (0 or 2+
+    // selected, or a locked element) and the fingers then lifted off the
+    // canvas, where the Stage-level touchend/cancel never fires.
+    const flags = reconcilePinchFlagsOnTouchEnd(
+      { isPinching: isPinchingRef.current, hadPinchGesture: hadPinchGestureRef.current },
+      activeTouchCount,
+    );
+    isPinchingRef.current = flags.isPinching;
+    hadPinchGestureRef.current = flags.hadPinchGesture;
+    if (wasActive && activeTouchCount < 2) {
+      pinchBlockUntilRef.current = Date.now() + 180;
+    }
+  });
+
+  // Hard reset of the entire Stories gesture machine. Used when an external
+  // event (the fullscreen text editor opening, unmount) can swallow the
+  // in-progress touch stream so the matching touchend/touchcancel never
+  // arrives — without this the pinch session / isPinching would stay latched
+  // and block every canvas interaction afterwards.
+  const forceEndStoriesGesture = useEffectEvent(() => {
+    if (pinchSessionRef.current) {
+      pinchSessionRef.current = null;
+      // Commit whatever transient transform was in flight so nothing is lost.
+      onInteractionCommit?.();
+    }
+    isPinchingRef.current = false;
+    hadPinchGestureRef.current = false;
+    pinchBlockUntilRef.current = 0;
+    if (storiesDragRef.current.elementId) {
+      onStoriesDragStateChange?.({ dragging: false, overTrash: false });
+    }
+    stopActiveDrags();
+    storiesDragRef.current = { elementId: null, overTrash: false };
+    setSnapGuides((prev) => (prev.v || prev.h ? { v: false, h: false } : prev));
+  });
+
+  useEffect(() => {
+    if (!isStoriesMode) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      tryStartStoriesPinch(e);
+      if (pinchSessionRef.current) e.preventDefault();
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      // Also try to START here: covers the finger race where the selection
+      // state has not flushed yet at touchstart, and drag-to-pinch handoff.
+      tryStartStoriesPinch(e);
+      if (pinchSessionRef.current) {
+        e.preventDefault();
+        moveStoriesPinch(e);
+      }
+    };
+    const handleTouchEnd = (e: TouchEvent) => endStoriesPinch(e);
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+      pinchSessionRef.current = null;
+    };
+  }, [isStoriesMode]);
+
+  // Opening the fullscreen text editor overlay can steal the in-progress touch
+  // stream (iOS may never deliver the matching touchend/touchcancel). That
+  // would leave the pinch session / isPinching latched, so once the editor
+  // closes NOTHING on the canvas could be selected or dragged — and because a
+  // latched session makes the window touchstart handler call preventDefault on
+  // every tap, even the shell buttons stop responding. Force the gesture
+  // machine back to a clean state whenever the overlay opens.
+  useEffect(() => {
+    if (isStoriesMode && storiesTextEditActive) {
+      forceEndStoriesGesture();
+    }
+  }, [isStoriesMode, storiesTextEditActive]);
 
   // Track Shift key state
   useEffect(() => {
@@ -166,6 +433,10 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         transformerRefsMap.current.forEach(tr => tr.nodes([]));
         if (multiTransformerRef.current) multiTransformerRef.current.nodes([]);
 
+        // Synchronous draw() (not the throttled batchDraw) so the layer's
+        // cached bitmap is repainted BEFORE toDataURL() reads it — otherwise
+        // toDataURL composites a stale frame from before the transformers were
+        // hidden.
         layers[0].draw();
 
         try {
@@ -293,7 +564,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
         transformerRefsMap.current.forEach(tr => tr.nodes([]));
         if (multiTransformerRef.current) multiTransformerRef.current.nodes([]);
-        layers[0].batchDraw();
+        // Synchronous draw() so the repaint lands before toDataURL() reads the
+        // layer bitmap (see exportImage for the full rationale).
+        layers[0].draw();
 
         const dataURL = stage.toDataURL({
           x: BLEED * scale,
@@ -316,6 +589,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     },
     getNodesMap: () => nodesRef.current,
     getLayerNode: () => stageRef.current?.getLayers()[0] ?? null,
+    // Two chained rAFs: the first lets React's most recent commit flush into
+    // the Konva node tree, the second guarantees a paint has occurred before we
+    // resolve — so a following synchronous export snapshots current state.
     waitForNextRender: () =>
       new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
@@ -366,6 +642,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     stageRef.current?.getLayers()[0]?.batchDraw();
   }, [selectedElementIds, isEditing, elements]);
 
+  // Stories tap-to-edit (E2-c): remembers whether the current press started
+  // on the element that was ALREADY the single selection. handleElementClick
+  // fires twice per tap gesture (touchstart = press, Konva tap = release);
+  // the release promotes a press on an already-selected text element to the
+  // fullscreen text editor. Konva only fires `tap` when the finger did not
+  // drag, so moving a selected text never opens the editor.
+  const storiesPressWasSelectedRef = useRef(false);
+
   // Handle element selection (single or multi with Shift)
   // Uses selectedIdsRef to always read the latest selection,
   // avoiding stale-closure bugs when clicks happen in rapid succession.
@@ -377,6 +661,27 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     }
 
     const current = selectedIdsRef.current;
+
+    if (isStoriesMode) {
+      const evtType = event.evt?.type ?? '';
+      if (evtType === 'touchstart' || evtType === 'mousedown') {
+        storiesPressWasSelectedRef.current = current.length === 1 && current[0] === id;
+      } else {
+        // Release phase (Konva 'tap'): a second tap on the selected text
+        // element opens the fullscreen editor (Instagram behavior).
+        const element = elements.find((el) => el.id === id);
+        if (
+          storiesPressWasSelectedRef.current &&
+          element?.type === 'text' &&
+          !element.locked &&
+          onStoriesTextEdit
+        ) {
+          event.cancelBubble = true;
+          onStoriesTextEdit(element as TextElement);
+          return;
+        }
+      }
+    }
     const isShiftPressed = 'shiftKey' in event.evt ? event.evt.shiftKey : false;
     const isAlreadySelected = current.includes(id);
 
@@ -400,6 +705,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     if (isElementInteractionBlocked()) {
       stopActiveDrags();
       return;
+    }
+
+    if (isStoriesMode) {
+      // Track the single-element drag for snap guides + trash drop and let
+      // the shell show the trash zone.
+      storiesDragRef.current = { elementId: id, overTrash: false };
+      onStoriesDragStateChange?.({ dragging: true, overTrash: false });
     }
 
     const current = selectedIdsRef.current;
@@ -436,7 +748,59 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     setIsMultiDragging(true);
   };
 
+  // Stories mode drag-move: center snap guides + trash-zone hover feedback.
+  const handleStoriesDragMove = (id: string, event: Konva.KonvaEventObject<DragEvent>) => {
+    const node = event.target;
+    const layer = node.getLayer();
+
+    // Center snap: compare the element's bounding-box center (canvas units,
+    // layer space carries no stage transform) against the artboard center.
+    // The snap distance is fixed in screen px, hence the / scale.
+    const rect = layer ? node.getClientRect({ relativeTo: layer }) : node.getClientRect();
+    const snap = getCenterSnap(
+      { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },
+      { width: template.width, height: template.height },
+      CENTER_SNAP_SCREEN_PX / scale
+    );
+    if (snap.dx !== 0 || snap.dy !== 0) {
+      node.position({ x: node.x() + snap.dx, y: node.y() + snap.dy });
+    }
+    setSnapGuides((prev) =>
+      prev.v === snap.snappedX && prev.h === snap.snappedY
+        ? prev
+        : { v: snap.snappedX, h: snap.snappedY }
+    );
+
+    // Trash drop: hit-test the pointer against the shell's trash zone rect.
+    const evt = event.evt as unknown as MouseEvent | TouchEvent;
+    const pointer: TouchPoint | null =
+      'touches' in evt && evt.touches.length > 0
+        ? { x: evt.touches[0].clientX, y: evt.touches[0].clientY }
+        : 'clientX' in evt
+          ? { x: evt.clientX, y: evt.clientY }
+          : null;
+    const trashRect = storiesTrashRef?.current?.getBoundingClientRect();
+    const overTrash = !!(
+      pointer && trashRect && isPointInRect(pointer, trashRect, TRASH_HIT_INFLATE_PX)
+    );
+
+    if (overTrash !== storiesDragRef.current.overTrash) {
+      storiesDragRef.current.overTrash = overTrash;
+      // Preview-only feedback: dim the node while it hovers the trash. The
+      // real element opacity is untouched and restored on release.
+      const element = elements.find((el) => el.id === id);
+      node.opacity(overTrash ? 0.4 : (element?.opacity ?? 1));
+      onStoriesDragStateChange?.({ dragging: true, overTrash });
+      layer?.batchDraw();
+    }
+  };
+
   const handleElementDragMove = (id: string, event: Konva.KonvaEventObject<DragEvent>) => {
+    if (isStoriesMode && storiesDragRef.current.elementId === id && !multiDragRef.current.active) {
+      handleStoriesDragMove(id, event);
+      return;
+    }
+
     const { active, draggedId, startPositions, elementMap } = multiDragRef.current;
     if (!active || draggedId !== id) return;
 
@@ -446,20 +810,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     // Calculate delta using logical coordinates
     // For Star/Circle, node.x() is center coordinate, so convert to top-left
-    let currentX = event.target.x();
-    let currentY = event.target.y();
+    const currentPos = nodePositionToElementPosition(draggedElement, {
+      x: event.target.x(),
+      y: event.target.y(),
+    });
 
-    if (draggedElement.type === 'shape') {
-      const shapeEl = draggedElement as ShapeElement;
-      if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-        // Convert center coordinate to top-left coordinate
-        currentX = currentX - shapeEl.width / 2;
-        currentY = currentY - shapeEl.height / 2;
-      }
-    }
-
-    const dx = currentX - draggedStart.x;
-    const dy = currentY - draggedStart.y;
+    const dx = currentPos.x - draggedStart.x;
+    const dy = currentPos.y - draggedStart.y;
     let constrainedDx = dx;
     let constrainedDy = dy;
 
@@ -485,16 +842,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     const constrainedY = draggedStart.y + constrainedDy;
 
     // Ensure dragged node follows the constrained path
-    let draggedNodeX = constrainedX;
-    let draggedNodeY = constrainedY;
-    if (draggedElement.type === 'shape') {
-      const shapeEl = draggedElement as ShapeElement;
-      if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-        draggedNodeX = constrainedX + shapeEl.width / 2;
-        draggedNodeY = constrainedY + shapeEl.height / 2;
-      }
-    }
-    event.target.position({ x: draggedNodeX, y: draggedNodeY });
+    event.target.position(
+      elementPositionToNodePosition(draggedElement, { x: constrainedX, y: constrainedY })
+    );
 
     // Move other selected elements (visual update)
     startPositions.forEach((startPos, elementId) => {
@@ -503,26 +853,39 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const element = elementMap.get(elementId);
       if (!node || !element) return;
 
-      // Set node position based on element type
-      let nodeX = startPos.x + constrainedDx;
-      let nodeY = startPos.y + constrainedDy;
-
-      if (element.type === 'shape') {
-        const shapeEl = element as ShapeElement;
-        if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-          // Convert top-left coordinate to center coordinate for rendering
-          nodeX = nodeX + shapeEl.width / 2;
-          nodeY = nodeY + shapeEl.height / 2;
-        }
-      }
-
-      node.position({ x: nodeX, y: nodeY });
+      // Set node position based on element type (top-left -> center for Star/Circle)
+      node.position(
+        elementPositionToNodePosition(element, {
+          x: startPos.x + constrainedDx,
+          y: startPos.y + constrainedDy,
+        })
+      );
     });
 
     event.target.getStage()?.batchDraw();
   };
 
   const handleElementDragEnd = (id: string, event: Konva.KonvaEventObject<DragEvent>) => {
+    if (isStoriesMode && storiesDragRef.current.elementId === id) {
+      const wasOverTrash = storiesDragRef.current.overTrash;
+      storiesDragRef.current = { elementId: null, overTrash: false };
+      setSnapGuides((prev) => (prev.v || prev.h ? { v: false, h: false } : prev));
+      onStoriesDragStateChange?.({ dragging: false, overTrash: false });
+
+      if (wasOverTrash) {
+        // Restore the preview dim before the node goes away / stays around.
+        const element = elements.find((el) => el.id === id);
+        event.target.opacity(element?.opacity ?? 1);
+        if (onStoriesDeleteElement) {
+          onStoriesDeleteElement(id);
+          // Suppress the position commit — the element is being deleted.
+          return true;
+        }
+      }
+      // Single-element move: let the renderer commit the final position.
+      return false;
+    }
+
     const { active, draggedId, startPositions, elementMap } = multiDragRef.current;
     // Multi-drag is active but this is NOT the lead element.
     // Return true to suppress individual drag handler —
@@ -538,39 +901,18 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     // Calculate delta using logical coordinates
     // For Star/Circle, node.x() is center coordinate, so convert to top-left
-    let currentX = event.target.x();
-    let currentY = event.target.y();
-
-    if (draggedElement.type === 'shape') {
-      const shapeEl = draggedElement as ShapeElement;
-      if (shapeEl.shapeType === 'star' || shapeEl.shapeType === 'circle') {
-        // Convert center coordinate to top-left coordinate
-        currentX = currentX - shapeEl.width / 2;
-        currentY = currentY - shapeEl.height / 2;
-      }
-    }
-
-    let dx = currentX - draggedStart.x;
-    let dy = currentY - draggedStart.y;
-
-    if (multiDragLockAxisRef.current === 'x') {
-      dx = 0;
-    } else if (multiDragLockAxisRef.current === 'y') {
-      dy = 0;
-    }
+    const committedPos = nodePositionToElementPosition(draggedElement, {
+      x: event.target.x(),
+      y: event.target.y(),
+    });
+    const delta = buildMultiDragDelta(committedPos, draggedStart, multiDragLockAxisRef.current);
 
     if (onElementsUpdate) {
       const ids = selectedIdsRef.current.length > 0 ? selectedIdsRef.current : Array.from(startPositions.keys());
-      onElementsUpdate(ids, (element) => ({
-        x: element.x + dx,
-        y: element.y + dy,
-      }));
+      onElementsUpdate(ids, (element) => offsetPosition(element, delta));
     } else if (onElementUpdate) {
       startPositions.forEach((startPos, elementId) => {
-        onElementUpdate(elementId, {
-          x: startPos.x + dx,
-          y: startPos.y + dy,
-        });
+        onElementUpdate(elementId, offsetPosition(startPos, delta));
       });
     }
 
@@ -589,36 +931,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     // Phase 1: Collect ALL node transform data BEFORE resetting any scales
     // This prevents cascade effects where resetting one node's scale
     // could affect another node's Transformer computation.
-    const nodeData = new Map<string, {
-      scaleX: number;
-      scaleY: number;
-      x: number;
-      y: number;
-      rotation: number;
-      width: number;
-      height: number;
-    }>();
+    const nodeData = new Map<string, NodeTransformSnapshot>();
 
     currentIds.forEach(id => {
       const node = nodesRef.current.get(id);
       if (!node) return;
-      nodeData.set(id, {
-        scaleX: node.scaleX(),
-        scaleY: node.scaleY(),
-        x: node.x(),
-        y: node.y(),
-        rotation: node.rotation(),
-        width: node.width(),
-        height: node.height(),
-      });
+      nodeData.set(id, readNodeTransform(node));
     });
 
     // Phase 2: Reset ALL node scales at once
     currentIds.forEach(id => {
       const node = nodesRef.current.get(id);
       if (!node) return;
-      node.scaleX(1);
-      node.scaleY(1);
+      resetNodeScale(node);
     });
 
     // Phase 3: Compute updates using collected data
@@ -629,56 +954,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const element = elements.find(el => el.id === id);
       if (!data || !element) return;
 
-      const { scaleX, scaleY, x, y, rotation } = data;
-
-      if (element.type === 'text') {
-        const textEl = element as TextElement;
-        updatesMap.set(id, {
-          x,
-          y,
-          fontSize: Math.max(10, textEl.fontSize * scaleY),
-          rotation,
-        });
-      } else if (element.type === 'shape') {
-        const shape = element as ShapeElement;
-        const isCentered = shape.shapeType === 'star' || shape.shapeType === 'circle';
-        const newWidth = Math.max(5, shape.width * scaleX);
-        const newHeight = Math.max(5, shape.height * scaleY);
-
-        if (isCentered) {
-          updatesMap.set(id, {
-            x: x - newWidth / 2,
-            y: y - newHeight / 2,
-            width: newWidth,
-            height: newHeight,
-            rotation,
-          });
-        } else {
-          updatesMap.set(id, {
-            x,
-            y,
-            width: newWidth,
-            height: newHeight,
-            rotation,
-          });
-        }
-      } else if (element.type === 'image') {
-        const imageEl = element as ImageElement;
-        updatesMap.set(id, {
-          x,
-          y,
-          width: Math.max(5, imageEl.width * scaleX),
-          height: Math.max(5, imageEl.height * scaleY),
-          rotation,
-        });
-      }
-
+      updatesMap.set(id, buildTransformUpdates(element, data));
     });
 
     onElementsUpdate(currentIds, (element) => updatesMap.get(element.id) || {});
   };
 
   const handleTextDoubleClick = (element: TextElement, textNode: Konva.Text) => {
+    // Stories mode never uses the inline textarea overlay below — route
+    // double-taps to the fullscreen text editor instead.
+    if (isStoriesMode) {
+      if (!element.locked && !storiesTextEditActive) onStoriesTextEdit?.(element);
+      return;
+    }
     if (!stageRef.current || !onTextChange) return;
 
     setIsEditing(true);
@@ -901,7 +1189,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               isEditing
             });
 
-            if ((isStage || isBackgroundRect) && !isEditing && !textPlacementMode) {
+            // Lasso selection is a Studio-only interaction (multi-select is
+            // not part of the Stories mode feature set).
+            if ((isStage || isBackgroundRect) && !isEditing && !textPlacementMode && !isStoriesMode) {
               // Get mouse position in canvas coordinates (accounting for scale)
               const stage = e.target.getStage();
               if (!stage) return;
@@ -1141,6 +1431,25 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                 return null;
               })}
             </Group>
+              {/* Stories mode: center snap guides while dragging (IG-style thin lines) */}
+              {isStoriesMode && snapGuides.v && (
+                <Line
+                  points={[template.width / 2, 0, template.width / 2, template.height]}
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5 / scale}
+                  opacity={0.9}
+                  listening={false}
+                />
+              )}
+              {isStoriesMode && snapGuides.h && (
+                <Line
+                  points={[0, template.height / 2, template.width, template.height / 2]}
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5 / scale}
+                  opacity={0.9}
+                  listening={false}
+                />
+              )}
               {!isEditing && selectedElementIds.map(id => {
                 const element = elements.find(el => el.id === id);
                 if (!element) return null;
@@ -1160,13 +1469,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                     anchorFill="#FFFFFF"
                     anchorSize={8}
                     enabledAnchors={
-                      isMulti
+                      // Stories mode shows the selection frame only: no
+                      // resize anchors, no rotate handle (finger-sized
+                      // gestures replace them in E2-b).
+                      isStoriesMode || isMulti
                         ? []
                         : isText
                           ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                           : ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     }
-                    rotateEnabled={!isMulti}
+                    rotateEnabled={!isMulti && !isStoriesMode}
                     rotationSnaps={isShiftPressed ? [0, 45, 90, 135, 180, 225, 270, 315] : []}
                     rotationSnapTolerance={5}
                     keepRatio={isText}
@@ -1185,8 +1497,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                   anchorStroke="#4F46E5"
                   anchorFill="#FFFFFF"
                   anchorSize={10}
-                  enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-                  rotateEnabled={true}
+                  enabledAnchors={isStoriesMode ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+                  rotateEnabled={!isStoriesMode}
                   rotationSnaps={isShiftPressed ? [0, 45, 90, 135, 180, 225, 270, 315] : []}
                   rotationSnapTolerance={5}
                   keepRatio={true}

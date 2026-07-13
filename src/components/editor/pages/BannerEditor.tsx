@@ -8,8 +8,14 @@ import { PropertyPanel } from '../components/PropertyPanel';
 import { BottomBar } from '../components/BottomBar';
 import { MobileToolbar } from '../components/MobileToolbar';
 import { UpgradeModal } from '../components/UpgradeModal';
-import { DesktopRecommendedModal } from '../components/DesktopRecommendedModal';
 import { SaveAsTemplateModal } from '../components/SaveAsTemplateModal';
+import { StoriesShell } from '../stories/StoriesShell';
+import { useStoriesMode } from '../stories/useStoriesMode';
+import { StoriesTextEditor, type StoriesTextValue } from '../stories/StoriesTextEditor';
+import { StoriesBackgroundSheet } from '../stories/StoriesBackgroundSheet';
+import { StoriesEffectsSheet } from '../stories/StoriesEffectsSheet';
+import { estimateTextBlockSize, centeredPlacement } from '../stories/storiesTextTools';
+import { ImageLibraryModal } from '../components/ImageLibraryModal';
 import { GuestEditorNoticeModal } from '../components/GuestEditorNoticeModal';
 import { useBanner, useBatchSaveBanner, useUpdateBanner, useUpdateBannerName } from '../hooks/useBanners';
 import type { Banner, Template, CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
@@ -28,6 +34,7 @@ import { exportImageFromDataUrl } from '../utils/exportImage';
 import { createSilhouetteBlob } from '../utils/imageShadow';
 import { insertUserImageRecord } from '../utils/libraryAssets';
 import { getFitToCanvasPlacement } from '../utils/canvasPlacement';
+import { migrateElements } from '../utils/elementMigration';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
@@ -48,6 +55,10 @@ type BannerEditorLocationState = {
   returnTo?: string;
 };
 
+// Stories fullscreen text editing session (E2-c): either editing an existing
+// text element or composing a new one (added on Done, centered on canvas).
+type StoriesTextSession = { mode: 'edit'; elementId: string } | { mode: 'new' };
+
 export const BannerEditor = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -56,7 +67,6 @@ export const BannerEditor = () => {
   const { profile, user, loading: authLoading } = useAuth();
   const { t } = useTranslation(['common', 'message', 'banner']);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [showDesktopModal, setShowDesktopModal] = useState(false);
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
   const [isMobileToolDrawerOpen, setIsMobileToolDrawerOpen] = useState(false);
   const [showSaveAsTemplateModal, setShowSaveAsTemplateModal] = useState(false);
@@ -179,17 +189,35 @@ export const BannerEditor = () => {
     }
   }, [animationPhase]);
 
-  // Show desktop recommended modal on mobile
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    const dismissed = localStorage.getItem('imagine_desktop_modal_dismissed');
-    if (isMobile && !dismissed) {
-      setShowDesktopModal(true);
-    }
-  }, []);
+  // Stories mode: the mobile-dedicated shell (<768px, or forced via
+  // ?stories=1 for desktop DevTools work). Replaces the former
+  // DesktopRecommendedModal disclaimer.
+  const storiesMode = useStoriesMode();
+
+  // Stories drag-to-trash coordination (E2-b): Canvas reports drag progress,
+  // StoriesShell renders the trash zone whose DOM rect Canvas hit-tests.
+  const storiesTrashRef = useRef<HTMLDivElement>(null);
+  const [storiesDragState, setStoriesDragState] = useState<{ dragging: boolean; overTrash: boolean }>({
+    dragging: false,
+    overTrash: false,
+  });
+  const handleStoriesDragStateChange = useCallback(
+    (state: { dragging: boolean; overTrash: boolean }) => setStoriesDragState(state),
+    []
+  );
+
+  // Stories fullscreen text editor session (E2-c). While non-null the
+  // overlay is mounted, the shell chrome is hidden and canvas interactions
+  // (pinch/drag/trash) are blocked.
+  const [storiesTextSession, setStoriesTextSession] = useState<StoriesTextSession | null>(null);
+
+  // Stories add-tool sheets (E3): image library / background color / effects.
+  // Only one is open at a time; the effects sheet targets the single selected
+  // unlocked element.
+  const [storiesSheet, setStoriesSheet] = useState<'stamps' | 'background' | 'effects' | null>(null);
 
   // Custom hooks
-  const { resetHistory, saveToHistory, undo, redo } = useHistory();
+  const { resetHistory, saveToHistory, undo, redo, canUndo } = useHistory();
   const getInitialZoom = () => {
     const isMobile = window.innerWidth < 768;
     return isMobile ? 30 : 40;
@@ -557,44 +585,7 @@ export const BannerEditor = () => {
       previewDirtyRef.current = false;
 
       // Migrate existing shapes and text to new fill/stroke structure
-      const migratedElements = banner.elements.map((el) => {
-        if (el.type === 'shape') {
-          const shape = el as ShapeElement;
-          return {
-            ...shape,
-            fillEnabled: shape.fillEnabled !== undefined ? shape.fillEnabled : true,
-            stroke: shape.stroke || '#000000',
-            strokeWidth: shape.strokeWidth || 2,
-            strokeEnabled: shape.strokeEnabled !== undefined ? shape.strokeEnabled : false,
-            visible: shape.visible ?? true,
-            locked: shape.locked ?? false,
-          } as ShapeElement;
-        }
-        if (el.type === 'text') {
-          const text = el as TextElement;
-          // Migrate old strokeOnly property to new structure
-          const strokeOnly = text.strokeOnly;
-          return {
-            ...text,
-            fillEnabled: text.fillEnabled !== undefined ? text.fillEnabled : (strokeOnly === undefined ? true : !strokeOnly),
-            stroke: text.stroke || text.fill || '#000000',
-            strokeWidth: text.strokeWidth || Math.max(text.fontSize * 0.03, 2),
-            strokeEnabled: text.strokeEnabled !== undefined ? text.strokeEnabled : (strokeOnly || false),
-            letterSpacing: text.letterSpacing ?? 0,
-            visible: text.visible ?? true,
-            locked: text.locked ?? false,
-          } as TextElement;
-        }
-        if (el.type === 'image') {
-          const image = el as ImageElement;
-          return {
-            ...image,
-            visible: image.visible ?? true,
-            locked: image.locked ?? false,
-          } as ImageElement;
-        }
-        return el;
-      });
+      const migratedElements = migrateElements(banner.elements);
 
       const recovery = user?.id ? readEditorRecovery(user.id, banner.id) : null;
       const recoveryIsNewer = Boolean(
@@ -1047,6 +1038,13 @@ export const BannerEditor = () => {
     }
   };
 
+  // Stories mode: delete the element that was dropped on the trash zone.
+  const handleStoriesDeleteElement = (id: string) => {
+    elementOps.deleteElements([id]);
+    setSelectedElementIds((prev) => prev.filter((selectedId) => selectedId !== id));
+    immediateSave();
+  };
+
   // Undo/Redo handlers
   const handleUndo = () => {
     const prevElements = undo();
@@ -1063,11 +1061,18 @@ export const BannerEditor = () => {
   };
 
   // Arrow key movement handlers (Photoshop-style: 1px normal, 10px with Shift)
+  // A single shared coalesceKey across all four directions so a nudge
+  // gesture (holding an arrow key, possibly changing direction while held)
+  // collapses into one undo step instead of one entry per keydown-repeat
+  // event. Any other edit in between uses no key / a different key, which
+  // naturally breaks the coalescing chain in useHistory.
+  const NUDGE_COALESCE_KEY = 'nudge';
+
   const handleMoveUp = (distance: number) => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         y: el.y - distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1075,7 +1080,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         y: el.y + distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1083,7 +1088,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         x: el.x - distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1091,7 +1096,7 @@ export const BannerEditor = () => {
     if (selectedElementIds.length > 0) {
       elementOps.updateElements(selectedElementIds, (el) => ({
         x: el.x + distance,
-      }));
+      }), NUDGE_COALESCE_KEY);
     }
   };
 
@@ -1186,6 +1191,120 @@ export const BannerEditor = () => {
 
   const handleAddText = () => {
     setTextPlacementMode(prev => !prev);
+  };
+
+  // --- Stories fullscreen text editing (E2-c) ---
+
+  // Canvas-2D line measurement used to center newly added text. Konva uses
+  // the same canvas text metrics, so this tracks the rendered width closely.
+  const measureStoriesTextLine = (line: string, fontSize: number, fontFamily: string): number => {
+    const context = document.createElement('canvas').getContext('2d');
+    if (!context) return line.length * fontSize * 0.6;
+    context.font = `${selectedWeight} ${fontSize}px ${fontFamily}`;
+    const width = context.measureText(line).width;
+    return Number.isFinite(width) ? width : line.length * fontSize * 0.6;
+  };
+
+  const storiesTextInitialValue = (): StoriesTextValue => {
+    if (storiesTextSession?.mode === 'edit') {
+      const element = elements.find((el) => el.id === storiesTextSession.elementId);
+      if (element && element.type === 'text') {
+        return {
+          text: element.text,
+          fontFamily: element.fontFamily,
+          fill: element.fill,
+          fontSize: element.fontSize,
+        };
+      }
+    }
+    // New text seeds from the sticky defaults (same source as
+    // handleCanvasPlaceText) so the last used font/color/size carry over.
+    return { text: '', fontFamily: selectedFont, fill: selectedTextColor, fontSize: selectedSize };
+  };
+
+  // Existing text: opened by tapping the already-selected element (or
+  // double-tapping) — wired from Canvas via onStoriesTextEdit.
+  const handleStoriesTextEditRequest = (element: TextElement) => {
+    if (storiesTextSession || element.locked) return;
+    handleSelectElement([element.id]);
+    setStoriesTextSession({ mode: 'edit', elementId: element.id });
+  };
+
+  // New text: opened from the shell's "Aa" button.
+  const handleStoriesAddText = () => {
+    if (storiesTextSession) return;
+    setStoriesTextSession({ mode: 'new' });
+  };
+
+  const handleStoriesTextCancel = () => setStoriesTextSession(null);
+
+  const handleStoriesTextDone = (value: StoriesTextValue) => {
+    const session = storiesTextSession;
+    setStoriesTextSession(null);
+    if (!session) return;
+
+    const isEmpty = value.text.trim() === '';
+
+    if (session.mode === 'edit') {
+      const element = elements.find((el) => el.id === session.elementId);
+      if (!element || element.type !== 'text') return;
+
+      if (isEmpty) {
+        // Confirming empty text deletes the element (IG behavior).
+        elementOps.deleteElements([session.elementId]);
+        setSelectedElementIds((prev) => prev.filter((id) => id !== session.elementId));
+        immediateSave();
+        return;
+      }
+
+      // Single updateElement call -> the whole session is one undo entry.
+      elementOps.updateElement(session.elementId, {
+        text: value.text,
+        fontFamily: value.fontFamily,
+        fill: value.fill,
+        fontSize: value.fontSize,
+      });
+    } else {
+      if (isEmpty) return; // IG behavior: empty new text adds nothing
+
+      const block = estimateTextBlockSize(value.text, value.fontSize, selectedLineHeight, (line) =>
+        measureStoriesTextLine(line, value.fontSize, value.fontFamily)
+      );
+      const position = centeredPlacement(
+        banner.template.width,
+        banner.template.height,
+        block.width,
+        block.height
+      );
+      const newId = `text-${Date.now()}`;
+      const newElement: TextElement = {
+        id: newId,
+        type: 'text',
+        text: value.text,
+        x: position.x,
+        y: position.y,
+        fontSize: value.fontSize,
+        fontFamily: value.fontFamily,
+        letterSpacing: selectedLetterSpacing,
+        lineHeight: selectedLineHeight,
+        fill: value.fill,
+        fillEnabled: true,
+        stroke: '#000000',
+        strokeWidth: 2,
+        strokeEnabled: false,
+        fontWeight: selectedWeight,
+        visible: true,
+      };
+      elementOps.addElement(newElement);
+      setSelectedElementIds([newId]);
+    }
+
+    // Sticky defaults: the confirmed font/color/size seed the next new text
+    // (mirrors handleSelectElement's sync on selection).
+    setSelectedFont(value.fontFamily);
+    setSelectedTextColor(value.fill);
+    setSelectedSize(value.fontSize);
+    immediateSave();
   };
 
   const handleAddShape = (shapeType: 'rectangle' | 'triangle' | 'star' | 'circle' | 'heart') => {
@@ -1805,6 +1924,173 @@ export const BannerEditor = () => {
     }
   };
 
+  // Shared canvas renderer so Studio and Stories mount the exact same
+  // EditorCanvas instance shape (the two shells render exclusively, keeping
+  // the Konva Stage single-mounted). Only scale and interaction mode differ.
+  const renderEditorCanvas = (canvasScale: number, interactionMode: 'studio' | 'stories') => (
+    <div className="relative">
+      <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
+        <EditorCanvas
+          ref={canvasRef}
+          template={banner.template}
+          elements={elements}
+          scale={canvasScale}
+          canvasColor={canvasColor}
+          fileName={`${banner.name}.png`}
+          onTextChange={handleTextChange}
+          selectedElementIds={selectedElementIds}
+          onSelectElement={handleSelectElement}
+          onElementUpdate={handleElementUpdate}
+          onElementsUpdate={handleElementsUpdate}
+          onImageDrop={handleImageDrop}
+          onImageLoad={handleImageLoad}
+          entranceAnimationPhase={animationPhase}
+          textPlacementMode={textPlacementMode}
+          onPlaceText={handleCanvasPlaceText}
+          onEditingChange={setIsCanvasEditing}
+          onBackgroundTouchStart={interactionMode === 'stories' ? undefined : handleCanvasPanTouchStart}
+          onTransformingChange={handleTransformingChange}
+          interactionMode={interactionMode}
+          onElementTransientUpdate={elementOps.updateElementTransient}
+          onInteractionCommit={elementOps.commitInteraction}
+          onStoriesDragStateChange={handleStoriesDragStateChange}
+          onStoriesDeleteElement={handleStoriesDeleteElement}
+          storiesTrashRef={storiesTrashRef}
+          onStoriesTextEdit={handleStoriesTextEditRequest}
+          storiesTextEditActive={storiesTextSession !== null}
+        />
+      </Suspense>
+      {(animationPhase === 'loading' || animationPhase === 'animating') && (
+        <LoadingOverlay
+          elements={elements}
+          template={banner.template}
+          scale={canvasScale}
+          phase={animationPhase}
+          canvasColor={canvasColor}
+        />
+      )}
+    </div>
+  );
+
+  if (storiesMode) {
+    // Effects target a single unlocked element; locked elements can't be
+    // selected in Stories mode, but the lock guard keeps it explicit.
+    const storiesSelectedElement =
+      selectedElementIds.length === 1
+        ? elements.find((el) => el.id === selectedElementIds[0]) ?? null
+        : null;
+    const canApplyEffects = !!storiesSelectedElement && !storiesSelectedElement.locked;
+
+    return (
+      <div className="flex h-dvh flex-col bg-[#1e1e1e]">
+        <StoriesShell
+          canvasWidth={banner.template.width}
+          canvasHeight={banner.template.height}
+          renderCanvas={(fitScale) => renderEditorCanvas(fitScale, 'stories')}
+          onClose={handleBackToManager}
+          onUndo={handleUndo}
+          canUndo={canUndo}
+          saveStatus={saveStatus}
+          hasSelection={selectedElementIds.length > 0}
+          onDelete={handleDelete}
+          onBringToFront={handleBringToFront}
+          onSendToBack={handleSendToBack}
+          onClearSelection={() => handleSelectElement([])}
+          isDraggingElement={storiesDragState.dragging}
+          isOverTrash={storiesDragState.overTrash}
+          trashRef={storiesTrashRef}
+          onAddText={handleStoriesAddText}
+          isTextEditing={storiesTextSession !== null}
+          onOpenStamps={() => setStoriesSheet('stamps')}
+          onOpenBackground={() => setStoriesSheet('background')}
+          onOpenEffects={() => setStoriesSheet('effects')}
+          canApplyEffects={canApplyEffects}
+        />
+
+        {/* Stories image library (E3): reuses the existing ImageLibraryModal.
+            Selecting an image runs the same handleAddImage path as desktop
+            (upload guard, centered placement, immediate save). The modal calls
+            onClose after a selection, which closes the sheet. */}
+        <ImageLibraryModal
+          isOpen={storiesSheet === 'stamps'}
+          onClose={() => setStoriesSheet(null)}
+          onSelectImage={handleAddImage}
+        />
+
+        {/* Stories background color (E3): presets-only ColorSelector wired to
+            the same canvasColor state the desktop Sidebar drives. */}
+        {storiesSheet === 'background' && (
+          <StoriesBackgroundSheet
+            color={canvasColor}
+            onColorChange={setCanvasColor}
+            onClose={() => setStoriesSheet(null)}
+          />
+        )}
+
+        {/* Stories effects (E3): opacity / blur / shadow on the selected
+            element via the same handlers as the desktop PropertyPanel. Closes
+            itself if the selection changes so it never targets a stale one. */}
+        {storiesSheet === 'effects' && storiesSelectedElement ? (
+          <StoriesEffectsSheet
+            element={storiesSelectedElement}
+            onOpacityChange={handleOpacityChange}
+            onImageBlurChange={handleImageBlurChange}
+            onShadowEnabledChange={handleShadowEnabledChange}
+            onShadowColorChange={handleShadowColorChange}
+            onShadowBlurChange={handleShadowBlurChange}
+            onShadowOffsetXChange={handleShadowOffsetXChange}
+            onShadowOffsetYChange={handleShadowOffsetYChange}
+            onShadowOpacityChange={handleShadowOpacityChange}
+            onInteractionEnd={commitPropertyInteraction}
+            onClose={() => setStoriesSheet(null)}
+          />
+        ) : null}
+
+        {/* Fullscreen text editor overlay (E2-c). Keyed by session identity
+            so switching sessions always remounts with fresh initial state. */}
+        {storiesTextSession && (
+          <StoriesTextEditor
+            key={storiesTextSession.mode === 'edit' ? storiesTextSession.elementId : 'new'}
+            initial={storiesTextInitialValue()}
+            onDone={handleStoriesTextDone}
+            onCancel={handleStoriesTextCancel}
+          />
+        )}
+
+        {/* Guest-only notice: download is fine, saving needs login */}
+        <GuestEditorNoticeModal
+          isOpen={showGuestNotice}
+          onConfirm={handleGuestNoticeConfirm}
+          title={t('banner:guestNoticeTitle')}
+          message={t('banner:guestNoticeMessage')}
+          confirmLabel={t('banner:guestNoticeConfirm')}
+        />
+
+        {/* Upgrade Modal */}
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            navigate(editorReturnTo);
+          }}
+        />
+
+        {/* Loading overlay when navigating */}
+        {isNavigating && (
+          <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center">
+            <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4 shadow-2xl">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600"></div>
+              <div className="text-center">
+                <p className="text-base font-semibold text-gray-800">{t('thumbnail.generating')}</p>
+                <p className="text-sm text-gray-500 mt-1">{t('thumbnail.pleaseWait')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-dvh flex-col bg-[#1e1e1e]">
       <Header
@@ -1818,123 +2104,35 @@ export const BannerEditor = () => {
       />
 
 
-      {/* Desktop Layout */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
-        <Sidebar
-          canvasColor={canvasColor}
-          canvasWidth={banner.template.width}
-          canvasHeight={banner.template.height}
-          onSelectColor={setCanvasColor}
-          onCanvasSizeChange={handleCanvasSizeChange}
-          onAddText={handleAddText}
-          onAddShape={handleAddShape}
-          onAddImage={handleAddImage}
-          elements={elements}
-          selectedElementIds={selectedElementIds}
-          onSelectElement={handleSelectElement}
-          onReorderElements={handleReorderElements}
-          onToggleLock={handleToggleLock}
-          onToggleVisibility={handleToggleVisibility}
-          textPlacementMode={textPlacementMode}
-          panMode={panMode}
-          onPanModeChange={setPanMode}
-        />
+      {/* Editor layout: single EditorCanvas mount. Only the surrounding chrome
+          (sidebar, toolbars, panels) is swapped responsively via CSS so that
+          two Konva Stages never compete for the same canvasRef. */}
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden relative">
+        {/* Desktop sidebar */}
+        <div className="hidden md:flex">
+          <Sidebar
+            canvasColor={canvasColor}
+            canvasWidth={banner.template.width}
+            canvasHeight={banner.template.height}
+            onSelectColor={setCanvasColor}
+            onCanvasSizeChange={handleCanvasSizeChange}
+            onAddText={handleAddText}
+            onAddShape={handleAddShape}
+            onAddImage={handleAddImage}
+            elements={elements}
+            selectedElementIds={selectedElementIds}
+            onSelectElement={handleSelectElement}
+            onReorderElements={handleReorderElements}
+            onToggleLock={handleToggleLock}
+            onToggleVisibility={handleToggleVisibility}
+            textPlacementMode={textPlacementMode}
+            panMode={panMode}
+            onPanModeChange={setPanMode}
+          />
+        </div>
 
-        <main
-          ref={mainRef}
-          className="flex-1 overflow-hidden bg-[#151515] flex items-center justify-center"
-          style={{ touchAction: 'none', cursor: textPlacementMode ? 'text' : (panMode || isPanning) ? (isPanning ? 'grabbing' : 'grab') : 'default' }}
-          onMouseDown={handlePanMouseDown}
-          onMouseMove={handlePanMouseMove}
-          onMouseUp={handlePanMouseUp}
-          onMouseLeave={handlePanMouseUp}
-          onTouchStart={handleMainTouchStart}
-          onClick={(e) => {
-            if (wasPanningRef.current) {
-              wasPanningRef.current = false;
-              return;
-            }
-            const target = e.target as HTMLElement;
-            const isCanvasStage = target.tagName === 'CANVAS';
-            if (!isCanvasStage) {
-              handleSelectElement([]);
-            }
-          }}
-        >
-          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }} className="relative">
-            <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
-              <EditorCanvas
-                  ref={canvasRef}
-                  template={banner.template}
-                  elements={elements}
-                  scale={safeZoom / 100}
-                  canvasColor={canvasColor}
-                  fileName={`${banner.name}.png`}
-                  onTextChange={handleTextChange}
-                  selectedElementIds={selectedElementIds}
-                  onSelectElement={handleSelectElement}
-                  onElementUpdate={handleElementUpdate}
-                  onElementsUpdate={handleElementsUpdate}
-                  onImageDrop={handleImageDrop}
-                  onImageLoad={handleImageLoad}
-                  entranceAnimationPhase={animationPhase}
-                  textPlacementMode={textPlacementMode}
-                  onPlaceText={handleCanvasPlaceText}
-                  onEditingChange={setIsCanvasEditing}
-                  onBackgroundTouchStart={handleCanvasPanTouchStart}
-                  onTransformingChange={handleTransformingChange}
-                />
-            </Suspense>
-            {(animationPhase === 'loading' || animationPhase === 'animating') && (
-              <LoadingOverlay
-                elements={elements}
-                template={banner.template}
-                scale={safeZoom / 100}
-                phase={animationPhase}
-                canvasColor={canvasColor}
-              />
-            )}
-          </div>
-        </main>
-
-        <PropertyPanel
-          selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
-          onColorChange={handlePropertyColorChange}
-          onInteractionEnd={commitPropertyInteraction}
-          onFontChange={handleFontChange}
-          onSizeChange={handleSizeChange}
-          onWeightChange={handleWeightChange}
-          onLetterSpacingChange={handleLetterSpacingChange}
-          onLineHeightChange={handleLineHeightChange}
-          onAlignChange={handleAlignChange}
-          onOpacityChange={handleOpacityChange}
-          onBringToFront={handleBringToFront}
-          onSendToBack={handleSendToBack}
-          onFillEnabledChange={handleFillEnabledChange}
-          onStrokeChange={handleStrokeChange}
-          onStrokeWidthChange={handleStrokeWidthChange}
-          onStrokeEnabledChange={handleStrokeEnabledChange}
-          onShadowEnabledChange={handleShadowEnabledChange}
-          onShadowColorChange={handleShadowColorChange}
-          onShadowBlurChange={handleShadowBlurChange}
-          onShadowOffsetXChange={handleShadowOffsetXChange}
-          onShadowOffsetYChange={handleShadowOffsetYChange}
-          onShadowOpacityChange={handleShadowOpacityChange}
-          onImageBlurChange={handleImageBlurChange}
-          onGenerateShadow={handleGenerateShadow}
-          isGeneratingShadow={isGeneratingShadow}
-          onFitToCanvas={handleFitToCanvas}
-          selectedCount={selectedElementIds.length}
-          selectedElements={elements.filter(el => selectedElementIds.includes(el.id))}
-          onCenterHorizontal={handleCenterHorizontal}
-          onCenterVertical={handleCenterVertical}
-        />
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="flex md:hidden flex-1 flex-col overflow-hidden relative">
         {/* Mobile floating toolbar: Select / Pan / Undo */}
-        <div className="absolute top-3 right-3 z-40 flex gap-2">
+        <div className="md:hidden absolute top-3 right-3 z-40 flex gap-2">
           <button
             onClick={() => { setPanMode(false); setTextPlacementMode(false); }}
             className={`w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center shadow-lg active:scale-95 transition-all ${!panMode && !textPlacementMode ? 'bg-white/90 text-gray-900' : 'bg-black/50 text-white'}`}
@@ -1982,63 +2180,13 @@ export const BannerEditor = () => {
             }
           }}
         >
-          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }} className="relative">
-            <Suspense fallback={<div className="h-[320px] w-[320px] rounded-2xl border border-white/10 bg-[#202020]" />}>
-              <EditorCanvas
-                  ref={canvasRef}
-                  template={banner.template}
-                  elements={elements}
-                  scale={safeZoom / 100}
-                  canvasColor={canvasColor}
-                  fileName={`${banner.name}.png`}
-                  onTextChange={handleTextChange}
-                  selectedElementIds={selectedElementIds}
-                  onSelectElement={handleSelectElement}
-                  onElementUpdate={handleElementUpdate}
-                  onElementsUpdate={handleElementsUpdate}
-                  onImageDrop={handleImageDrop}
-                  onImageLoad={handleImageLoad}
-                  entranceAnimationPhase={animationPhase}
-                  textPlacementMode={textPlacementMode}
-                  onPlaceText={handleCanvasPlaceText}
-                  onEditingChange={setIsCanvasEditing}
-                  onBackgroundTouchStart={handleCanvasPanTouchStart}
-                  onTransformingChange={handleTransformingChange}
-                />
-            </Suspense>
-            {(animationPhase === 'loading' || animationPhase === 'animating') && (
-              <LoadingOverlay
-                elements={elements}
-                template={banner.template}
-                scale={safeZoom / 100}
-                phase={animationPhase}
-                canvasColor={canvasColor}
-              />
-            )}
+          <div style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, cursor: isPanning ? 'grabbing' : 'default', pointerEvents: panMode ? 'none' : 'auto' }}>
+            {renderEditorCanvas(safeZoom / 100, 'studio')}
           </div>
         </main>
 
-        {/* Mobile Toolbar - Floating buttons + Drawer */}
-        <MobileToolbar
-          canvasColor={canvasColor}
-          onSelectColor={setCanvasColor}
-          onAddText={handleAddText}
-          onAddShape={handleAddShape}
-          onAddImage={handleAddImage}
-          elements={elements}
-          selectedElementIds={selectedElementIds}
-          onSelectElement={handleSelectElement}
-          onReorderElements={handleReorderElements}
-          onToggleLock={handleToggleLock}
-          onToggleVisibility={handleToggleVisibility}
-          textPlacementMode={textPlacementMode}
-          panMode={panMode}
-          onPanModeChange={setPanMode}
-          onDrawerOpenChange={setIsMobileToolDrawerOpen}
-        />
-
-        {/* Mobile PropertyPanel - Hidden during inline text editing */}
-        {!isCanvasEditing && !isMobileToolDrawerOpen && (
+        {/* Desktop property panel */}
+        <div className="hidden md:flex">
           <PropertyPanel
             selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
             onColorChange={handlePropertyColorChange}
@@ -2067,12 +2215,71 @@ export const BannerEditor = () => {
             isGeneratingShadow={isGeneratingShadow}
             onFitToCanvas={handleFitToCanvas}
             selectedCount={selectedElementIds.length}
+            selectedElements={elements.filter(el => selectedElementIds.includes(el.id))}
             onCenterHorizontal={handleCenterHorizontal}
             onCenterVertical={handleCenterVertical}
-            isMobile={true}
-            onClose={() => handleSelectElement([])}
-            onDelete={handleDelete}
           />
+        </div>
+
+        {/* Mobile Toolbar - Floating buttons + Drawer */}
+        <div className="md:hidden">
+          <MobileToolbar
+            canvasColor={canvasColor}
+            onSelectColor={setCanvasColor}
+            onAddText={handleAddText}
+            onAddShape={handleAddShape}
+            onAddImage={handleAddImage}
+            elements={elements}
+            selectedElementIds={selectedElementIds}
+            onSelectElement={handleSelectElement}
+            onReorderElements={handleReorderElements}
+            onToggleLock={handleToggleLock}
+            onToggleVisibility={handleToggleVisibility}
+            textPlacementMode={textPlacementMode}
+            panMode={panMode}
+            onPanModeChange={setPanMode}
+            onDrawerOpenChange={setIsMobileToolDrawerOpen}
+          />
+        </div>
+
+        {/* Mobile PropertyPanel - Hidden during inline text editing */}
+        {!isCanvasEditing && !isMobileToolDrawerOpen && (
+          <div className="md:hidden">
+            <PropertyPanel
+              selectedElement={selectedElementIds.length === 1 ? elements.find((el) => el.id === selectedElementIds[0]) || null : null}
+              onColorChange={handlePropertyColorChange}
+              onInteractionEnd={commitPropertyInteraction}
+              onFontChange={handleFontChange}
+              onSizeChange={handleSizeChange}
+              onWeightChange={handleWeightChange}
+              onLetterSpacingChange={handleLetterSpacingChange}
+              onLineHeightChange={handleLineHeightChange}
+              onAlignChange={handleAlignChange}
+              onOpacityChange={handleOpacityChange}
+              onBringToFront={handleBringToFront}
+              onSendToBack={handleSendToBack}
+              onFillEnabledChange={handleFillEnabledChange}
+              onStrokeChange={handleStrokeChange}
+              onStrokeWidthChange={handleStrokeWidthChange}
+              onStrokeEnabledChange={handleStrokeEnabledChange}
+              onShadowEnabledChange={handleShadowEnabledChange}
+              onShadowColorChange={handleShadowColorChange}
+              onShadowBlurChange={handleShadowBlurChange}
+              onShadowOffsetXChange={handleShadowOffsetXChange}
+              onShadowOffsetYChange={handleShadowOffsetYChange}
+              onShadowOpacityChange={handleShadowOpacityChange}
+              onImageBlurChange={handleImageBlurChange}
+              onGenerateShadow={handleGenerateShadow}
+              isGeneratingShadow={isGeneratingShadow}
+              onFitToCanvas={handleFitToCanvas}
+              selectedCount={selectedElementIds.length}
+              onCenterHorizontal={handleCenterHorizontal}
+              onCenterVertical={handleCenterVertical}
+              isMobile={true}
+              onClose={() => handleSelectElement([])}
+              onDelete={handleDelete}
+            />
+          </div>
         )}
       </div>
 
@@ -2102,12 +2309,6 @@ export const BannerEditor = () => {
           setShowUpgradeModal(false);
           navigate(editorReturnTo);
         }}
-      />
-
-      {/* Desktop Recommended Modal (mobile only) */}
-      <DesktopRecommendedModal
-        isOpen={showDesktopModal}
-        onClose={() => setShowDesktopModal(false)}
       />
 
       <SaveAsTemplateModal

@@ -1,3 +1,16 @@
+// Current version of the CanvasElement document schema. Bump this whenever
+// migrateElements (src/components/editor/utils/elementMigration.ts) gains a
+// new normalization step, so future logic can key off "what version was this
+// document last migrated to" if needed.
+//
+// NOTE: there is no persisted schema_version column on public.banners yet
+// (DB migrations are applied manually — see project CLAUDE.md). The
+// migration function is written to be idempotent and safe to re-run on
+// every load regardless of whether a version is tracked, so adding that
+// column later is additive only and does not require changing this file's
+// contract.
+export const CURRENT_SCHEMA_VERSION = 1;
+
 export interface Template {
   id: string;
   name: string;

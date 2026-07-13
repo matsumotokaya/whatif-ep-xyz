@@ -2,6 +2,7 @@ import { useRef, memo } from 'react';
 import { Text } from 'react-konva';
 import type Konva from 'konva';
 import type { TextElement } from '../../types/template';
+import { readNodeTransform, resetNodeScale, buildTextTransformUpdates } from '../../utils/konvaCommit';
 
 interface TextRendererProps {
   textElement: TextElement;
@@ -135,18 +136,11 @@ const TextRendererComponent = ({
         if (isMultiSelected) return;
 
         const node = e.target as Konva.Text;
-        const scaleY = node.scaleY();
-
-        node.scaleX(1);
-        node.scaleY(1);
+        const t = readNodeTransform(node);
+        resetNodeScale(node);
 
         if (onUpdate) {
-          onUpdate(textElement.id, {
-            x: node.x(),
-            y: node.y(),
-            fontSize: Math.max(10, textElement.fontSize * scaleY),
-            rotation: node.rotation(),
-          });
+          onUpdate(textElement.id, buildTextTransformUpdates(textElement.fontSize, t));
         }
       }}
     />

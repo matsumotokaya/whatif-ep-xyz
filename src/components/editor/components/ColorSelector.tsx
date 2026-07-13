@@ -9,7 +9,8 @@ interface ColorSelectorProps {
   onInteractionEnd?: () => void;
 }
 
-const PRESET_COLORS = [
+// Exported for reuse by the Stories fullscreen text editor swatch row.
+export const PRESET_COLORS = [
   '#000000', '#FFFFFF', '#EF4444', '#F59E0B',
   '#22C55E', '#0EA5E9', '#8B5CF6', '#EC4899',
 ];

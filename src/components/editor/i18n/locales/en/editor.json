@@ -128,5 +128,16 @@
     "hide": "Hide"
   },
   "lock": "Lock",
-  "unlock": "Unlock"
+  "unlock": "Unlock",
+  "stories": {
+    "saveAndExit": "Save & exit",
+    "done": "Done",
+    "text": "Text",
+    "stamps": "Stamps",
+    "background": "Background",
+    "effects": "Effects",
+    "comingSoon": "Soon",
+    "textPlaceholder": "Tap to type",
+    "shadowColor": "Shadow color"
+  }
 }

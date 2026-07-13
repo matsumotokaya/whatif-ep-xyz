@@ -128,5 +128,16 @@
     "hide": "숨기기"
   },
   "lock": "잠금",
-  "unlock": "잠금 해제"
+  "unlock": "잠금 해제",
+  "stories": {
+    "saveAndExit": "저장 후 목록으로",
+    "done": "완료",
+    "text": "텍스트",
+    "stamps": "스탬프",
+    "background": "배경",
+    "effects": "효과",
+    "comingSoon": "곧 제공",
+    "textPlaceholder": "텍스트 입력",
+    "shadowColor": "그림자 색상"
+  }
 }

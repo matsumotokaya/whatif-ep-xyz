@@ -3,6 +3,7 @@ import Konva from 'konva';
 import { Image as KonvaImage } from 'react-konva';
 import type { ImageElement } from '../../types/template';
 import { resolveElementSrc } from '@/lib/asset';
+import { readNodeTransform, resetNodeScale, buildImageTransformUpdates } from '../../utils/konvaCommit';
 
 const alphaPremultiplyFilter = (imageData: ImageData) => {
   const { data } = imageData;
@@ -187,22 +188,14 @@ const ImageRendererComponent = ({
         // Skip when multi-selected — group Transformer handles batch update
         if (isMultiSelected) return;
 
+        // Read node transform, then reset scale so it folds into width/height
         const node = e.target;
-        const scaleX = node.scaleX();
-        const scaleY = node.scaleY();
-
-        // Reset scale and apply to width/height
-        node.scaleX(1);
-        node.scaleY(1);
+        const t = readNodeTransform(node);
+        resetNodeScale(node);
 
         if (onUpdate) {
-          onUpdate(imageElement.id, {
-            x: node.x(),
-            y: node.y(),
-            width: Math.max(5, node.width() * scaleX),
-            height: Math.max(5, node.height() * scaleY),
-            rotation: node.rotation(),
-          });
+          // Size source is the node itself (matches pre-refactor behavior)
+          onUpdate(imageElement.id, buildImageTransformUpdates({ width: t.width, height: t.height }, t));
         }
       }}
     />

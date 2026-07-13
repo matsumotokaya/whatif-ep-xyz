@@ -128,5 +128,16 @@
     "hide": "非表示"
   },
   "lock": "ロック",
-  "unlock": "ロック解除"
+  "unlock": "ロック解除",
+  "stories": {
+    "saveAndExit": "保存して一覧へ",
+    "done": "完了",
+    "text": "テキスト",
+    "stamps": "スタンプ",
+    "background": "背景",
+    "effects": "エフェクト",
+    "comingSoon": "近日",
+    "textPlaceholder": "文字を入力",
+    "shadowColor": "影の色"
+  }
 }

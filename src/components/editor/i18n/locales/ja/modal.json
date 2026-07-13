@@ -67,12 +67,6 @@
       "upgradeButton": "プランをアップグレード"
     }
   },
-  "desktopRecommended": {
-    "title": "PC での利用を推奨",
-    "description": "このツールはノートパソコンなど、大きな画面での編集に最適化されています。モバイルでは一部の機能が制限される場合があります。",
-    "dontShowAgain": "次回から表示しない",
-    "gotIt": "OK"
-  },
   "imageLibrary": {
     "title": "画像ライブラリ",
     "tabs": {

@@ -67,12 +67,6 @@
       "upgradeButton": "升級方案"
     }
   },
-  "desktopRecommended": {
-    "title": "建議使用電腦",
-    "description": "此工具針對筆記型電腦等大螢幕進行了優化。在行動裝置上部分功能可能受限。",
-    "dontShowAgain": "不再顯示",
-    "gotIt": "知道了"
-  },
   "imageLibrary": {
     "title": "圖片庫",
     "tabs": {
