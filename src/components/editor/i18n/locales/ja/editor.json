@@ -130,6 +130,7 @@
   "lock": "ロック",
   "unlock": "ロック解除",
   "stories": {
+    "saveAndExit": "保存して一覧へ",
     "done": "完了",
     "text": "テキスト",
     "stamps": "スタンプ",

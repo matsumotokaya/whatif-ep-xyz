@@ -1988,7 +1988,6 @@ export const BannerEditor = () => {
           canvasHeight={banner.template.height}
           renderCanvas={(fitScale) => renderEditorCanvas(fitScale, 'stories')}
           onClose={handleBackToManager}
-          onDone={handleBackToManager}
           onUndo={handleUndo}
           canUndo={canUndo}
           saveStatus={saveStatus}

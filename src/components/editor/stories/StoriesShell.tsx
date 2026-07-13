@@ -16,8 +16,8 @@ interface StoriesShellProps {
   canvasHeight: number;
   // Receives the fit-to-screen scale and returns the shared editor canvas.
   renderCanvas: (scale: number) => ReactNode;
+  // Saves (autosave is always on) and returns to the design list.
   onClose: () => void;
-  onDone: () => void;
   onUndo: () => void;
   canUndo: boolean;
   saveStatus: 'saved' | 'saving' | 'unsaved' | 'error';
@@ -55,7 +55,6 @@ export const StoriesShell = ({
   canvasHeight,
   renderCanvas,
   onClose,
-  onDone,
   onUndo,
   canUndo,
   saveStatus,
@@ -105,8 +104,12 @@ export const StoriesShell = ({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-[#151515]">
-      {/* Top bar: close / undo / done — hidden (not removed) while the
-          fullscreen text editor is open so the layout does not shift */}
+      {/* Top bar: "save & exit" (left) and undo (right). There is deliberately
+          no separate "done" button here — autosave is always on, so the single
+          labeled exit action doubles as save, and a generic "Done" would clash
+          with the per-mode Done buttons (text editor, effect sheet). Hidden
+          (not removed) while the fullscreen text editor is open so the layout
+          does not shift */}
       <div
         className={`flex items-center justify-between px-3 py-2 ${isTextEditing ? 'invisible' : ''}`}
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
@@ -114,31 +117,22 @@ export const StoriesShell = ({
         <button
           type="button"
           onClick={onClose}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-transform active:scale-95"
-          aria-label="Close editor"
+          disabled={saveStatus === 'saving'}
+          className="flex h-10 items-center gap-1.5 rounded-full bg-black/40 pl-3 pr-4 text-sm font-medium text-white backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-70"
         >
-          <span className="material-symbols-outlined text-[22px]">close</span>
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          {saveStatus === 'saving' ? t('save.saving') : t('stories.saveAndExit')}
         </button>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={!canUndo}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-40"
-            aria-label="Undo"
-          >
-            <span className="material-symbols-outlined text-[22px]">undo</span>
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            disabled={saveStatus === 'saving'}
-            className="flex h-10 items-center rounded-full bg-white px-5 text-sm font-semibold text-gray-900 transition-transform active:scale-95 disabled:opacity-70"
-          >
-            {saveStatus === 'saving' ? t('save.saving') : t('stories.done')}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-40"
+          aria-label="Undo"
+        >
+          <span className="material-symbols-outlined text-[22px]">undo</span>
+        </button>
       </div>
 
       {/* Fit-to-screen canvas area: no zoom, no pan */}

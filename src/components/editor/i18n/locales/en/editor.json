@@ -130,6 +130,7 @@
   "lock": "Lock",
   "unlock": "Unlock",
   "stories": {
+    "saveAndExit": "Save & exit",
     "done": "Done",
     "text": "Text",
     "stamps": "Stamps",

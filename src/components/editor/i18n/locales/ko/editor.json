@@ -130,6 +130,7 @@
   "lock": "잠금",
   "unlock": "잠금 해제",
   "stories": {
+    "saveAndExit": "저장 후 목록으로",
     "done": "완료",
     "text": "텍스트",
     "stamps": "스탬프",
