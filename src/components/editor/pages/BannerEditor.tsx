@@ -11,6 +11,8 @@ import { UpgradeModal } from '../components/UpgradeModal';
 import { SaveAsTemplateModal } from '../components/SaveAsTemplateModal';
 import { StoriesShell } from '../stories/StoriesShell';
 import { useStoriesMode } from '../stories/useStoriesMode';
+import { StoriesTextEditor, type StoriesTextValue } from '../stories/StoriesTextEditor';
+import { estimateTextBlockSize, centeredPlacement } from '../stories/storiesTextTools';
 import { GuestEditorNoticeModal } from '../components/GuestEditorNoticeModal';
 import { useBanner, useBatchSaveBanner, useUpdateBanner, useUpdateBannerName } from '../hooks/useBanners';
 import type { Banner, Template, CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
@@ -49,6 +51,10 @@ const EditorCanvas = lazy(() => import('../components/Canvas').then((module) => 
 type BannerEditorLocationState = {
   returnTo?: string;
 };
+
+// Stories fullscreen text editing session (E2-c): either editing an existing
+// text element or composing a new one (added on Done, centered on canvas).
+type StoriesTextSession = { mode: 'edit'; elementId: string } | { mode: 'new' };
 
 export const BannerEditor = () => {
   const { id } = useParams<{ id: string }>();
@@ -196,6 +202,11 @@ export const BannerEditor = () => {
     (state: { dragging: boolean; overTrash: boolean }) => setStoriesDragState(state),
     []
   );
+
+  // Stories fullscreen text editor session (E2-c). While non-null the
+  // overlay is mounted, the shell chrome is hidden and canvas interactions
+  // (pinch/drag/trash) are blocked.
+  const [storiesTextSession, setStoriesTextSession] = useState<StoriesTextSession | null>(null);
 
   // Custom hooks
   const { resetHistory, saveToHistory, undo, redo, canUndo } = useHistory();
@@ -1174,6 +1185,120 @@ export const BannerEditor = () => {
     setTextPlacementMode(prev => !prev);
   };
 
+  // --- Stories fullscreen text editing (E2-c) ---
+
+  // Canvas-2D line measurement used to center newly added text. Konva uses
+  // the same canvas text metrics, so this tracks the rendered width closely.
+  const measureStoriesTextLine = (line: string, fontSize: number, fontFamily: string): number => {
+    const context = document.createElement('canvas').getContext('2d');
+    if (!context) return line.length * fontSize * 0.6;
+    context.font = `${selectedWeight} ${fontSize}px ${fontFamily}`;
+    const width = context.measureText(line).width;
+    return Number.isFinite(width) ? width : line.length * fontSize * 0.6;
+  };
+
+  const storiesTextInitialValue = (): StoriesTextValue => {
+    if (storiesTextSession?.mode === 'edit') {
+      const element = elements.find((el) => el.id === storiesTextSession.elementId);
+      if (element && element.type === 'text') {
+        return {
+          text: element.text,
+          fontFamily: element.fontFamily,
+          fill: element.fill,
+          fontSize: element.fontSize,
+        };
+      }
+    }
+    // New text seeds from the sticky defaults (same source as
+    // handleCanvasPlaceText) so the last used font/color/size carry over.
+    return { text: '', fontFamily: selectedFont, fill: selectedTextColor, fontSize: selectedSize };
+  };
+
+  // Existing text: opened by tapping the already-selected element (or
+  // double-tapping) — wired from Canvas via onStoriesTextEdit.
+  const handleStoriesTextEditRequest = (element: TextElement) => {
+    if (storiesTextSession || element.locked) return;
+    handleSelectElement([element.id]);
+    setStoriesTextSession({ mode: 'edit', elementId: element.id });
+  };
+
+  // New text: opened from the shell's "Aa" button.
+  const handleStoriesAddText = () => {
+    if (storiesTextSession) return;
+    setStoriesTextSession({ mode: 'new' });
+  };
+
+  const handleStoriesTextCancel = () => setStoriesTextSession(null);
+
+  const handleStoriesTextDone = (value: StoriesTextValue) => {
+    const session = storiesTextSession;
+    setStoriesTextSession(null);
+    if (!session) return;
+
+    const isEmpty = value.text.trim() === '';
+
+    if (session.mode === 'edit') {
+      const element = elements.find((el) => el.id === session.elementId);
+      if (!element || element.type !== 'text') return;
+
+      if (isEmpty) {
+        // Confirming empty text deletes the element (IG behavior).
+        elementOps.deleteElements([session.elementId]);
+        setSelectedElementIds((prev) => prev.filter((id) => id !== session.elementId));
+        immediateSave();
+        return;
+      }
+
+      // Single updateElement call -> the whole session is one undo entry.
+      elementOps.updateElement(session.elementId, {
+        text: value.text,
+        fontFamily: value.fontFamily,
+        fill: value.fill,
+        fontSize: value.fontSize,
+      });
+    } else {
+      if (isEmpty) return; // IG behavior: empty new text adds nothing
+
+      const block = estimateTextBlockSize(value.text, value.fontSize, selectedLineHeight, (line) =>
+        measureStoriesTextLine(line, value.fontSize, value.fontFamily)
+      );
+      const position = centeredPlacement(
+        banner.template.width,
+        banner.template.height,
+        block.width,
+        block.height
+      );
+      const newId = `text-${Date.now()}`;
+      const newElement: TextElement = {
+        id: newId,
+        type: 'text',
+        text: value.text,
+        x: position.x,
+        y: position.y,
+        fontSize: value.fontSize,
+        fontFamily: value.fontFamily,
+        letterSpacing: selectedLetterSpacing,
+        lineHeight: selectedLineHeight,
+        fill: value.fill,
+        fillEnabled: true,
+        stroke: '#000000',
+        strokeWidth: 2,
+        strokeEnabled: false,
+        fontWeight: selectedWeight,
+        visible: true,
+      };
+      elementOps.addElement(newElement);
+      setSelectedElementIds([newId]);
+    }
+
+    // Sticky defaults: the confirmed font/color/size seed the next new text
+    // (mirrors handleSelectElement's sync on selection).
+    setSelectedFont(value.fontFamily);
+    setSelectedTextColor(value.fill);
+    setSelectedSize(value.fontSize);
+    immediateSave();
+  };
+
   const handleAddShape = (shapeType: 'rectangle' | 'triangle' | 'star' | 'circle' | 'heart') => {
     const newId = `shape-${Date.now()}`;
     const newShape: ShapeElement = {
@@ -1823,6 +1948,8 @@ export const BannerEditor = () => {
           onStoriesDragStateChange={handleStoriesDragStateChange}
           onStoriesDeleteElement={handleStoriesDeleteElement}
           storiesTrashRef={storiesTrashRef}
+          onStoriesTextEdit={handleStoriesTextEditRequest}
+          storiesTextEditActive={storiesTextSession !== null}
         />
       </Suspense>
       {(animationPhase === 'loading' || animationPhase === 'animating') && (
@@ -1857,7 +1984,20 @@ export const BannerEditor = () => {
           isDraggingElement={storiesDragState.dragging}
           isOverTrash={storiesDragState.overTrash}
           trashRef={storiesTrashRef}
+          onAddText={handleStoriesAddText}
+          isTextEditing={storiesTextSession !== null}
         />
+
+        {/* Fullscreen text editor overlay (E2-c). Keyed by session identity
+            so switching sessions always remounts with fresh initial state. */}
+        {storiesTextSession && (
+          <StoriesTextEditor
+            key={storiesTextSession.mode === 'edit' ? storiesTextSession.elementId : 'new'}
+            initial={storiesTextInitialValue()}
+            onDone={handleStoriesTextDone}
+            onCancel={handleStoriesTextCancel}
+          />
+        )}
 
         {/* Guest-only notice: download is fine, saving needs login */}
         <GuestEditorNoticeModal

@@ -135,6 +135,7 @@
     "stamps": "Stamps",
     "background": "Background",
     "effects": "Effects",
-    "comingSoon": "Soon"
+    "comingSoon": "Soon",
+    "textPlaceholder": "Tap to type"
   }
 }

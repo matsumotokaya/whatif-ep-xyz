@@ -65,6 +65,14 @@ interface CanvasProps {
   onStoriesDeleteElement?: (id: string) => void;
   // DOM node of the trash drop zone rendered by the Stories shell.
   storiesTrashRef?: RefObject<HTMLDivElement | null>;
+  // Stories text editing (E2-c): tapping an already-selected text element
+  // (or double-tapping any unlocked text) opens the fullscreen text editor
+  // instead of the inline textarea used in studio mode.
+  onStoriesTextEdit?: (element: TextElement) => void;
+  // True while the fullscreen text editor overlay is open. Blocks the
+  // window-level pinch listeners (which would otherwise react to touches
+  // landing on the overlay) and any element interaction underneath it.
+  storiesTextEditActive?: boolean;
 }
 
 export interface CanvasRef {
@@ -90,7 +98,7 @@ const TEXT_PLACEMENT_CURSOR = (() => {
 })();
 
 export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
-  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef },
+  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
   ref
 ) {
   const { t } = useTranslation('editor');
@@ -145,7 +153,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   }, [selectedElementIds]);
 
   const isElementInteractionBlocked = () => {
-    return isPinchingRef.current || Date.now() < pinchBlockUntilRef.current;
+    return (
+      isPinchingRef.current ||
+      Date.now() < pinchBlockUntilRef.current ||
+      // While the fullscreen text editor overlay is open, nothing on the
+      // canvas may react (drag, trash, selection).
+      (isStoriesMode && storiesTextEditActive)
+    );
   };
 
   const stopActiveDrags = () => {
@@ -181,7 +195,10 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   // transient path and are committed as one undo entry on release.
 
   const tryStartStoriesPinch = useEffectEvent((e: TouchEvent) => {
-    if (pinchSessionRef.current || e.touches.length < 2 || isEditing) return;
+    // storiesTextEditActive: the fullscreen text editor overlay is open —
+    // these are WINDOW-level listeners, so without this guard two fingers
+    // on the overlay would pinch the element behind it.
+    if (pinchSessionRef.current || e.touches.length < 2 || isEditing || storiesTextEditActive) return;
 
     const ids = selectedIdsRef.current;
     if (ids.length !== 1) return;
@@ -573,6 +590,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     stageRef.current?.getLayers()[0]?.batchDraw();
   }, [selectedElementIds, isEditing, elements]);
 
+  // Stories tap-to-edit (E2-c): remembers whether the current press started
+  // on the element that was ALREADY the single selection. handleElementClick
+  // fires twice per tap gesture (touchstart = press, Konva tap = release);
+  // the release promotes a press on an already-selected text element to the
+  // fullscreen text editor. Konva only fires `tap` when the finger did not
+  // drag, so moving a selected text never opens the editor.
+  const storiesPressWasSelectedRef = useRef(false);
+
   // Handle element selection (single or multi with Shift)
   // Uses selectedIdsRef to always read the latest selection,
   // avoiding stale-closure bugs when clicks happen in rapid succession.
@@ -584,6 +609,27 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     }
 
     const current = selectedIdsRef.current;
+
+    if (isStoriesMode) {
+      const evtType = event.evt?.type ?? '';
+      if (evtType === 'touchstart' || evtType === 'mousedown') {
+        storiesPressWasSelectedRef.current = current.length === 1 && current[0] === id;
+      } else {
+        // Release phase (Konva 'tap'): a second tap on the selected text
+        // element opens the fullscreen editor (Instagram behavior).
+        const element = elements.find((el) => el.id === id);
+        if (
+          storiesPressWasSelectedRef.current &&
+          element?.type === 'text' &&
+          !element.locked &&
+          onStoriesTextEdit
+        ) {
+          event.cancelBubble = true;
+          onStoriesTextEdit(element as TextElement);
+          return;
+        }
+      }
+    }
     const isShiftPressed = 'shiftKey' in event.evt ? event.evt.shiftKey : false;
     const isAlreadySelected = current.includes(id);
 
@@ -863,6 +909,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   };
 
   const handleTextDoubleClick = (element: TextElement, textNode: Konva.Text) => {
+    // Stories mode never uses the inline textarea overlay below — route
+    // double-taps to the fullscreen text editor instead.
+    if (isStoriesMode) {
+      if (!element.locked && !storiesTextEditActive) onStoriesTextEdit?.(element);
+      return;
+    }
     if (!stageRef.current || !onTextChange) return;
 
     setIsEditing(true);

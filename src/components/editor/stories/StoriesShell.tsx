@@ -32,15 +32,20 @@ interface StoriesShellProps {
   isDraggingElement: boolean;
   isOverTrash: boolean;
   trashRef: RefObject<HTMLDivElement | null>;
+  // Fullscreen text editor (E2-c): "Aa" opens an empty editing session; while
+  // the overlay is open the shell chrome is hidden (visibility, not display,
+  // so the canvas area keeps its size and the fit scale stays stable).
+  onAddText: () => void;
+  isTextEditing: boolean;
 }
 
 // Padding kept around the artboard inside the canvas area (CSS px).
 const CANVAS_AREA_PADDING = 16;
 
-// E3 will wire these to their bottom sheets; in E2-a they are visual
-// placeholders with tap feedback only.
+// E3 will wire these to their bottom sheets; until then they are visual
+// placeholders with tap feedback only. The text tool went live in E2-c and
+// is rendered separately.
 const PLACEHOLDER_TOOLS = [
-  { key: 'text', icon: 'text_fields' },
   { key: 'stamps', icon: 'image' },
   { key: 'background', icon: 'palette' },
   { key: 'effects', icon: 'auto_awesome' },
@@ -63,6 +68,8 @@ export const StoriesShell = ({
   isDraggingElement,
   isOverTrash,
   trashRef,
+  onAddText,
+  isTextEditing,
 }: StoriesShellProps) => {
   const { t } = useTranslation('editor');
   const canvasAreaRef = useRef<HTMLDivElement>(null);
@@ -95,9 +102,10 @@ export const StoriesShell = ({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-[#151515]">
-      {/* Top bar: close / undo / done */}
+      {/* Top bar: close / undo / done — hidden (not removed) while the
+          fullscreen text editor is open so the layout does not shift */}
       <div
-        className="flex items-center justify-between px-3 py-2"
+        className={`flex items-center justify-between px-3 py-2 ${isTextEditing ? 'invisible' : ''}`}
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
         <button
@@ -164,7 +172,7 @@ export const StoriesShell = ({
         )}
 
         {/* Selection chips: only visible while an element is selected */}
-        {hasSelection && !isDraggingElement && (
+        {hasSelection && !isDraggingElement && !isTextEditing && (
           <div
             className="absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2"
             onClick={(event) => event.stopPropagation()}
@@ -197,11 +205,20 @@ export const StoriesShell = ({
         )}
       </div>
 
-      {/* Bottom bar: add-tools (placeholders until E3) */}
+      {/* Bottom bar: add-tools (text is live; the rest are placeholders
+          until E3) */}
       <div
-        className="flex items-stretch justify-around border-t border-white/10 bg-[#101010] px-2 pt-2"
+        className={`flex items-stretch justify-around border-t border-white/10 bg-[#101010] px-2 pt-2 ${isTextEditing ? 'invisible' : ''}`}
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
       >
+        <button
+          type="button"
+          onClick={onAddText}
+          className="flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-white transition-transform active:scale-90"
+        >
+          <span className="material-symbols-outlined text-[24px]">text_fields</span>
+          <span className="text-[11px] leading-tight">{t('stories.text')}</span>
+        </button>
         {PLACEHOLDER_TOOLS.map((tool) => (
           <button
             key={tool.key}
