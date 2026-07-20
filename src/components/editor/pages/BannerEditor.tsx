@@ -59,6 +59,9 @@ type BannerEditorLocationState = {
 // text element or composing a new one (added on Done, centered on canvas).
 type StoriesTextSession = { mode: 'edit'; elementId: string } | { mode: 'new' };
 
+const EDITOR_MIN_ZOOM = 5;
+const EDITOR_MAX_ZOOM = 200;
+
 export const BannerEditor = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -216,6 +219,25 @@ export const BannerEditor = () => {
   // unlocked element.
   const [storiesSheet, setStoriesSheet] = useState<'stamps' | 'background' | 'effects' | null>(null);
 
+  const guestState = location.state as {
+    template: Template;
+    elements: CanvasElement[];
+    canvasColor: string;
+    name: string;
+    templateId?: string;
+  } | null;
+  const resolvedGuestTemplate = guestTemplate ?? guestState?.template ?? null;
+  const guestBanner: Banner | null = isGuest && resolvedGuestTemplate ? {
+    id: 'guest',
+    name: guestName || guestState?.name || 'Guest Banner',
+    createdAt: guestCreatedAtRef.current,
+    updatedAt: guestUpdatedAt,
+    template: resolvedGuestTemplate,
+    elements,
+    canvasColor,
+  } : null;
+  const banner = isGuest ? guestBanner : bannerData;
+
   // Custom hooks
   const { resetHistory, saveToHistory, undo, redo, canUndo } = useHistory();
   const getInitialZoom = () => {
@@ -224,12 +246,16 @@ export const BannerEditor = () => {
   };
   const { zoom, setZoom, panOffset, setPanOffset, resetView } = useZoomControl({
     initialZoom: getInitialZoom(),
+    minZoom: EDITOR_MIN_ZOOM,
+    maxZoom: EDITOR_MAX_ZOOM,
     containerRef: mainRef,
+    canvasWidth: banner?.template.width,
+    canvasHeight: banner?.template.height,
   });
   const safeZoom = Number.isFinite(zoom) ? zoom : getInitialZoom();
   const handleZoomChange = useCallback((nextZoom: number) => {
     if (!Number.isFinite(nextZoom)) return;
-    setZoom(Math.max(25, Math.min(200, Math.round(nextZoom))));
+    setZoom(Math.max(EDITOR_MIN_ZOOM, Math.min(EDITOR_MAX_ZOOM, Math.round(nextZoom))));
   }, [setZoom]);
 
   // Pan (grab & drag) state
@@ -346,27 +372,6 @@ export const BannerEditor = () => {
     setElements,
     saveToHistory,
   });
-
-  const guestState = location.state as {
-    template: Template;
-    elements: CanvasElement[];
-    canvasColor: string;
-    name: string;
-    templateId?: string;
-  } | null;
-
-  const resolvedGuestTemplate = guestTemplate ?? guestState?.template ?? null;
-  const guestBanner: Banner | null = isGuest && resolvedGuestTemplate ? {
-    id: 'guest',
-    name: guestName || guestState?.name || 'Guest Banner',
-    createdAt: guestCreatedAtRef.current,
-    updatedAt: guestUpdatedAt,
-    template: resolvedGuestTemplate,
-    elements,
-    canvasColor,
-  } : null;
-
-  const banner = isGuest ? guestBanner : bannerData;
 
   // Live refs read by the serialized save queue so the executor always works
   // against the latest editor state rather than values captured at enqueue time.
@@ -1670,7 +1675,8 @@ export const BannerEditor = () => {
     });
   };
 
-  // Fit selected image to canvas while preserving aspect ratio
+  // Cover the canvas with the selected image while preserving aspect ratio.
+  // Overflow on the longer axis is centered and clipped by the artboard.
   const handleFitToCanvas = () => {
     if (selectedElementIds.length !== 1 || !banner) return;
     const el = elements.find(e => e.id === selectedElementIds[0]);
@@ -1682,6 +1688,7 @@ export const BannerEditor = () => {
       imageEl.width,
       imageEl.height,
     );
+    if (placement.width <= 0 || placement.height <= 0) return;
 
     elementOps.updateElement(imageEl.id, {
       width: placement.width,
@@ -2291,6 +2298,8 @@ export const BannerEditor = () => {
         zoom={safeZoom}
         onZoomChange={handleZoomChange}
         onResetView={resetView}
+        minZoom={EDITOR_MIN_ZOOM}
+        maxZoom={EDITOR_MAX_ZOOM}
         onExport={handleExport}
         saveStatus={saveStatus}
         lastSaveError={lastSaveError}

@@ -38,6 +38,7 @@ import type { ProductionProjectSummary } from '../types/production-project';
 import { invalidateBannerCollectionQueries } from '../hooks/useBanners';
 import { invalidateProductionProjectQueries } from '../hooks/useProductionProjects';
 import { ensureProductionProjectFromAsset, loadRecentProductionProjects } from '../utils/productionProjects';
+import { generateProductionDraftPreviews } from '../utils/productionDraftPreviews';
 
 type FactoryStatus = 'live' | 'manual' | 'planned';
 
@@ -639,6 +640,9 @@ export function ContentFactory() {
             releasedOn,
             workTags,
           });
+          const previewResult = result.createdBannerCount > 0
+            ? await generateProductionDraftPreviews(result.banners)
+            : null;
           await invalidateBannerCollectionQueries(queryClient);
           await invalidateProductionProjectQueries(queryClient);
           await loadProjects();
@@ -646,6 +650,15 @@ export function ContentFactory() {
           projectNote = willOverwrite
             ? ' Existing project was overwritten with fresh draft banners.'
             : ` Created a production project with ${result.createdBannerCount} draft banners.`;
+          if (previewResult) {
+            projectNote += ` Generated ${previewResult.generatedCount}/${result.createdBannerCount} draft previews.`;
+            if (previewResult.failures.length > 0) {
+              const failedNames = previewResult.failures.map((failure) => failure.name).join(', ');
+              setStatusError(
+                `The project was created, but previews failed for: ${failedNames}. Open and save those designs before Publish.`,
+              );
+            }
+          }
         } catch (projectError) {
           console.error('Failed to create production project after upload:', projectError);
           setStatusError(
@@ -700,19 +713,31 @@ export function ContentFactory() {
       const result = await ensureProductionProjectFromAsset(asset, user.id, {
         overwriteExisting: Boolean(existingProject),
       });
+      const previewResult = result.createdBannerCount > 0
+        ? await generateProductionDraftPreviews(result.banners)
+        : null;
       await invalidateBannerCollectionQueries(queryClient);
       await invalidateProductionProjectQueries(queryClient);
       await loadProjects();
 
       const label = `${formatSeriesLabel(asset.work_series_slug)} ${formatWorkDisplayCode(asset.work_number ?? 0)}-${asset.variant_number ?? 1}`;
+      const previewNote = previewResult
+        ? ` Generated ${previewResult.generatedCount}/${result.createdBannerCount} draft previews.`
+        : '';
       if (existingProject) {
-        setStatusMessage(`Overwrote production project for ${label}. Draft banners and outputs were reset.`);
+        setStatusMessage(`Overwrote production project for ${label}. Draft banners and outputs were reset.${previewNote}`);
       } else if (result.createdProject) {
-        setStatusMessage(`Created production project for ${label}. ${result.createdBannerCount} draft banners are now in your designs.`);
+        setStatusMessage(`Created production project for ${label}. ${result.createdBannerCount} draft banners are now in your designs.${previewNote}`);
       } else if (result.createdBannerCount > 0) {
-        setStatusMessage(`Updated ${label}. Missing draft banners were generated and attached to the existing project.`);
+        setStatusMessage(`Updated ${label}. Missing draft banners were generated and attached to the existing project.${previewNote}`);
       } else {
         setStatusMessage(`Project for ${label} already exists and is in sync.`);
+      }
+      if (previewResult && previewResult.failures.length > 0) {
+        const failedNames = previewResult.failures.map((failure) => failure.name).join(', ');
+        setStatusError(
+          `The project was created, but previews failed for: ${failedNames}. Open and save those designs before Publish.`,
+        );
       }
     } catch (error) {
       console.error('Failed to create production project:', error);

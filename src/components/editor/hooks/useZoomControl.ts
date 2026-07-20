@@ -1,18 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
+import { computeFitScale } from '../stories/fitScale';
 
 interface UseZoomControlProps {
   initialZoom?: number;
   minZoom?: number;
   maxZoom?: number;
   containerRef: RefObject<HTMLDivElement | null>;
+  canvasWidth?: number;
+  canvasHeight?: number;
+  fitPadding?: number;
 }
 
 export const useZoomControl = ({
   initialZoom = 40,
-  minZoom = 25,
+  minZoom = 5,
   maxZoom = 200,
   containerRef,
+  canvasWidth,
+  canvasHeight,
+  fitPadding = 16,
 }: UseZoomControlProps) => {
   const [zoom, setZoom] = useState<number>(initialZoom);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -20,8 +27,23 @@ export const useZoomControl = ({
 
   const resetView = useCallback(() => {
     setPanOffset({ x: 0, y: 0 });
-    setZoom(initialZoom);
-  }, [initialZoom]);
+    const container = containerRef.current;
+    if (!container || !canvasWidth || !canvasHeight) {
+      setZoom(initialZoom);
+      return;
+    }
+
+    const fitScale = computeFitScale({
+      containerWidth: container.clientWidth,
+      containerHeight: container.clientHeight,
+      canvasWidth,
+      canvasHeight,
+      padding: fitPadding,
+    });
+    // Floor instead of round so the artboard never grows beyond the measured
+    // viewport because of percentage rounding.
+    setZoom(Math.max(minZoom, Math.min(maxZoom, Math.floor(fitScale * 100))));
+  }, [canvasHeight, canvasWidth, containerRef, fitPadding, initialZoom, maxZoom, minZoom]);
 
   // Document-level: block browser zoom from trackpad pinch
   // Runs immediately on mount (no containerRef dependency) so it works

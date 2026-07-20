@@ -115,7 +115,7 @@ function getAssetDimensions(asset: DefaultImage): { width: number; height: numbe
   return { width, height };
 }
 
-function buildCenteredImageElement(asset: DefaultImage, spec: DraftBannerSpec): ImageElement {
+function buildCoverImageElement(asset: DefaultImage, spec: DraftBannerSpec): ImageElement {
   // Store the relative asset key in element.src (resolved at render time), not
   // an absolute URL. default_images.storage_path is a bare path; prefix it with
   // the default-images logical bucket to form the key.
@@ -188,7 +188,7 @@ function buildInstagramFeedTextElements(asset: DefaultImage): TextElement[] {
 }
 
 function buildDraftBannerElements(asset: DefaultImage, spec: DraftBannerSpec): CanvasElement[] {
-  const elements: CanvasElement[] = [buildCenteredImageElement(asset, spec)];
+  const elements: CanvasElement[] = [buildCoverImageElement(asset, spec)];
 
   if (spec.role === 'instagram_feed') {
     elements.push(...buildInstagramFeedTextElements(asset));
