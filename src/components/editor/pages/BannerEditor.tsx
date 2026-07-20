@@ -799,7 +799,11 @@ export const BannerEditor = () => {
       if (hasNewerChanges) {
         setSaveStatus('unsaved');
       } else {
-        if (generateThumbnail && (thumbnailDataURL || fullresDataURL)) {
+        if (
+          generateThumbnail
+          && (thumbnailDataURL || fullresDataURL)
+          && result.previewStatus === 'ready'
+        ) {
           previewDirtyRef.current = false;
         }
         setSaveStatus('saved');

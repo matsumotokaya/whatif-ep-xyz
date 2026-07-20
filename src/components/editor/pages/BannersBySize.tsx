@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { GalleryTabs } from '../components/GalleryTabs';
 import { Footer } from '../components/Footer';
+import { PreviewStatusBadge } from '../components/PreviewStatusBadge';
 import { SortableGrid } from '../components/SortableGrid';
 import {
   useBanners,
@@ -151,6 +152,7 @@ export const BannersBySize = () => {
   const renderBannerCard = (banner: BannerListItem) => {
     const isGuestBanner = isGuest && banner.id === 'guest';
     const aspectClass = getAspectClass(banner.width, banner.height);
+    const isPreviewGenerating = banner.previewStatus === 'pending' && Boolean(banner.previewRequestedAt);
 
     return (
       <div
@@ -161,6 +163,12 @@ export const BannersBySize = () => {
           className={`${aspectClass} bg-gray-100 cursor-pointer relative overflow-hidden`}
           onClick={() => handleBannerClick(banner)}
         >
+          <PreviewStatusBadge
+            status={banner.previewStatus}
+            requestedAt={banner.previewRequestedAt}
+            error={banner.previewError}
+            className="absolute right-2 top-2 z-10"
+          />
           {banner.thumbnailUrl ? (
             <>
               {imageLoadingStates[banner.id] && (
@@ -202,7 +210,13 @@ export const BannersBySize = () => {
                     d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-                <span className="text-xs text-gray-400">{t('common:thumbnail.noThumbnail')}</span>
+                <span className="text-xs text-gray-400">
+                  {isPreviewGenerating
+                    ? t('common:thumbnail.generating')
+                    : banner.previewStatus === 'failed'
+                      ? t('common:thumbnail.failed')
+                      : t('common:thumbnail.noThumbnail')}
+                </span>
               </div>
             </div>
           )}

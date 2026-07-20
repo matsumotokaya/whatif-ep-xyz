@@ -36,6 +36,8 @@
   "thumbnail": {
     "loading": "로딩 중...",
     "noThumbnail": "썸네일 없음",
+    "updating": "썸네일 업데이트 중",
+    "failed": "썸네일 업데이트 실패",
     "generating": "썸네일 생성 중...",
     "pleaseWait": "잠시만 기다려 주세요"
   },

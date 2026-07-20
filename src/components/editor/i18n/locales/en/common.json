@@ -36,6 +36,8 @@
   "thumbnail": {
     "loading": "Loading...",
     "noThumbnail": "No thumbnail",
+    "updating": "Updating thumbnail",
+    "failed": "Thumbnail update failed",
     "generating": "Generating thumbnail...",
     "pleaseWait": "Please wait a moment"
   },

@@ -13,6 +13,7 @@ import { Link, Navigate, useNavigate } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import { SitePageLayout } from '../components/SitePageLayout';
 import { GalleryTabs } from '../components/GalleryTabs';
+import { PreviewStatusBadge } from '../components/PreviewStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { invalidateBannerCollectionQueries } from '../hooks/useBanners';
 import {
@@ -260,8 +261,10 @@ function FactoryBannerCard({
   openLabel,
 }: FactoryBannerCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
+  const { t } = useTranslation('common');
 
   const previewUrl = imageFailed ? null : banner.thumbnailUrl ?? banner.fullresUrl ?? null;
+  const isPreviewGenerating = banner.previewStatus === 'pending' && Boolean(banner.previewRequestedAt);
 
   return (
     <button
@@ -271,9 +274,15 @@ function FactoryBannerCard({
       className="rounded-xl border border-gray-800 bg-[#111111] p-3 text-left transition-colors hover:border-indigo-500 hover:bg-[#151515]"
     >
       <div
-        className="overflow-hidden rounded-lg bg-[#1b1b1b]"
+        className="relative overflow-hidden rounded-lg bg-[#1b1b1b]"
         style={{ aspectRatio }}
       >
+        <PreviewStatusBadge
+          status={banner.previewStatus}
+          requestedAt={banner.previewRequestedAt}
+          error={banner.previewError}
+          className="absolute right-2 top-2 z-10"
+        />
         {previewUrl ? (
           <img
             src={previewUrl}
@@ -284,7 +293,11 @@ function FactoryBannerCard({
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs font-medium text-gray-500">
-            {noThumbnailLabel}
+            {isPreviewGenerating
+              ? t('thumbnail.generating')
+              : banner.previewStatus === 'failed'
+                ? t('thumbnail.failed')
+                : noThumbnailLabel}
           </div>
         )}
       </div>

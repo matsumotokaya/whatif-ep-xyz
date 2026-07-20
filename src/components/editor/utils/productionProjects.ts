@@ -21,10 +21,19 @@ const INSTAGRAM_FEED_ACCENT_COLOR = '#fd4d52';
 const INSTAGRAM_FEED_TITLE_FONT = '"Bebas Neue", sans-serif';
 const INSTAGRAM_FEED_BODY_FONT = 'Arial';
 const BANNER_ASSET_BUCKET = 'user-images';
+const PREVIEW_METADATA_MISSING_CODES = new Set(['42703', 'PGRST204']);
 const INSTAGRAM_FEED_BODY_TEXT =
   '- Your design is 99% done.You just finish it.\n' +
   '- Phone wallpapers, SNS headers, custom icons and thumbnails. \n' +
   '- Create freely and easily with IMAGINE, the simple design tool.';
+
+function isPreviewMetadataMissing(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+  return PREVIEW_METADATA_MISSING_CODES.has(code)
+    && /preview_(status|source|error|revision|requested_at|completed_at)|document_revision/i.test(message);
+}
 
 type DraftBannerSpec = {
   role: Exclude<ProductionProjectBannerRole, 'imagine_template'>;
@@ -252,16 +261,25 @@ async function loadProjectSummariesByIds(projectIds: string[]): Promise<Producti
 
   const bannerMap = new Map<string, ProductionBannerSummary>();
   if (bannerIds.length > 0) {
-    const { data: banners, error: bannersError } = await supabase
+    const selectProjectBanners = (columns: string) => supabase
       .from('banners')
-      .select('id, name, updated_at, thumbnail_url, fullres_url, thumbnail_key, fullres_key, template')
+      .select(columns)
       .in('id', bannerIds);
+    const previewColumns =
+      'id, name, updated_at, thumbnail_url, fullres_url, thumbnail_key, fullres_key, template, preview_status, preview_source, preview_error, document_revision, preview_revision, preview_requested_at, preview_completed_at';
+    const legacyColumns =
+      'id, name, updated_at, thumbnail_url, fullres_url, thumbnail_key, fullres_key, template';
+    let { data: banners, error: bannersError } = await selectProjectBanners(previewColumns);
+
+    if (isPreviewMetadataMissing(bannersError)) {
+      ({ data: banners, error: bannersError } = await selectProjectBanners(legacyColumns));
+    }
 
     if (bannersError) {
       throw bannersError;
     }
 
-    for (const banner of (banners ?? []) as ProductionBannerSummary[]) {
+    for (const banner of (banners ?? []) as unknown as ProductionBannerSummary[]) {
       bannerMap.set(banner.id, banner);
     }
   }
@@ -304,6 +322,13 @@ async function loadProjectSummariesByIds(projectIds: string[]): Promise<Producti
         version: banner.updated_at,
         legacyBucket: 'user-images',
       }) || null,
+      previewStatus: banner.preview_status,
+      previewSource: banner.preview_source,
+      previewError: banner.preview_error,
+      documentRevision: banner.document_revision,
+      previewRevision: banner.preview_revision,
+      previewRequestedAt: banner.preview_requested_at,
+      previewCompletedAt: banner.preview_completed_at,
       width: banner.template?.width,
       height: banner.template?.height,
     });

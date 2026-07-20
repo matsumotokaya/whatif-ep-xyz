@@ -120,6 +120,10 @@ export interface Banner {
   previewStatus?: 'pending' | 'ready' | 'failed';
   previewSource?: 'none' | 'template' | 'generated';
   previewError?: string | null;
+  documentRevision?: number;
+  previewRevision?: number;
+  previewRequestedAt?: string | null;
+  previewCompletedAt?: string | null;
 }
 
 export interface BannerListItem {
@@ -134,4 +138,8 @@ export interface BannerListItem {
   previewStatus?: 'pending' | 'ready' | 'failed';
   previewSource?: 'none' | 'template' | 'generated';
   previewError?: string | null;
+  documentRevision?: number;
+  previewRevision?: number;
+  previewRequestedAt?: string | null;
+  previewCompletedAt?: string | null;
 }

@@ -68,6 +68,13 @@ export interface ProductionBannerSummary {
   fullres_url: string | null;
   thumbnail_key?: string | null;
   fullres_key?: string | null;
+  preview_status?: 'pending' | 'ready' | 'failed';
+  preview_source?: 'none' | 'template' | 'generated';
+  preview_error?: string | null;
+  document_revision?: number;
+  preview_revision?: number;
+  preview_requested_at?: string | null;
+  preview_completed_at?: string | null;
   template: {
     width?: number;
     height?: number;
@@ -97,6 +104,13 @@ export interface ProductionProjectSummary {
     name: string;
     thumbnailUrl: string | null;
     fullresUrl: string | null;
+    previewStatus?: 'pending' | 'ready' | 'failed';
+    previewSource?: 'none' | 'template' | 'generated';
+    previewError?: string | null;
+    documentRevision?: number;
+    previewRevision?: number;
+    previewRequestedAt?: string | null;
+    previewCompletedAt?: string | null;
     width?: number;
     height?: number;
   }>;

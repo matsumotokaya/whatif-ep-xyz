@@ -1,6 +1,6 @@
 # WHATIF Architecture Overview
 
-最終更新: 2026-07-20
+最終更新: 2026-07-21
 想定読者: 新規参画エンジニア / 現行構成を思い出したい人
 
 ## TL;DR
@@ -65,13 +65,37 @@ app.whatif-ep.xyz
 - Editor mutations therefore invalidate the same banner and production-project
   caches that the list screens read. Do not introduce a route-local QueryClient
   for these islands without an explicit cross-client invalidation mechanism.
+- Canonical banner saves atomically increase `document_revision` and mark the
+  derived preview `pending` while retaining the last ready asset keys.
 - A preview save generates a thumbnail and full-resolution JPEG from the same
-  canvas snapshot, uploads both immutable R2 objects in parallel, and commits
-  both keys with one `banners` update. If either upload fails, the successful
-  sibling upload is removed and the DB preview references remain unchanged.
+  canvas snapshot and uploads both immutable R2 objects in parallel. Their keys
+  include the document revision. `finalize_banner_preview` commits them only if
+  that revision is still current; stale completions are deleted.
+- `preview_revision`, `preview_status`, `preview_error`, and request/completion
+  timestamps are persisted. List screens show the previous image with an
+  updating/failed badge instead of collapsing those states into “no thumbnail”.
+- Save telemetry contains a correlated ID, stage timings, revision, element
+  count, and encoded payload sizes. It never includes base64 image contents or
+  a user ID. See [ADR 0001](./adr/0001-revisioned-banner-previews.md).
 - R2 PUT requests have a finite timeout. Mutation settlement always revalidates
   banner and factory queries so a partial external failure cannot remain hidden
   behind the five-minute list cache.
+
+### Preview reliability phases
+
+この Phase 番号は**バナープレビュー信頼性改善だけ**を指す。プロダクト全体の
+`PRODUCT_ROADMAP.md` や壁紙パイプラインの Phase 番号とは別系統である。
+
+| Phase | 状態 | スコープ |
+|---|---|---|
+| 0 | 完了 | 構造化保存テレメトリ、timeout、失敗状態、一覧再検証 |
+| 1 | 完了 | document/preview revision、immutable key、stale finalize拒否、DB migration |
+| 1 rollout cleanup | デプロイ後 | 本番revision経路を観測後、旧DB限定fallbackを別変更で削除 |
+| 2 | 未着手 | 保存からpreview生成を分離し、永続job・retry・lease・監視を導入 |
+| 3 | 未着手 | browser Canvasをserver/workerへ移し、Production出力も正本から直接生成 |
+
+Phase 0/1 の適用・検証実績と後続フェーズの完了条件は
+[ADR 0001](./adr/0001-revisioned-banner-previews.md) を正本とする。
 
 ## Historical Note
 

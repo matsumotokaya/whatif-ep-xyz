@@ -14,6 +14,7 @@ import {
   isAssetKey,
   resolveAsset,
 } from '@/lib/asset';
+import { createBannerSaveTrace, getSaveErrorCode } from './bannerSaveTelemetry';
 
 const BANNER_ASSET_BUCKET = 'user-images';
 
@@ -43,6 +44,13 @@ interface DbBanner {
   fullres_key?: string | null;
   created_at: string;
   updated_at: string;
+  preview_status?: Banner['previewStatus'];
+  preview_source?: Banner['previewSource'];
+  preview_error?: string | null;
+  document_revision?: number;
+  preview_revision?: number;
+  preview_requested_at?: string | null;
+  preview_completed_at?: string | null;
 }
 
 interface DbBannerListItem {
@@ -56,6 +64,13 @@ interface DbBannerListItem {
   updated_at: string;
   template?: { width?: number; height?: number; thumbnail?: string | null } | null;
   display_order?: number | null;
+  preview_status?: Banner['previewStatus'];
+  preview_source?: Banner['previewSource'];
+  preview_error?: string | null;
+  document_revision?: number;
+  preview_revision?: number;
+  preview_requested_at?: string | null;
+  preview_completed_at?: string | null;
 }
 
 type BannerUpdatePayload = {
@@ -113,9 +128,13 @@ const dbToBanner = (db: DbBanner): Banner => ({
   fullresUrl: resolveBannerAsset(db.fullres_key, db.fullres_url, db.updated_at),
   createdAt: db.created_at,
   updatedAt: db.updated_at,
-  previewStatus: derivePreviewStatus(db),
-  previewSource: derivePreviewSource(db),
-  previewError: null,
+  previewStatus: db.preview_status ?? derivePreviewStatus(db),
+  previewSource: db.preview_source ?? derivePreviewSource(db),
+  previewError: db.preview_error ?? null,
+  documentRevision: db.document_revision,
+  previewRevision: db.preview_revision,
+  previewRequestedAt: db.preview_requested_at,
+  previewCompletedAt: db.preview_completed_at,
 });
 
 const dbToBannerListItem = (db: DbBannerListItem): BannerListItem => ({
@@ -127,9 +146,13 @@ const dbToBannerListItem = (db: DbBannerListItem): BannerListItem => ({
   width: db.template?.width,
   height: db.template?.height,
   displayOrder: db.display_order ?? undefined,
-  previewStatus: derivePreviewStatus(db),
-  previewSource: derivePreviewSource(db),
-  previewError: null,
+  previewStatus: db.preview_status ?? derivePreviewStatus(db),
+  previewSource: db.preview_source ?? derivePreviewSource(db),
+  previewError: db.preview_error ?? null,
+  documentRevision: db.document_revision,
+  previewRevision: db.preview_revision,
+  previewRequestedAt: db.preview_requested_at,
+  previewCompletedAt: db.preview_completed_at,
 });
 
 // Collect storage delete targets for a banner from its stored asset columns,
@@ -176,6 +199,185 @@ const collectReplacedBannerAssetTargets = (
 
   return { r2Keys, supabasePaths };
 };
+
+type BatchSaveUpdates = {
+  elements?: CanvasElement[];
+  canvasColor?: string;
+  thumbnailDataURL?: string;
+  fullresDataURL?: string;
+};
+
+const REVISION_RPC_MISSING_CODES = new Set(['PGRST202', '42883']);
+const PREVIEW_METADATA_MISSING_CODES = new Set(['42703', 'PGRST204']);
+
+const isRevisionRpcMissing = (error: unknown): boolean =>
+  Boolean(
+    error
+      && typeof error === 'object'
+      && 'code' in error
+      && typeof error.code === 'string'
+      && REVISION_RPC_MISSING_CODES.has(error.code),
+  );
+
+const isPreviewMetadataMissing = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+  return PREVIEW_METADATA_MISSING_CODES.has(code)
+    && /preview_(status|source|error|revision|requested_at|completed_at)|document_revision/i.test(message);
+};
+
+const toPreviewErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message.slice(0, 1000);
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message.slice(0, 1000);
+  }
+  return 'Preview generation failed.';
+};
+
+async function removeUploadedPreviewAssets(keys: string[], context: string): Promise<void> {
+  if (keys.length === 0) return;
+  try {
+    await deleteAssets(keys);
+  } catch (cleanupError) {
+    console.warn(context, cleanupError);
+  }
+}
+
+async function removeReplacedPreviewAssets(
+  previous: Pick<DbBanner, 'thumbnail_key' | 'thumbnail_url' | 'fullres_key' | 'fullres_url'>,
+  nextThumbnailKey?: string,
+  nextFullresKey?: string,
+): Promise<void> {
+  const replacedTargets = [
+    nextThumbnailKey
+      ? collectReplacedBannerAssetTargets(
+          { key: previous.thumbnail_key, url: previous.thumbnail_url },
+          nextThumbnailKey,
+        )
+      : null,
+    nextFullresKey
+      ? collectReplacedBannerAssetTargets(
+          { key: previous.fullres_key, url: previous.fullres_url },
+          nextFullresKey,
+        )
+      : null,
+  ].filter((targets): targets is { r2Keys: string[]; supabasePaths: string[] } => targets !== null);
+
+  const staleR2Keys = replacedTargets.flatMap((targets) => targets.r2Keys);
+  const staleSupabasePaths = replacedTargets.flatMap((targets) => targets.supabasePaths);
+  await Promise.all([
+    staleR2Keys.length > 0
+      ? deleteAssets(staleR2Keys).catch((storageError) => {
+          console.warn('Failed to remove stale banner preview R2 assets:', storageError);
+        })
+      : Promise.resolve(),
+    staleSupabasePaths.length > 0
+      ? removeFilesFromBucket(BANNER_ASSET_BUCKET, staleSupabasePaths).catch((storageError) => {
+          console.warn('Failed to remove stale banner preview Supabase assets:', storageError);
+        })
+      : Promise.resolve(),
+  ]);
+}
+
+// Temporary rollout path. It keeps local/prod saves working while the revision
+// migration and PostgREST schema cache are being deployed. Remove after the
+// revision RPCs have been verified in production.
+async function legacyBatchSave(id: string, updates: BatchSaveUpdates): Promise<Banner | null> {
+  const supabase = await getSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Authentication required to save a design.');
+  }
+
+  const hasPreview = Boolean(updates.thumbnailDataURL || updates.fullresDataURL);
+  let existingAssets: Pick<DbBanner, 'thumbnail_key' | 'thumbnail_url' | 'fullres_key' | 'fullres_url'> = {};
+  if (hasPreview) {
+    const { data, error } = await supabase
+      .from('banners')
+      .select('thumbnail_key, thumbnail_url, fullres_key, fullres_url')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single();
+    if (error) throw error;
+    existingAssets = data;
+  }
+
+  type PreviewKind = 'thumbnail' | 'fullres';
+  const uploadRequests: Array<{
+    kind: PreviewKind;
+    key: ReturnType<typeof buildBannerThumbKey>;
+    blob: Blob;
+    mimeType: string;
+  }> = [];
+
+  if (updates.thumbnailDataURL) {
+    const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
+    uploadRequests.push({
+      kind: 'thumbnail',
+      key: buildBannerThumbKey(user.id, id, createAssetRevision()),
+      blob,
+      mimeType,
+    });
+  }
+  if (updates.fullresDataURL) {
+    const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
+    uploadRequests.push({
+      kind: 'fullres',
+      key: buildBannerFullKey(user.id, id, createAssetRevision()),
+      blob,
+      mimeType,
+    });
+  }
+
+  const uploadResults = await Promise.allSettled(
+    uploadRequests.map(async (request) => ({
+      kind: request.kind,
+      key: await uploadAsset(request.key, request.blob, request.mimeType),
+    })),
+  );
+  const uploaded = uploadResults.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  );
+  const failedUpload = uploadResults.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
+  if (failedUpload) {
+    await removeUploadedPreviewAssets(
+      uploaded.map((asset) => asset.key),
+      'Failed to remove legacy preview assets after an upload failure:',
+    );
+    throw failedUpload.reason;
+  }
+
+  const nextThumbnailKey = uploaded.find((asset) => asset.kind === 'thumbnail')?.key;
+  const nextFullresKey = uploaded.find((asset) => asset.kind === 'fullres')?.key;
+  const dbUpdates: BannerUpdatePayload = {};
+  if (updates.elements !== undefined) dbUpdates.elements = updates.elements;
+  if (updates.canvasColor !== undefined) dbUpdates.canvas_color = updates.canvasColor;
+  if (nextThumbnailKey !== undefined) dbUpdates.thumbnail_key = nextThumbnailKey;
+  if (nextFullresKey !== undefined) dbUpdates.fullres_key = nextFullresKey;
+
+  const { data: saved, error: saveError } = await supabase
+    .from('banners')
+    .update(dbUpdates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+  if (saveError) {
+    await removeUploadedPreviewAssets(
+      uploaded.map((asset) => asset.key),
+      'Failed to remove orphaned legacy preview assets:',
+    );
+    throw saveError;
+  }
+
+  await removeReplacedPreviewAssets(existingAssets, nextThumbnailKey, nextFullresKey);
+  cacheManager.invalidate(`banner:${id}`);
+  cacheManager.invalidate(`banners:all:${user.id}`);
+  return saved ? dbToBanner(saved) : null;
+}
 
 export const bannerStorage = {
   async createFromTemplate(template: TemplateRecord, editorTemplate: Template): Promise<Banner | null> {
@@ -233,19 +435,28 @@ export const bannerStorage = {
     }
 
     // RLS policy handles access control: public banners OR own banners
-    const { data, error } = await supabase
+    const selectBannerList = (columns: string) => supabase
       .from('banners')
-      .select('id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, created_at, updated_at, template, display_order')
+      .select(columns)
       .order('updated_at', { ascending: false })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false });
+    const previewColumns =
+      'id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, created_at, updated_at, template, display_order, preview_status, preview_source, preview_error, document_revision, preview_revision, preview_requested_at, preview_completed_at';
+    const legacyColumns =
+      'id, name, thumbnail_url, fullres_url, thumbnail_key, fullres_key, created_at, updated_at, template, display_order';
+    let { data, error } = await selectBannerList(previewColumns);
+
+    if (isPreviewMetadataMissing(error)) {
+      ({ data, error } = await selectBannerList(legacyColumns));
+    }
 
     if (error) {
       console.error('Error fetching banners:', error);
       return [];
     }
 
-    const banners = (data || []).map(dbToBannerListItem);
+    const banners = ((data || []) as unknown as DbBannerListItem[]).map(dbToBannerListItem);
 
     // Cache for 5 minutes
     cacheManager.set(cacheKey, banners, 5 * 60 * 1000);
@@ -329,6 +540,40 @@ export const bannerStorage = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('Authentication required to update a design.');
+    }
+
+    const hasDocumentUpdate =
+      updates.template !== undefined
+      || updates.elements !== undefined
+      || updates.canvasColor !== undefined;
+    const hasNonDocumentUpdate =
+      updates.name !== undefined
+      || updates.thumbnailUrl !== undefined
+      || updates.fullresUrl !== undefined
+      || updates.thumbnailKey !== undefined
+      || updates.fullresKey !== undefined;
+
+    if (hasDocumentUpdate && !hasNonDocumentUpdate) {
+      const revisionResult = await supabase
+        .rpc('save_banner_document', {
+          p_banner_id: id,
+          p_elements: updates.elements ?? null,
+          p_canvas_color: updates.canvasColor ?? null,
+          p_template: updates.template ?? null,
+        })
+        .maybeSingle();
+
+      if (!revisionResult.error && revisionResult.data) {
+        cacheManager.invalidate(`banner:${id}`);
+        cacheManager.invalidate(`banners:all:${user.id}`);
+        return dbToBanner(revisionResult.data as DbBanner);
+      }
+      if (revisionResult.error && !isRevisionRpcMissing(revisionResult.error)) {
+        throw revisionResult.error;
+      }
+      // The migration may be rolling out separately from the application.
+      // Fall through to the legacy update only when PostgREST cannot find the
+      // new RPC; all other failures stay visible.
     }
 
     const dbUpdates: BannerUpdatePayload = {};
@@ -501,147 +746,193 @@ export const bannerStorage = {
   // invalidation semantics.
   async batchSave(
     id: string,
-    updates: {
-      elements?: CanvasElement[];
-      canvasColor?: string;
-      thumbnailDataURL?: string;
-      fullresDataURL?: string;
-    }
+    updates: BatchSaveUpdates,
   ): Promise<Banner | null> {
-    const supabase = await getSupabase();
-    // Only update if there are actual changes
     if (Object.keys(updates).length === 0) return null;
-    if (updates.thumbnailDataURL || updates.fullresDataURL) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Authentication required to save design previews.');
-      }
+    const trace = createBannerSaveTrace({
+      bannerId: id,
+      elementCount: updates.elements?.length,
+      thumbnailBytes: updates.thumbnailDataURL?.length,
+      fullresBytes: updates.fullresDataURL?.length,
+    });
+    trace.emit('save_started', 'started');
 
-      const { data: existingAssets, error: existingAssetsError } = await supabase
-        .from('banners')
-        .select('thumbnail_key, thumbnail_url, fullres_key, fullres_url')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single();
-
-      if (existingAssetsError) {
-        throw existingAssetsError;
-      }
-
-      type PreviewKind = 'thumbnail' | 'fullres';
-      const uploadRequests: Array<{
-        kind: PreviewKind;
-        key: ReturnType<typeof buildBannerThumbKey>;
-        blob: Blob;
-        mimeType: string;
-      }> = [];
-
-      if (updates.thumbnailDataURL) {
-        const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
-        uploadRequests.push({
-          kind: 'thumbnail',
-          key: buildBannerThumbKey(user.id, id, createAssetRevision()),
-          blob,
-          mimeType,
-        });
-      }
-
-      if (updates.fullresDataURL) {
-        const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
-        uploadRequests.push({
-          kind: 'fullres',
-          key: buildBannerFullKey(user.id, id, createAssetRevision()),
-          blob,
-          mimeType,
-        });
-      }
-
-      // The two preview files are independent network operations. Upload them
-      // together, then commit both references in one DB update so the row never
-      // describes a half-updated preview snapshot.
-      const uploadResults = await Promise.allSettled(
-        uploadRequests.map(async (request) => ({
-          kind: request.kind,
-          key: await uploadAsset(request.key, request.blob, request.mimeType),
-        })),
-      );
-      const uploaded = uploadResults.flatMap((result) =>
-        result.status === 'fulfilled' ? [result.value] : [],
-      );
-      const failedUpload = uploadResults.find(
-        (result): result is PromiseRejectedResult => result.status === 'rejected',
-      );
-
-      if (failedUpload) {
-        if (uploaded.length > 0) {
-          try {
-            await deleteAssets(uploaded.map((asset) => asset.key));
-          } catch (cleanupError) {
-            console.warn('Failed to remove preview assets after an upload failure:', cleanupError);
-          }
-        }
-        throw failedUpload.reason;
-      }
-
-      const nextThumbnailKey = uploaded.find((asset) => asset.kind === 'thumbnail')?.key;
-      const nextFullresKey = uploaded.find((asset) => asset.kind === 'fullres')?.key;
-
-      let savedBanner: Banner | null;
-      try {
-        savedBanner = await this.update(id, {
-          elements: updates.elements,
-          canvasColor: updates.canvasColor,
-          thumbnailKey: nextThumbnailKey,
-          fullresKey: nextFullresKey,
-        });
-      } catch (error) {
-        if (uploaded.length > 0) {
-          try {
-            await deleteAssets(uploaded.map((asset) => asset.key));
-          } catch (cleanupError) {
-            console.warn('Failed to remove orphaned banner preview assets:', cleanupError);
-          }
-        }
-        throw error;
-      }
-
-      const replacedTargets = [
-        nextThumbnailKey
-          ? collectReplacedBannerAssetTargets(
-              { key: existingAssets.thumbnail_key, url: existingAssets.thumbnail_url },
-              nextThumbnailKey,
-            )
-          : null,
-        nextFullresKey
-          ? collectReplacedBannerAssetTargets(
-              { key: existingAssets.fullres_key, url: existingAssets.fullres_url },
-              nextFullresKey,
-            )
-          : null,
-      ].filter((targets): targets is { r2Keys: string[]; supabasePaths: string[] } => targets !== null);
-
-      const staleR2Keys = replacedTargets.flatMap((targets) => targets.r2Keys);
-      const staleSupabasePaths = replacedTargets.flatMap((targets) => targets.supabasePaths);
-      await Promise.all([
-        staleR2Keys.length > 0
-          ? deleteAssets(staleR2Keys).catch((storageError) => {
-              console.warn('Failed to remove stale banner preview R2 assets:', storageError);
-            })
-          : Promise.resolve(),
-        staleSupabasePaths.length > 0
-          ? removeFilesFromBucket(BANNER_ASSET_BUCKET, staleSupabasePaths).catch((storageError) => {
-              console.warn('Failed to remove stale banner preview Supabase assets:', storageError);
-            })
-          : Promise.resolve(),
-      ]);
-
-      return savedBanner;
+    const supabase = await getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Authentication required to save a design.');
     }
 
-    return this.update(id, {
-      elements: updates.elements,
-      canvasColor: updates.canvasColor,
-    });
+    // Commit the canonical document first. The returned monotonic revision is
+    // the only revision a derived preview is allowed to finalize against.
+    const documentResult = await supabase
+      .rpc('save_banner_document', {
+        p_banner_id: id,
+        p_elements: updates.elements ?? null,
+        p_canvas_color: updates.canvasColor ?? null,
+        p_template: null,
+      })
+      .maybeSingle();
+
+    if (documentResult.error) {
+      if (isRevisionRpcMissing(documentResult.error)) {
+        trace.emit('legacy_fallback', 'fallback', {
+          errorCode: getSaveErrorCode(documentResult.error),
+        });
+        const legacyResult = await legacyBatchSave(id, updates);
+        trace.emit('save_completed', 'succeeded');
+        return legacyResult;
+      }
+      trace.emit('save_completed', 'failed', {
+        errorCode: getSaveErrorCode(documentResult.error),
+      });
+      throw documentResult.error;
+    }
+
+    if (!documentResult.data) {
+      const notFoundError = new Error('The design could not be saved or is no longer accessible.');
+      trace.emit('save_completed', 'failed', { errorCode: 'banner_not_found' });
+      throw notFoundError;
+    }
+
+    const documentRow = documentResult.data as DbBanner;
+    const documentBanner = dbToBanner(documentRow);
+    const documentRevision = documentRow.document_revision;
+    if (!documentRevision) {
+      const revisionError = new Error('The saved design did not return a document revision.');
+      trace.emit('save_completed', 'failed', { errorCode: 'missing_document_revision' });
+      throw revisionError;
+    }
+    trace.emit('document_committed', 'succeeded', { documentRevision });
+
+    const hasPreview = Boolean(updates.thumbnailDataURL || updates.fullresDataURL);
+    if (!hasPreview) {
+      cacheManager.invalidate(`banner:${id}`);
+      cacheManager.invalidate(`banners:all:${user.id}`);
+      trace.emit('save_completed', 'succeeded', { documentRevision });
+      return documentBanner;
+    }
+
+    const markPreviewFailed = async (error: unknown): Promise<Banner> => {
+      const message = toPreviewErrorMessage(error);
+      const failureResult = await supabase
+        .rpc('fail_banner_preview', {
+          p_banner_id: id,
+          p_document_revision: documentRevision,
+          p_error: message,
+        })
+        .maybeSingle();
+
+      if (failureResult.error) {
+        console.warn('Failed to persist banner preview failure state:', failureResult.error);
+      }
+      const failedBanner = failureResult.data
+        ? dbToBanner(failureResult.data as DbBanner)
+        : {
+            ...documentBanner,
+            previewStatus: 'failed' as const,
+            previewError: message,
+          };
+      cacheManager.invalidate(`banner:${id}`);
+      cacheManager.invalidate(`banners:all:${user.id}`);
+      trace.emit('preview_failed', 'failed', {
+        documentRevision,
+        errorCode: getSaveErrorCode(error),
+      });
+      trace.emit('save_completed', 'succeeded', { documentRevision });
+      return failedBanner;
+    };
+
+    type PreviewKind = 'thumbnail' | 'fullres';
+    const uploadRequests: Array<{
+      kind: PreviewKind;
+      key: ReturnType<typeof buildBannerThumbKey>;
+      blob: Blob;
+      mimeType: string;
+    }> = [];
+    const assetRevision = `${documentRevision}-${createAssetRevision()}`;
+
+    if (updates.thumbnailDataURL) {
+      const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
+      uploadRequests.push({
+        kind: 'thumbnail',
+        key: buildBannerThumbKey(user.id, id, assetRevision),
+        blob,
+        mimeType,
+      });
+    }
+    if (updates.fullresDataURL) {
+      const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
+      uploadRequests.push({
+        kind: 'fullres',
+        key: buildBannerFullKey(user.id, id, assetRevision),
+        blob,
+        mimeType,
+      });
+    }
+
+    trace.emit('preview_upload_started', 'started', { documentRevision });
+    const uploadResults = await Promise.allSettled(
+      uploadRequests.map(async (request) => ({
+        kind: request.kind,
+        key: await uploadAsset(request.key, request.blob, request.mimeType),
+      })),
+    );
+    const uploaded = uploadResults.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    const failedUpload = uploadResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+
+    if (failedUpload) {
+      await removeUploadedPreviewAssets(
+        uploaded.map((asset) => asset.key),
+        'Failed to remove preview assets after an upload failure:',
+      );
+      return markPreviewFailed(failedUpload.reason);
+    }
+
+    trace.emit('preview_upload_completed', 'succeeded', { documentRevision });
+    const nextThumbnailKey = uploaded.find((asset) => asset.kind === 'thumbnail')?.key;
+    const nextFullresKey = uploaded.find((asset) => asset.kind === 'fullres')?.key;
+    const finalizeResult = await supabase
+      .rpc('finalize_banner_preview', {
+        p_banner_id: id,
+        p_document_revision: documentRevision,
+        p_thumbnail_key: nextThumbnailKey ?? null,
+        p_fullres_key: nextFullresKey ?? null,
+      })
+      .maybeSingle();
+
+    if (finalizeResult.error) {
+      await removeUploadedPreviewAssets(
+        uploaded.map((asset) => asset.key),
+        'Failed to remove preview assets after a finalize failure:',
+      );
+      return markPreviewFailed(finalizeResult.error);
+    }
+
+    // A zero-row result means a newer document revision won the race. The
+    // uploaded immutable files are not current and must never replace it.
+    if (!finalizeResult.data) {
+      await removeUploadedPreviewAssets(
+        uploaded.map((asset) => asset.key),
+        'Failed to remove stale revision preview assets:',
+      );
+      trace.emit('preview_rejected_as_stale', 'stale', { documentRevision });
+      const currentBanner = await this.getById(id, false);
+      trace.emit('save_completed', 'stale', { documentRevision });
+      return currentBanner ?? documentBanner;
+    }
+
+    const finalizedRow = finalizeResult.data as DbBanner;
+    await removeReplacedPreviewAssets(documentRow, nextThumbnailKey, nextFullresKey);
+    cacheManager.invalidate(`banner:${id}`);
+    cacheManager.invalidate(`banners:all:${user.id}`);
+    trace.emit('preview_finalized', 'succeeded', { documentRevision });
+    trace.emit('save_completed', 'succeeded', { documentRevision });
+    return dbToBanner(finalizedRow);
   },
 
   // Update banner name

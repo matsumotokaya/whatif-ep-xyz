@@ -36,6 +36,8 @@
   "thumbnail": {
     "loading": "載入中...",
     "noThumbnail": "無縮圖",
+    "updating": "正在更新縮圖",
+    "failed": "縮圖更新失敗",
     "generating": "正在生成縮圖...",
     "pleaseWait": "請稍候"
   },

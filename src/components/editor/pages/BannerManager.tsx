@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { GalleryTabs } from '../components/GalleryTabs';
 import { Footer } from '../components/Footer';
+import { PreviewStatusBadge } from '../components/PreviewStatusBadge';
 import { SortableGrid } from '../components/SortableGrid';
 import {
   useBanners,
@@ -163,6 +164,7 @@ export const BannerManager = () => {
   const renderBannerCard = (banner: BannerListItem) => {
     const isGuestBanner = isGuest && banner.id === 'guest';
     const aspectClass = getAspectClass(banner.width, banner.height);
+    const isPreviewGenerating = banner.previewStatus === 'pending' && Boolean(banner.previewRequestedAt);
 
     return (
       <div
@@ -173,6 +175,12 @@ export const BannerManager = () => {
           className={`${aspectClass} bg-gray-100 cursor-pointer relative overflow-hidden`}
           onClick={() => handleBannerClick(banner)}
         >
+          <PreviewStatusBadge
+            status={banner.previewStatus}
+            requestedAt={banner.previewRequestedAt}
+            error={banner.previewError}
+            className="absolute right-2 top-2 z-10"
+          />
           {banner.thumbnailUrl ? (
             <>
               {imageLoadingStates[banner.id] && (
@@ -220,7 +228,13 @@ export const BannerManager = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-xs font-medium text-gray-400">{t('common:thumbnail.noThumbnail')}</span>
+                <span className="text-xs font-medium text-gray-400">
+                  {isPreviewGenerating
+                    ? t('common:thumbnail.generating')
+                    : banner.previewStatus === 'failed'
+                      ? t('common:thumbnail.failed')
+                      : t('common:thumbnail.noThumbnail')}
+                </span>
               </div>
             </div>
           )}

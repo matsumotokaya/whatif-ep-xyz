@@ -41,6 +41,13 @@ function syncBannerIntoListCaches(queryClient: QueryClient, banner: Banner): voi
               updatedAt: banner.updatedAt,
               thumbnailUrl: banner.thumbnailUrl,
               fullresUrl: banner.fullresUrl,
+              previewStatus: banner.previewStatus,
+              previewSource: banner.previewSource,
+              previewError: banner.previewError,
+              documentRevision: banner.documentRevision,
+              previewRevision: banner.previewRevision,
+              previewRequestedAt: banner.previewRequestedAt,
+              previewCompletedAt: banner.previewCompletedAt,
             }
           : item
       );
@@ -174,20 +181,9 @@ export function useBatchSaveBanner(id: string) {
       thumbnailDataURL?: string;
       fullresDataURL?: string;
     }) => {
-      console.log('[useBatchSaveBanner] Saving design snapshot...', {
-        elementCount: updates.elements?.length ?? 0,
-        canvasColor: updates.canvasColor,
-        hasThumbnail: Boolean(updates.thumbnailDataURL),
-        thumbnailBytes: updates.thumbnailDataURL?.length ?? 0,
-        hasFullres: Boolean(updates.fullresDataURL),
-        fullresBytes: updates.fullresDataURL?.length ?? 0,
-      });
-      const savedBanner = await bannerStorage.batchSave(id, updates);
-      console.log('[useBatchSaveBanner] Save complete');
-      return savedBanner;
+      return bannerStorage.batchSave(id, updates);
     },
     onSuccess: async (savedBanner) => {
-      console.log('[useBatchSaveBanner] 💾 Save successful.');
       if (savedBanner) {
         queryClient.setQueryData<Banner>(bannerKeys.detail(id), savedBanner);
         syncBannerIntoListCaches(queryClient, savedBanner);
@@ -197,7 +193,6 @@ export function useBatchSaveBanner(id: string) {
     // Revalidate on failure too, so any server-side state that did commit is
     // reflected instead of remaining hidden behind a five-minute list cache.
     onSettled: async () => {
-      console.log('[useBatchSaveBanner] 🔄 Invalidating banner and factory caches...');
       await invalidateBannerRelatedQueries(queryClient);
     },
   });

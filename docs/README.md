@@ -20,6 +20,8 @@
 
 - ルートの [README.md](../README.md) は本番構成と運用メモ
 - 実行物は `scripts/` と `supabase/` を正本とし、docs は説明だけに留める
+- バナープレビューのrevision化と後続のdurable job / server renderer計画は
+  [ADR 0001](./adr/0001-revisioned-banner-previews.md) を正本とする
 
 ## Archive
 
