@@ -9,8 +9,7 @@
 // layer as the editor island) because the ported IMAGINE pages bring their own
 // header/footer.
 
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from './lib/queryClient';
+import { EditorQueryProvider } from './EditorQueryProvider';
 import { useEditorFonts } from './lib/fonts';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { ContentFactory } from './pages/ContentFactory';
@@ -46,9 +45,9 @@ export function AdminPagesApp({ page }: { page: AdminPage }) {
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#101010]">
-      <QueryClientProvider client={queryClient}>
+      <EditorQueryProvider>
         {renderPage(page)}
-      </QueryClientProvider>
+      </EditorQueryProvider>
     </div>
   );
 }

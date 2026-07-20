@@ -174,7 +174,14 @@ export function useBatchSaveBanner(id: string) {
       thumbnailDataURL?: string;
       fullresDataURL?: string;
     }) => {
-      console.log('[useBatchSaveBanner] Saving to DB...', updates);
+      console.log('[useBatchSaveBanner] Saving design snapshot...', {
+        elementCount: updates.elements?.length ?? 0,
+        canvasColor: updates.canvasColor,
+        hasThumbnail: Boolean(updates.thumbnailDataURL),
+        thumbnailBytes: updates.thumbnailDataURL?.length ?? 0,
+        hasFullres: Boolean(updates.fullresDataURL),
+        fullresBytes: updates.fullresDataURL?.length ?? 0,
+      });
       const savedBanner = await bannerStorage.batchSave(id, updates);
       console.log('[useBatchSaveBanner] Save complete');
       return savedBanner;
@@ -185,8 +192,11 @@ export function useBatchSaveBanner(id: string) {
         queryClient.setQueryData<Banner>(bannerKeys.detail(id), savedBanner);
         syncBannerIntoListCaches(queryClient, savedBanner);
       }
-
-      // Refresh both standard banner lists and the Factory project list.
+    },
+    // A storage upload and the DB write cannot be one physical transaction.
+    // Revalidate on failure too, so any server-side state that did commit is
+    // reflected instead of remaining hidden behind a five-minute list cache.
+    onSettled: async () => {
       console.log('[useBatchSaveBanner] 🔄 Invalidating banner and factory caches...');
       await invalidateBannerRelatedQueries(queryClient);
     },

@@ -11,31 +11,19 @@
 // z-50, and its mobile menu, z-[60]) because the editor brings its own
 // header/toolbar chrome and uses h-screen layouts.
 
-import { QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useAuth as useGalleryAuth } from '@/context/AuthContext';
-import { createEditorQueryClient } from './lib/queryClient';
+import { EditorQueryProvider } from './EditorQueryProvider';
 import { useEditorFonts } from './lib/fonts';
 import { BannerEditor } from './pages/BannerEditor';
 import './i18n';
 
 export function EditorApp() {
   useEditorFonts();
-  const { user } = useGalleryAuth();
 
   return (
     <div className="fixed inset-0 z-[70] overflow-hidden bg-white">
-      <EditorSession key={user?.id ?? 'guest'} />
+      <EditorQueryProvider>
+        <BannerEditor />
+      </EditorQueryProvider>
     </div>
-  );
-}
-
-function EditorSession() {
-  const [queryClient] = useState(createEditorQueryClient);
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <BannerEditor />
-    </QueryClientProvider>
   );
 }

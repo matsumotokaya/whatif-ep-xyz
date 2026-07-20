@@ -513,122 +513,129 @@ export const bannerStorage = {
     if (Object.keys(updates).length === 0) return null;
     if (updates.thumbnailDataURL || updates.fullresDataURL) {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: existingAssets } = await supabase
-          .from('banners')
-          .select('thumbnail_key, thumbnail_url, fullres_key, fullres_url')
-          .eq('id', id)
-          .eq('user_id', user.id)
-          .single();
-
-        let nextThumbnailKey: string | undefined;
-        if (updates.thumbnailDataURL) {
-          const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
-          nextThumbnailKey = await uploadAsset(
-            buildBannerThumbKey(user.id, id, createAssetRevision()),
-            blob,
-            mimeType,
-          );
-        }
-
-        let savedBanner: Banner | null;
-        try {
-          savedBanner = await this.update(id, {
-            elements: updates.elements,
-            canvasColor: updates.canvasColor,
-            thumbnailKey: nextThumbnailKey,
-          });
-        } catch (error) {
-          if (nextThumbnailKey) {
-            try {
-              await deleteAssets([nextThumbnailKey]);
-            } catch (cleanupError) {
-              console.warn('Failed to remove orphaned banner thumbnail:', cleanupError);
-            }
-          }
-          throw error;
-        }
-
-        if (updates.fullresDataURL) {
-          // Full-resolution PNG is heavier than the list thumbnail, so persist it
-          // separately to avoid blocking preview freshness when the PNG upload fails.
-          let nextFullresKey: string | undefined;
-          try {
-            const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
-            nextFullresKey = await uploadAsset(
-              buildBannerFullKey(user.id, id, createAssetRevision()),
-              blob,
-              mimeType,
-            );
-
-            const bannerWithFullres = await this.update(id, {
-              fullresKey: nextFullresKey,
-            });
-
-            if (bannerWithFullres) {
-              savedBanner = bannerWithFullres;
-            }
-
-            const staleFullresTargets = collectReplacedBannerAssetTargets(
-              {
-                key: existingAssets?.fullres_key,
-                url: existingAssets?.fullres_url,
-              },
-              nextFullresKey,
-            );
-            if (staleFullresTargets.r2Keys.length > 0) {
-              try {
-                await deleteAssets(staleFullresTargets.r2Keys);
-              } catch (storageError) {
-                console.warn('Failed to remove stale banner full-resolution R2 assets:', storageError);
-              }
-            }
-            if (staleFullresTargets.supabasePaths.length > 0) {
-              try {
-                await removeFilesFromBucket(BANNER_ASSET_BUCKET, staleFullresTargets.supabasePaths);
-              } catch (storageError) {
-                console.warn('Failed to remove stale banner full-resolution Supabase assets:', storageError);
-              }
-            }
-          } catch (fullresError) {
-            console.warn('Failed to upload/save banner full-resolution asset:', fullresError);
-            if (nextFullresKey) {
-              try {
-                await deleteAssets([nextFullresKey]);
-              } catch (cleanupError) {
-                console.warn('Failed to remove orphaned banner full-resolution asset:', cleanupError);
-              }
-            }
-            throw fullresError;
-          }
-        }
-
-        if (nextThumbnailKey) {
-          const staleThumbnailTargets = collectReplacedBannerAssetTargets(
-            {
-              key: existingAssets?.thumbnail_key,
-              url: existingAssets?.thumbnail_url,
-            },
-            nextThumbnailKey,
-          );
-          if (staleThumbnailTargets.r2Keys.length > 0) {
-            try {
-              await deleteAssets(staleThumbnailTargets.r2Keys);
-            } catch (storageError) {
-              console.warn('Failed to remove stale banner thumbnail R2 assets:', storageError);
-            }
-          }
-          if (staleThumbnailTargets.supabasePaths.length > 0) {
-            try {
-              await removeFilesFromBucket(BANNER_ASSET_BUCKET, staleThumbnailTargets.supabasePaths);
-            } catch (storageError) {
-              console.warn('Failed to remove stale banner thumbnail Supabase assets:', storageError);
-            }
-          }
-        }
-
-        return savedBanner;
+      if (!user) {
+        throw new Error('Authentication required to save design previews.');
       }
+
+      const { data: existingAssets, error: existingAssetsError } = await supabase
+        .from('banners')
+        .select('thumbnail_key, thumbnail_url, fullres_key, fullres_url')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingAssetsError) {
+        throw existingAssetsError;
+      }
+
+      type PreviewKind = 'thumbnail' | 'fullres';
+      const uploadRequests: Array<{
+        kind: PreviewKind;
+        key: ReturnType<typeof buildBannerThumbKey>;
+        blob: Blob;
+        mimeType: string;
+      }> = [];
+
+      if (updates.thumbnailDataURL) {
+        const { blob, mimeType } = dataUrlToBlob(updates.thumbnailDataURL);
+        uploadRequests.push({
+          kind: 'thumbnail',
+          key: buildBannerThumbKey(user.id, id, createAssetRevision()),
+          blob,
+          mimeType,
+        });
+      }
+
+      if (updates.fullresDataURL) {
+        const { blob, mimeType } = dataUrlToBlob(updates.fullresDataURL);
+        uploadRequests.push({
+          kind: 'fullres',
+          key: buildBannerFullKey(user.id, id, createAssetRevision()),
+          blob,
+          mimeType,
+        });
+      }
+
+      // The two preview files are independent network operations. Upload them
+      // together, then commit both references in one DB update so the row never
+      // describes a half-updated preview snapshot.
+      const uploadResults = await Promise.allSettled(
+        uploadRequests.map(async (request) => ({
+          kind: request.kind,
+          key: await uploadAsset(request.key, request.blob, request.mimeType),
+        })),
+      );
+      const uploaded = uploadResults.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : [],
+      );
+      const failedUpload = uploadResults.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+
+      if (failedUpload) {
+        if (uploaded.length > 0) {
+          try {
+            await deleteAssets(uploaded.map((asset) => asset.key));
+          } catch (cleanupError) {
+            console.warn('Failed to remove preview assets after an upload failure:', cleanupError);
+          }
+        }
+        throw failedUpload.reason;
+      }
+
+      const nextThumbnailKey = uploaded.find((asset) => asset.kind === 'thumbnail')?.key;
+      const nextFullresKey = uploaded.find((asset) => asset.kind === 'fullres')?.key;
+
+      let savedBanner: Banner | null;
+      try {
+        savedBanner = await this.update(id, {
+          elements: updates.elements,
+          canvasColor: updates.canvasColor,
+          thumbnailKey: nextThumbnailKey,
+          fullresKey: nextFullresKey,
+        });
+      } catch (error) {
+        if (uploaded.length > 0) {
+          try {
+            await deleteAssets(uploaded.map((asset) => asset.key));
+          } catch (cleanupError) {
+            console.warn('Failed to remove orphaned banner preview assets:', cleanupError);
+          }
+        }
+        throw error;
+      }
+
+      const replacedTargets = [
+        nextThumbnailKey
+          ? collectReplacedBannerAssetTargets(
+              { key: existingAssets.thumbnail_key, url: existingAssets.thumbnail_url },
+              nextThumbnailKey,
+            )
+          : null,
+        nextFullresKey
+          ? collectReplacedBannerAssetTargets(
+              { key: existingAssets.fullres_key, url: existingAssets.fullres_url },
+              nextFullresKey,
+            )
+          : null,
+      ].filter((targets): targets is { r2Keys: string[]; supabasePaths: string[] } => targets !== null);
+
+      const staleR2Keys = replacedTargets.flatMap((targets) => targets.r2Keys);
+      const staleSupabasePaths = replacedTargets.flatMap((targets) => targets.supabasePaths);
+      await Promise.all([
+        staleR2Keys.length > 0
+          ? deleteAssets(staleR2Keys).catch((storageError) => {
+              console.warn('Failed to remove stale banner preview R2 assets:', storageError);
+            })
+          : Promise.resolve(),
+        staleSupabasePaths.length > 0
+          ? removeFilesFromBucket(BANNER_ASSET_BUCKET, staleSupabasePaths).catch((storageError) => {
+              console.warn('Failed to remove stale banner preview Supabase assets:', storageError);
+            })
+          : Promise.resolve(),
+      ]);
+
+      return savedBanner;
     }
 
     return this.update(id, {

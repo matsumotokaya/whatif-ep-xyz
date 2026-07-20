@@ -9,8 +9,7 @@
 // layer as the editor island) because the ported IMAGINE pages bring their own
 // header/footer. The overlay owns its scrolling; the page behind it stays empty.
 
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from './lib/queryClient';
+import { EditorQueryProvider } from './EditorQueryProvider';
 import { useEditorFonts } from './lib/fonts';
 import { MyPage } from './pages/MyPage';
 import { PlansPage } from './pages/PlansPage';
@@ -24,9 +23,9 @@ export function AccountPagesApp({ page }: { page: AccountPage }) {
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#101010]">
-      <QueryClientProvider client={queryClient}>
+      <EditorQueryProvider>
         {page === 'mypage' ? <MyPage /> : page === 'plans' ? <PlansPage /> : <PaymentSuccess />}
-      </QueryClientProvider>
+      </EditorQueryProvider>
     </div>
   );
 }

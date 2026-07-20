@@ -1,6 +1,6 @@
 # WHATIF Architecture Overview
 
-最終更新: 2026-07-08  
+最終更新: 2026-07-20
 想定読者: 新規参画エンジニア / 現行構成を思い出したい人
 
 ## TL;DR
@@ -55,6 +55,23 @@ app.whatif-ep.xyz
 - Data model / SQL: `supabase/`, `scripts/`
 - Product direction: [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
 - Operational notes: [README.md](../README.md)
+
+## Editor Client State And Preview Saves
+
+- `/edit`, `/mydesign`, `/mydesign/factory`, `/admin/*`, `/imagine`, and the
+  account islands use one browser-side React Query client for the active auth
+  scope. Switching users clears and replaces that client; server prerenders
+  always receive a request-local client.
+- Editor mutations therefore invalidate the same banner and production-project
+  caches that the list screens read. Do not introduce a route-local QueryClient
+  for these islands without an explicit cross-client invalidation mechanism.
+- A preview save generates a thumbnail and full-resolution JPEG from the same
+  canvas snapshot, uploads both immutable R2 objects in parallel, and commits
+  both keys with one `banners` update. If either upload fails, the successful
+  sibling upload is removed and the DB preview references remain unchanged.
+- R2 PUT requests have a finite timeout. Mutation settlement always revalidates
+  banner and factory queries so a partial external failure cannot remain hidden
+  behind the five-minute list cache.
 
 ## Historical Note
 

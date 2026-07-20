@@ -5,6 +5,8 @@ interface PresignResponse {
   url: string;
 }
 
+const R2_UPLOAD_TIMEOUT_MS = 60_000;
+
 // Request a presigned PUT URL from the `r2-presign` Edge Function. The function
 // verifies the caller's Supabase JWT (attached automatically by functions.invoke)
 // and enforces that the key is writable by this user before signing.
@@ -36,12 +38,25 @@ export const uploadAsset = async (
   contentType: string,
 ): Promise<AssetKey> => {
   const presignedUrl = await requestPresignedPutUrl(key, contentType);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), R2_UPLOAD_TIMEOUT_MS);
+  let response: Response;
 
-  const response = await fetch(presignedUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: blob,
-  });
+  try {
+    response = await fetch(presignedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: blob,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`R2 upload timed out after ${R2_UPLOAD_TIMEOUT_MS / 1000} seconds`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
