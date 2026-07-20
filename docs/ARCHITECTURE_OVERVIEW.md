@@ -71,6 +71,12 @@ app.whatif-ep.xyz
   canvas snapshot and uploads both immutable R2 objects in parallel. Their keys
   include the document revision. `finalize_banner_preview` commits them only if
   that revision is still current; stale completions are deleted.
+- Content Factory draft creation uses cover-style source placement (the canvas
+  is filled with no empty bands), then renders each new Portrait / Landscape /
+  Feed draft in the browser without opening `/edit`. Those initial thumbnail
+  and full-resolution JPEGs use the same revision-safe save path, so an
+  unchanged draft is Publish-ready while the final Publish action remains an
+  explicit operator decision.
 - `preview_revision`, `preview_status`, `preview_error`, and request/completion
   timestamps are persisted. List screens show the previous image with an
   updating/failed badge instead of collapsing those states into “no thumbnail”.

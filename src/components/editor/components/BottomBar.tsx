@@ -8,6 +8,8 @@ interface BottomBarProps {
   saveStatus?: 'saved' | 'saving' | 'unsaved' | 'error';
   lastSaveError?: string | null;
   onRetry?: () => void;
+  minZoom?: number;
+  maxZoom?: number;
 }
 
 export const BottomBar = ({
@@ -16,7 +18,9 @@ export const BottomBar = ({
   onResetView,
   onExport,
   saveStatus = 'saved',
-  onRetry
+  onRetry,
+  minZoom = 5,
+  maxZoom = 200,
 }: BottomBarProps) => {
   const { t } = useTranslation(['editor', 'common']);
   return (
@@ -26,8 +30,9 @@ export const BottomBar = ({
         <div className="flex items-center gap-2 md:gap-4">
           <div className="flex items-center gap-1.5 md:gap-3">
             <button
-              onClick={() => onZoomChange(Math.max(25, zoom - 10))}
-              className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+              onClick={() => onZoomChange(Math.max(minZoom, zoom - 10))}
+              className="size-7 md:size-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+              aria-label="Zoom out"
             >
               <svg className="w-3 h-3 md:w-4 md:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -37,16 +42,18 @@ export const BottomBar = ({
             {/* Range slider - desktop only */}
             <input
               type="range"
-              min="25"
-              max="200"
+              min={minZoom}
+              max={maxZoom}
               value={zoom}
               onChange={(e) => onZoomChange(Number(e.target.value))}
               className="hidden md:block w-24 md:w-32 h-1 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              aria-label="Canvas zoom"
             />
 
             <button
-              onClick={() => onZoomChange(Math.min(200, zoom + 10))}
-              className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+              onClick={() => onZoomChange(Math.min(maxZoom, zoom + 10))}
+              className="size-7 md:size-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+              aria-label="Zoom in"
             >
               <svg className="w-3 h-3 md:w-4 md:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -62,7 +69,8 @@ export const BottomBar = ({
             <button
               onClick={onResetView}
               className="px-2 py-1 text-xs md:text-sm text-gray-400 hover:bg-[#333333] rounded transition-colors flex-shrink-0"
-              title="Fit to screen"
+              title="Fit canvas to screen"
+              aria-label="Fit canvas to screen"
             >
               Fit
             </button>

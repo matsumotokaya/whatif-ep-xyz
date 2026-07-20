@@ -11,7 +11,16 @@ export function getFitToCanvasPlacement(
   contentWidth: number,
   contentHeight: number,
 ): FitToCanvasPlacement {
-  const scale = Math.min(canvasWidth / contentWidth, canvasHeight / contentHeight);
+  const hasValidDimensions = [canvasWidth, canvasHeight, contentWidth, contentHeight]
+    .every((value) => Number.isFinite(value) && value > 0);
+  if (!hasValidDimensions) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
+  // Cover the canvas while preserving the source aspect ratio. One axis may
+  // extend beyond the canvas and is clipped by the artboard, but no empty
+  // bands remain on either axis.
+  const scale = Math.max(canvasWidth / contentWidth, canvasHeight / contentHeight);
   const width = contentWidth * scale;
   const height = contentHeight * scale;
 
