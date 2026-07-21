@@ -25,10 +25,18 @@ page size instead of the total catalog size.
      oldest second page 1.02 MB, newest first page 0.66 MB, and newest second
      page 0.67 MB.
 
-3. **True server pagination — planned**
+3. **True server pagination — complete**
    - Introduce a list-specific read model with only card fields.
    - Sort and filter in the database and return a bounded cursor page.
    - Clamp page size and return `nextCursor`/`hasMore`.
+   - The service-role-only `get_gallery_work_cards_page` RPC selects at most
+     51 rows and enriches only the requested page; the public API returns at
+     most 50 cards and caches non-user-specific queries at the CDN edge.
+   - The browser and Gallery thumbnail backfill both advance by the last
+     `sequence_number`, so inserts or removals do not shift later pages.
+   - 2026-07-21 local production-build verification: five consecutive oldest
+     20-card API pages completed in 35–38 ms with no overlaps. Newest, oldest,
+     range, tag, wallpaper, saved-ID, empty-ID, and page-size-clamp cases passed.
 
 4. **Delivery and long-scroll performance — planned**
    - Add immutable CDN caching for versioned list images.

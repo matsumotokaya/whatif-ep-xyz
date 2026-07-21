@@ -68,7 +68,7 @@ interface ProductionOutputRow {
 // (assets.whatif-ep.xyz) via the 'r2-assets' provider; older rows still resolve
 // to the Supabase public Storage endpoint. The R2 object key mirrors the legacy
 // Supabase layout with the logical bucket name as the key prefix: `{bucket}/{path}`.
-function buildPublicUrl(
+export function buildProductionOutputPublicUrl(
   provider: string | null,
   bucket: string,
   storagePath: string
@@ -134,7 +134,7 @@ const _cachedSeriesProductionImageRecord = unstable_cache(
       const project = projectById.get(output.project_id);
       if (!project || !output.storage_bucket || !output.storage_path) continue;
       const key = `${project.work_display_code}:${project.variant_number}`;
-      const url = buildPublicUrl(
+      const url = buildProductionOutputPublicUrl(
         output.storage_provider,
         output.storage_bucket,
         output.storage_path
@@ -239,7 +239,11 @@ const _cachedWallpaperPack = unstable_cache(
       return {
         id: row.id,
         role: row.role as WallpaperOutputRole,
-        publicUrl: buildPublicUrl(row.storage_provider, row.storage_bucket, row.storage_path),
+        publicUrl: buildProductionOutputPublicUrl(
+          row.storage_provider,
+          row.storage_bucket,
+          row.storage_path
+        ),
         width: row.width,
         height: row.height,
         mimeType: row.mime_type,

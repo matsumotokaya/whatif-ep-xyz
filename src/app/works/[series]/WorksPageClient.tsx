@@ -116,7 +116,7 @@ type WorkRange = {
 };
 
 type LoadFailure = {
-  offset: number;
+  cursor: number | null;
   replace: boolean;
 };
 
@@ -175,6 +175,7 @@ function WorksPageInner({
   const [works, setWorks] = useState<WorkListItem[]>(initialPage.items);
   const [total, setTotal] = useState(initialPage.total);
   const [hasMore, setHasMore] = useState(initialPage.hasMore);
+  const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [isLoading, setIsLoading] = useState(false);
   const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -225,13 +226,14 @@ function WorksPageInner({
     };
   }, []);
 
-  const loadPage = useCallback(async (offset: number, replace: boolean) => {
+  const loadPage = useCallback(async (cursor: number | null, replace: boolean) => {
     const requestId = ++requestIdRef.current;
 
     if (savedOnly && savedWorkIds.length === 0) {
       setWorks([]);
       setTotal(0);
       setHasMore(false);
+      setNextCursor(null);
       setIsLoading(false);
       setLoadFailure(null);
       return;
@@ -242,9 +244,11 @@ function WorksPageInner({
 
     const params = new URLSearchParams({
       sort,
-      offset: String(offset),
       limit: String(WORKS_PAGE_SIZE),
     });
+    if (cursor !== null) {
+      params.set("cursor", String(cursor));
+    }
 
     if (selectedRange) {
       params.set("rangeStart", String(selectedRange.start));
@@ -263,7 +267,7 @@ function WorksPageInner({
     try {
       const response = await fetch(
         `/api/works/${selectedSeriesSlug}/cards?${params.toString()}`,
-        { cache: "no-store" }
+        { credentials: "same-origin" }
       );
 
       if (!response.ok) {
@@ -278,11 +282,12 @@ function WorksPageInner({
       );
       setTotal(page.total);
       setHasMore(page.hasMore);
+      setNextCursor(page.nextCursor);
       setLoadFailure(null);
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
       console.error(error);
-      setLoadFailure({ offset, replace });
+      setLoadFailure({ cursor, replace });
     } finally {
       if (requestId === requestIdRef.current) {
         setIsLoading(false);
@@ -304,12 +309,13 @@ function WorksPageInner({
       setWorks(initialPage.items);
       setTotal(initialPage.total);
       setHasMore(initialPage.hasMore);
+      setNextCursor(initialPage.nextCursor);
       setIsLoading(false);
       setLoadFailure(null);
       return;
     }
 
-    loadPage(0, true);
+    loadPage(null, true);
   }, [defaultQueryKey, initialPage, loadPage, queryKey]);
 
   const progress = total > 0 ? (works.length / total) * 100 : 0;
@@ -509,7 +515,7 @@ function WorksPageInner({
           <button
             type="button"
             disabled={isLoading}
-            onClick={() => loadPage(loadFailure.offset, loadFailure.replace)}
+            onClick={() => loadPage(loadFailure.cursor, loadFailure.replace)}
             className="btn-press rounded-lg border border-current px-3 py-1.5 text-sm font-medium transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/40"
           >
             {t.retry}
@@ -536,8 +542,14 @@ function WorksPageInner({
             hasMore={!savedOnly && hasMore && !loadFailure}
             isLoading={isLoading}
             onLoadMore={() => {
-              if (!hasMore || isLoading || savedOnly || loadFailure) return;
-              loadPage(works.length, false);
+              if (
+                !hasMore ||
+                nextCursor === null ||
+                isLoading ||
+                savedOnly ||
+                loadFailure
+              ) return;
+              loadPage(nextCursor, false);
             }}
             purchasedCodes={purchasedCodeSet}
           />

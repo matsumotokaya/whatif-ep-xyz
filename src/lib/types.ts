@@ -169,9 +169,9 @@ export interface WorkListItem {
 export interface WorkListPage {
   items: WorkListItem[];
   total: number;
-  offset: number;
   limit: number;
   hasMore: boolean;
+  nextCursor: number | null;
 }
 
 export interface WorkTagFilter {

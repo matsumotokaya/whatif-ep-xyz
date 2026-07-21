@@ -40,7 +40,7 @@ export default async function WorksSeriesPage({
   // Catalog data (cached via unstable_cache) — fast, forms the static shell.
   const [seriesOptions, initialPage, filterMeta] = await Promise.all([
     getGallerySeries(),
-    getWorkCardsPageBySeries(series),
+    getWorkCardsPageBySeries(series, { tagSlug: initialSelectedTagId ?? null }),
     getWorkFilterMetaBySeries(series),
   ]);
 

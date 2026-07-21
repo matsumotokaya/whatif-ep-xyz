@@ -45,7 +45,7 @@ const limitArg = process.argv.find((arg) => arg.startsWith("--limit="));
 const SERIES = seriesArg?.slice("--series=".length) || "episode";
 const CONCURRENCY = Number(concurrencyArg?.slice("--concurrency=".length) || 4);
 const LIMIT = limitArg ? Number(limitArg.slice("--limit=".length)) : null;
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 const THUMB_WIDTH = 576;
 const THUMB_HEIGHT = 720;
 const CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -106,27 +106,30 @@ async function objectHead(key) {
 
 async function fetchCatalog() {
   const items = [];
-  let offset = 0;
+  let cursor = null;
 
   for (;;) {
     const url = new URL(`/api/works/${encodeURIComponent(SERIES)}/cards`, GALLERY_BASE_URL);
     url.searchParams.set("sort", "oldest");
-    url.searchParams.set("offset", String(offset));
     url.searchParams.set("limit", String(PAGE_SIZE));
+    if (cursor !== null) url.searchParams.set("cursor", String(cursor));
 
     const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) {
-      throw new Error(`Gallery API returned ${response.status} for offset ${offset}.`);
+      throw new Error(`Gallery API returned ${response.status} for cursor ${cursor ?? "start"}.`);
     }
 
     const page = await response.json();
     if (!Array.isArray(page.items)) {
-      throw new Error(`Gallery API returned an invalid page for offset ${offset}.`);
+      throw new Error(`Gallery API returned an invalid page for cursor ${cursor ?? "start"}.`);
     }
     items.push(...page.items);
 
     if (!page.hasMore || page.items.length === 0) break;
-    offset += page.items.length;
+    if (!Number.isInteger(page.nextCursor) || page.nextCursor === cursor) {
+      throw new Error("Gallery API returned an invalid or repeated nextCursor.");
+    }
+    cursor = page.nextCursor;
   }
 
   return items;

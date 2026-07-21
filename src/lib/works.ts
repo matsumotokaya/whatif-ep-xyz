@@ -3,7 +3,9 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  buildProductionOutputPublicUrl,
   getSeriesFeedImageMap,
   getSeriesFeedThumbMap,
   getSeriesWallpaperCoverMap,
@@ -18,7 +20,6 @@ import type {
   WorkOffer,
   WorkOfferRow,
   WorkTag,
-  WorkTagFilter,
   WorkTagRow,
   WorkRow,
   WorkSeriesRow,
@@ -27,7 +28,7 @@ import type {
 } from "./types";
 import {
   getGalleryListThumbnailUrl,
-  getWorkPrimaryImageCandidates,
+  getVariantThumbnailCandidates,
 } from "./work-images";
 
 const SERIES_COLUMNS = [
@@ -95,6 +96,7 @@ const OFFER_COLUMNS = [
 
 const CHUNK_SIZE = 100;
 export const WORKS_PAGE_SIZE = 20;
+export const WORKS_MAX_PAGE_SIZE = 50;
 
 function isMissingTableError(error: { message?: string } | null | undefined): boolean {
   const message = error?.message ?? "";
@@ -667,126 +669,128 @@ export async function getSeriesDisplayName(seriesSlug: string): Promise<string> 
   return series?.name ?? seriesSlug;
 }
 
-// Collapse a full Work into the lightweight card DTO (image candidates +
-// boolean offer flags). Shared by the gallery list and the "other wallpapers"
-// strip on the detail page.
-function toWorkListItem(work: Work): WorkListItem {
-  const fallbackCandidates = getWorkPrimaryImageCandidates(work);
-  const normalizedListThumbnail = getGalleryListThumbnailUrl(
-    work.seriesSlug,
-    work.displayCode
+interface GalleryWorkCardRow {
+  work_id: string;
+  series_slug: string;
+  display_code: string;
+  title: string;
+  theme_category: string;
+  sequence_number: number;
+  variant_id: string | null;
+  variant_number: number | null;
+  thumbnail_storage_key: string | null;
+  original_storage_key: string | null;
+  variant_updated_at: string | null;
+  feed_storage_provider: string | null;
+  feed_storage_bucket: string | null;
+  feed_storage_path: string | null;
+  feed_thumb_storage_provider: string | null;
+  feed_thumb_storage_bucket: string | null;
+  feed_thumb_storage_path: string | null;
+  tags: WorkTag[] | null;
+  has_wallpaper_offer: boolean;
+  has_starter_offer: boolean;
+  total_count: number;
+}
+
+function resolveProductionImage(
+  provider: string | null,
+  bucket: string | null,
+  storagePath: string | null
+): string | null {
+  if (!bucket || !storagePath) return null;
+  return buildProductionOutputPublicUrl(provider, bucket, storagePath);
+}
+
+function mapGalleryWorkCardRow(row: GalleryWorkCardRow): WorkListItem {
+  const feedImageUrl = resolveProductionImage(
+    row.feed_storage_provider,
+    row.feed_storage_bucket,
+    row.feed_storage_path
   );
-  const imageCandidates = [
-    normalizedListThumbnail,
-    ...(work.feedImageUrl ? [work.feedImageUrl] : []),
+  const feedThumbUrl = resolveProductionImage(
+    row.feed_thumb_storage_provider,
+    row.feed_thumb_storage_bucket,
+    row.feed_thumb_storage_path
+  );
+  const fallbackCandidates = row.variant_id
+    ? getVariantThumbnailCandidates({
+        thumbnailStorageKey: row.thumbnail_storage_key,
+        originalStorageKey: row.original_storage_key,
+        updatedAt: row.variant_updated_at ?? "",
+      })
+    : [];
+  const imageCandidates = [...new Set([
+    getGalleryListThumbnailUrl(row.series_slug, row.display_code),
+    ...(feedImageUrl ? [feedImageUrl] : []),
     ...fallbackCandidates,
-  ];
-
-  const primaryOffers = work.primaryVariant?.offers ?? [];
-  const hasWallpaperOffer = primaryOffers.some((o) => o.offerType === "wallpaper");
-  const hasStarterOffer = primaryOffers.some((o) => o.offerType === "imagine_starter");
+  ])];
 
   return {
-    id: work.id,
-    seriesSlug: work.seriesSlug,
-    displayCode: work.displayCode,
-    title: work.title,
-    themeCategory: work.themeCategory,
-    tags: work.tags,
-    sequenceNumber: work.sequenceNumber,
-    feedThumbUrl: work.feedThumbUrl ?? null,
+    id: row.work_id,
+    seriesSlug: row.series_slug,
+    displayCode: row.display_code,
+    title: row.title,
+    themeCategory: row.theme_category,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    sequenceNumber: row.sequence_number,
+    feedThumbUrl,
     imageCandidates,
-    hasWallpaperOffer,
-    hasStarterOffer,
+    hasWallpaperOffer: row.has_wallpaper_offer,
+    hasStarterOffer: row.has_starter_offer,
   };
 }
 
-function applyWorkCardFilters(
-  works: WorkListItem[],
-  {
-    rangeStart,
-    rangeEnd,
-    tagSlug,
-    wallpaperOnly,
-    ids,
-  }: {
-    rangeStart?: number;
-    rangeEnd?: number;
-    tagSlug?: string | null;
-    wallpaperOnly?: boolean;
-    ids?: string[];
-  }
-): WorkListItem[] {
-  const idSet = ids && ids.length > 0 ? new Set(ids) : null;
+type GalleryRpcName =
+  | "get_gallery_work_cards_page"
+  | "get_gallery_work_filter_meta";
 
-  return works.filter((work) => {
-    if (idSet && !idSet.has(work.id)) return false;
-    if (typeof rangeStart === "number" && work.sequenceNumber < rangeStart) return false;
-    if (typeof rangeEnd === "number" && work.sequenceNumber > rangeEnd) return false;
-    if (wallpaperOnly && !work.hasWallpaperOffer) return false;
-    if (tagSlug && !work.tags.some((tag) => tag.slug === tagSlug)) return false;
-    return true;
-  });
-}
-
-function buildWorkFilterMeta(works: WorkListItem[]): WorkFilterMeta {
-  let maxSequence = 0;
-  const tags = new Map<string, WorkTagFilter>();
-
-  for (const work of works) {
-    if (work.sequenceNumber > maxSequence) {
-      maxSequence = work.sequenceNumber;
-    }
-
-    for (const tag of work.tags) {
-      const existing = tags.get(tag.slug);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        tags.set(tag.slug, {
-          id: tag.slug,
-          label: tag.label,
-          count: 1,
-        });
-      }
-    }
+async function callGalleryRpc<TResult>(
+  functionName: GalleryRpcName,
+  params: Record<string, unknown>
+): Promise<TResult> {
+  const supabase = createAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase service role is required for Gallery reads.");
   }
 
-  return {
-    total: works.length,
-    maxSequence,
-    tagFilters: [...tags.values()].sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return a.label.localeCompare(b.label);
-    }),
-  };
+  // These functions are introduced by the accompanying migration. The local
+  // Supabase client has no generated Database type, so its default RPC function
+  // map is empty until types are regenerated.
+  const { data, error } = await supabase.rpc(functionName as never, params as never);
+  if (error) {
+    throw new Error(`Failed to call ${functionName}: ${error.message}`);
+  }
+  return data as TResult;
 }
 
-// ─── Lightweight card DTO list ────────────────────────────────────────────────
-// Returns one ordered list of WorkListItem (newest-first by default).
-// Payload is ~85 % smaller than the full Work per item because variants/offers
-// are collapsed to two booleans and a pre-built image-candidate array.
-export async function getWorkCardsBySeries(
-  seriesSlug: string,
-  sort: "newest" | "oldest" = "newest"
-): Promise<WorkListItem[]> {
-  const works = await getVisibleWorksBySeries(seriesSlug);
-  const ordered = sort === "newest" ? [...works].reverse() : works;
-  return ordered.map(toWorkListItem);
-}
+const _cachedWorkFilterMetaBySeries = unstable_cache(
+  async (seriesSlug: string): Promise<WorkFilterMeta> => {
+    const meta = await callGalleryRpc<WorkFilterMeta | null>(
+      "get_gallery_work_filter_meta",
+      { p_series_slug: seriesSlug }
+    );
+    return {
+      total: Number(meta?.total ?? 0),
+      maxSequence: Number(meta?.maxSequence ?? 0),
+      tagFilters: Array.isArray(meta?.tagFilters) ? meta.tagFilters : [],
+    };
+  },
+  ["works:gallery-filter-meta"],
+  { tags: ["works", "work_tags"], revalidate: 3600 }
+);
 
 export async function getWorkFilterMetaBySeries(
   seriesSlug: string
 ): Promise<WorkFilterMeta> {
-  const works = await getWorkCardsBySeries(seriesSlug, "newest");
-  return buildWorkFilterMeta(works);
+  return _cachedWorkFilterMetaBySeries(seriesSlug);
 }
 
 export async function getWorkCardsPageBySeries(
   seriesSlug: string,
   options: {
     sort?: "newest" | "oldest";
-    offset?: number;
+    cursor?: number | null;
     limit?: number;
     rangeStart?: number;
     rangeEnd?: number;
@@ -797,7 +801,7 @@ export async function getWorkCardsPageBySeries(
 ): Promise<WorkListPage> {
   const {
     sort = "newest",
-    offset = 0,
+    cursor = null,
     limit = WORKS_PAGE_SIZE,
     rangeStart,
     rangeEnd,
@@ -806,22 +810,32 @@ export async function getWorkCardsPageBySeries(
     ids,
   } = options;
 
-  const works = await getWorkCardsBySeries(seriesSlug, sort);
-  const filtered = applyWorkCardFilters(works, {
-    rangeStart,
-    rangeEnd,
-    tagSlug,
-    wallpaperOnly,
-    ids,
-  });
-  const items = filtered.slice(offset, offset + limit);
+  const safeLimit = Math.min(Math.max(limit, 1), WORKS_MAX_PAGE_SIZE);
+  const rows = await callGalleryRpc<GalleryWorkCardRow[]>(
+    "get_gallery_work_cards_page",
+    {
+      p_series_slug: seriesSlug,
+      p_sort: sort,
+      p_limit: safeLimit,
+      p_cursor_sequence: cursor,
+      p_range_start: rangeStart ?? null,
+      p_range_end: rangeEnd ?? null,
+      p_tag_slug: tagSlug ?? null,
+      p_wallpaper_only: wallpaperOnly ?? false,
+      p_ids: ids === undefined ? null : ids,
+    }
+  );
+  const hasMore = rows.length > safeLimit;
+  const pageRows = rows.slice(0, safeLimit);
+  const items = pageRows.map(mapGalleryWorkCardRow);
+  const lastItem = items.at(-1);
 
   return {
     items,
-    total: filtered.length,
-    offset,
-    limit,
-    hasMore: offset + items.length < filtered.length,
+    total: Number(pageRows[0]?.total_count ?? 0),
+    limit: safeLimit,
+    hasMore,
+    nextCursor: hasMore ? lastItem?.sequenceNumber ?? null : null,
   };
 }
 
