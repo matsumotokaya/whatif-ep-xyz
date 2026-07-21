@@ -34,6 +34,9 @@ const GalleryCard = memo(function GalleryCard({
   return (
     <div
       data-card
+      data-work-id={work.id}
+      data-work-code={work.displayCode}
+      data-work-sequence={work.sequenceNumber}
       className={cn(
         animateEntrance && "animate-fade-in-up motion-reduce:animate-none"
       )}
@@ -103,7 +106,7 @@ export function WorkGallery({
   }
 
   return (
-    <div>
+    <div data-gallery-grid>
       <div className="flex flex-col gap-1.5 sm:gap-2 md:gap-3">
         {chunks.map((chunk, chunkIndex) => {
           const startIndex = chunkIndex * GALLERY_RENDER_CHUNK_SIZE;
@@ -118,7 +121,11 @@ export function WorkGallery({
         })}
       </div>
 
-      <div ref={sentinelRef} className="flex justify-center py-8">
+      <div
+        ref={sentinelRef}
+        data-gallery-sentinel
+        className="flex justify-center py-8"
+      >
         {isLoading && (
           <div className="dot-loader flex gap-1.5">
             <span />

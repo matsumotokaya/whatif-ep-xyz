@@ -1,5 +1,11 @@
 # Gallery refactor milestones
 
+## Status
+
+**Closed — completed 2026-07-21.** All five milestones are complete. Future
+Gallery performance changes are guarded by the M5 regression budgets and should
+be tracked as separate work.
+
 ## Goal
 
 Make gallery sorting reliable and make page loading scale with the requested
@@ -61,6 +67,22 @@ page size instead of the total catalog size.
      task time 8,833→5,235 ms. All 23 cursor pages were requested exactly once.
      Oldest 1–80 remained visible with no alert or touch-triggered detail fetch.
 
-5. **Performance regression coverage — planned**
-   - Add sort/filter visibility E2E coverage.
-   - Add budgets for list-image bytes, endpoint latency, and long-scroll DOM size.
+5. **Performance regression coverage — complete**
+   - Playwright mobile E2E coverage verifies that Oldest sorting and range
+     filtering replace the list with visible, correctly ordered cards and no
+     Gallery load alert.
+   - Cursor contract coverage verifies bounded 20-card pages, a hard 50-card
+     clamp, monotonic cursors, and no overlap between adjacent pages.
+   - The first two Newest and Oldest pages each have a 1.5 MiB list-image
+     budget. API responses have a 3,000 ms tripwire that includes the remote DB
+     and network path, with enough headroom for a cold request.
+   - The mobile Oldest long-scroll scenario loads the full catalog, requires
+     every browser cursor URL and work ID to be unique, and enforces budgets of
+     500 cards, 8,500 DOM elements, and at most 20 entrance animations.
+   - Local coverage always runs a production build on dedicated port 3711, so a
+     stale development server on the fixed port 3710 cannot invalidate the
+     result. `npm run test:gallery:production` runs the same read-only checks
+     against the deployed site.
+   - 2026-07-21 local production verification: all three suites passed; the
+     469-card Oldest long-scroll suite completed in 6.8 seconds with no cursor
+     duplication, card duplication, visibility loss, or Gallery alert.

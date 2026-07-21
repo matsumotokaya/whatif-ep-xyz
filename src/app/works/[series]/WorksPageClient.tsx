@@ -350,7 +350,7 @@ function WorksPageInner({
   const displayedWorks = savedOnly ? works.filter((work) => isSaved(work.id)) : works;
 
   return (
-    <div>
+    <div data-gallery-root data-gallery-total={total}>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <GallerySeriesSelect series={series} selectedSlug={selectedSeriesSlug} />
@@ -553,7 +553,7 @@ function WorksPageInner({
 
       {displayedWorks.length > 0 ? (
         <>
-          <div className="mb-6 flex items-center gap-3">
+          <div data-gallery-progress className="mb-6 flex items-center gap-3">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
               <div
                 className="h-full rounded-full bg-foreground/30 transition-all duration-500 ease-out"

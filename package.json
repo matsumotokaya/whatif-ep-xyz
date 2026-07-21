@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:gallery": "npm run build && playwright test",
+    "test:gallery:production": "GALLERY_TEST_BASE_URL=https://whatif-ep.xyz playwright test",
     "check:m5-redirects": "node scripts/check-m5-redirects.mjs",
     "backfill:gallery-thumbs": "node --env-file=../imagine/.env.r2backfill.local scripts/backfill-gallery-thumbnails.mjs",
     "test": "vitest run",
@@ -36,6 +38,7 @@
     "stripe": "^22.2.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/lodash.debounce": "^4.0.9",
     "@types/node": "^20",

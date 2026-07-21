@@ -134,6 +134,9 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 npm install
 npm run dev    # http://localhost:3710
 npm run build
+npx playwright install chromium  # 初回のみ
+npm run test:gallery             # production build + Gallery E2E/performance budgets
+npm run test:gallery:production  # deployed production smoke test
 ```
 
 ## Adding a New Episode
