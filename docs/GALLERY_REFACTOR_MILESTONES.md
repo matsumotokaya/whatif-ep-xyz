@@ -31,7 +31,8 @@ page size instead of the total catalog size.
    - Clamp page size and return `nextCursor`/`hasMore`.
    - The service-role-only `get_gallery_work_cards_page` RPC selects at most
      51 rows and enriches only the requested page; the public API returns at
-     most 50 cards and caches non-user-specific queries at the CDN edge.
+     most 50 cards and caches non-user-specific queries in the Next.js Data
+     Cache and at the CDN edge. Saved-ID queries bypass both shared caches.
    - The browser and Gallery thumbnail backfill both advance by the last
      `sequence_number`, so inserts or removals do not shift later pages.
    - 2026-07-21 local production-build verification: five consecutive oldest

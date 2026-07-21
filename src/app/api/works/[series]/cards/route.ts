@@ -39,6 +39,7 @@ export async function GET(request: Request, context: RouteContext) {
         .slice(0, 500)
     : undefined;
 
+  const dataStartedAt = performance.now();
   const page = await getWorkCardsPageBySeries(series, {
     sort: searchParams.get("sort") === "oldest" ? "oldest" : "newest",
     cursor,
@@ -55,6 +56,9 @@ export async function GET(request: Request, context: RouteContext) {
       "Cache-Control": idsParam
         ? "private, no-store"
         : "public, max-age=0, s-maxage=300, stale-while-revalidate=3600",
+      "Server-Timing": `gallery-data;dur=${(
+        performance.now() - dataStartedAt
+      ).toFixed(1)}`,
     },
   });
 }

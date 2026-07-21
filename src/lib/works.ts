@@ -786,19 +786,31 @@ export async function getWorkFilterMetaBySeries(
   return _cachedWorkFilterMetaBySeries(seriesSlug);
 }
 
-export async function getWorkCardsPageBySeries(
-  seriesSlug: string,
-  options: {
-    sort?: "newest" | "oldest";
-    cursor?: number | null;
-    limit?: number;
-    rangeStart?: number;
-    rangeEnd?: number;
-    tagSlug?: string | null;
-    wallpaperOnly?: boolean;
-    ids?: string[];
-  } = {}
-): Promise<WorkListPage> {
+interface WorkCardsPageOptions {
+  sort?: "newest" | "oldest";
+  cursor?: number | null;
+  limit?: number;
+  rangeStart?: number;
+  rangeEnd?: number;
+  tagSlug?: string | null;
+  wallpaperOnly?: boolean;
+  ids?: string[];
+}
+
+interface NormalizedWorkCardsPageOptions {
+  sort: "newest" | "oldest";
+  cursor: number | null;
+  limit: number;
+  rangeStart: number | null;
+  rangeEnd: number | null;
+  tagSlug: string | null;
+  wallpaperOnly: boolean;
+  ids: string[] | null;
+}
+
+function normalizeWorkCardsPageOptions(
+  options: WorkCardsPageOptions
+): NormalizedWorkCardsPageOptions {
   const {
     sort = "newest",
     cursor = null,
@@ -810,33 +822,81 @@ export async function getWorkCardsPageBySeries(
     ids,
   } = options;
 
-  const safeLimit = Math.min(Math.max(limit, 1), WORKS_MAX_PAGE_SIZE);
+  return {
+    sort,
+    cursor,
+    limit: Math.min(Math.max(limit, 1), WORKS_MAX_PAGE_SIZE),
+    rangeStart: rangeStart ?? null,
+    rangeEnd: rangeEnd ?? null,
+    tagSlug: tagSlug ?? null,
+    wallpaperOnly: wallpaperOnly ?? false,
+    ids: ids === undefined ? null : ids,
+  };
+}
+
+async function loadWorkCardsPageBySeries(
+  seriesSlug: string,
+  options: NormalizedWorkCardsPageOptions
+): Promise<WorkListPage> {
+  const {
+    sort,
+    cursor,
+    limit,
+    rangeStart,
+    rangeEnd,
+    tagSlug,
+    wallpaperOnly,
+    ids,
+  } = options;
+
   const rows = await callGalleryRpc<GalleryWorkCardRow[]>(
     "get_gallery_work_cards_page",
     {
       p_series_slug: seriesSlug,
       p_sort: sort,
-      p_limit: safeLimit,
+      p_limit: limit,
       p_cursor_sequence: cursor,
-      p_range_start: rangeStart ?? null,
-      p_range_end: rangeEnd ?? null,
-      p_tag_slug: tagSlug ?? null,
-      p_wallpaper_only: wallpaperOnly ?? false,
-      p_ids: ids === undefined ? null : ids,
+      p_range_start: rangeStart,
+      p_range_end: rangeEnd,
+      p_tag_slug: tagSlug,
+      p_wallpaper_only: wallpaperOnly,
+      p_ids: ids,
     }
   );
-  const hasMore = rows.length > safeLimit;
-  const pageRows = rows.slice(0, safeLimit);
+  const hasMore = rows.length > limit;
+  const pageRows = rows.slice(0, limit);
   const items = pageRows.map(mapGalleryWorkCardRow);
   const lastItem = items.at(-1);
 
   return {
     items,
     total: Number(pageRows[0]?.total_count ?? 0),
-    limit: safeLimit,
+    limit,
     hasMore,
     nextCursor: hasMore ? lastItem?.sequenceNumber ?? null : null,
   };
+}
+
+const _cachedWorkCardsPageBySeries = unstable_cache(
+  loadWorkCardsPageBySeries,
+  ["works:gallery-card-page:v1"],
+  {
+    tags: ["works", "work_tags", "production"],
+    revalidate: 300,
+  }
+);
+
+export async function getWorkCardsPageBySeries(
+  seriesSlug: string,
+  options: WorkCardsPageOptions = {}
+): Promise<WorkListPage> {
+  const normalizedOptions = normalizeWorkCardsPageOptions(options);
+
+  // Saved-work IDs are user-specific and must never enter the shared cache.
+  if (normalizedOptions.ids !== null) {
+    return loadWorkCardsPageBySeries(seriesSlug, normalizedOptions);
+  }
+  return _cachedWorkCardsPageBySeries(seriesSlug, normalizedOptions);
 }
 
 // ─── Nearby wallpapers (detail-page "other wallpapers" strip) ─────────────────
