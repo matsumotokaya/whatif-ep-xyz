@@ -99,7 +99,6 @@ const derivePreviewSource = (db: {
   template?: { thumbnail?: string | null } | null;
 }): Banner['previewSource'] => {
   if (db.thumbnail_key || db.thumbnail_url) return 'generated';
-  if (db.template?.thumbnail) return 'template';
   return 'none';
 };
 
@@ -109,12 +108,7 @@ const resolveBannerThumbnail = (db: {
   updated_at: string;
   template?: { thumbnail?: string | null } | null;
 }): string | undefined => {
-  return (
-    resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at) ||
-    (db.template?.thumbnail
-      ? resolveAsset(db.template.thumbnail, { legacyBucket: 'user-images' }) || undefined
-      : undefined)
-  );
+  return resolveBannerAsset(db.thumbnail_key, db.thumbnail_url, db.updated_at);
 };
 
 // Convert DB format to Banner format
@@ -278,6 +272,74 @@ async function removeReplacedPreviewAssets(
         })
       : Promise.resolve(),
   ]);
+}
+
+async function clonePreviewAssetsForDuplicate(params: {
+  userId: string;
+  bannerId: string;
+  thumbnailUrl?: string;
+  fullresUrl?: string;
+}): Promise<{ thumbnailKey?: string; fullresKey?: string }> {
+  const requests: Array<{
+    kind: 'thumbnail' | 'fullres';
+    sourceUrl: string;
+    destinationKey: ReturnType<typeof buildBannerThumbKey> | ReturnType<typeof buildBannerFullKey>;
+  }> = [];
+
+  if (params.thumbnailUrl) {
+    requests.push({
+      kind: 'thumbnail',
+      sourceUrl: params.thumbnailUrl,
+      destinationKey: buildBannerThumbKey(params.userId, params.bannerId, createAssetRevision()),
+    });
+  }
+
+  if (params.fullresUrl) {
+    requests.push({
+      kind: 'fullres',
+      sourceUrl: params.fullresUrl,
+      destinationKey: buildBannerFullKey(params.userId, params.bannerId, createAssetRevision()),
+    });
+  }
+
+  if (requests.length === 0) {
+    return {};
+  }
+
+  const uploadedKeys: string[] = [];
+  const results = await Promise.allSettled(
+    requests.map(async (request) => {
+      const response = await fetch(request.sourceUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to clone ${request.kind} preview (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const contentType = blob.type || response.headers.get('content-type') || 'image/jpeg';
+      const uploadedKey = await uploadAsset(request.destinationKey, blob, contentType);
+      uploadedKeys.push(uploadedKey);
+      return { kind: request.kind, key: uploadedKey };
+    }),
+  );
+
+  const failedResult = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
+
+  if (failedResult) {
+    await removeUploadedPreviewAssets(
+      uploadedKeys,
+      'Failed to remove duplicated preview assets after clone failure:',
+    );
+    throw failedResult.reason;
+  }
+
+  return results.reduce<{ thumbnailKey?: string; fullresKey?: string }>((acc, result) => {
+    if (result.status !== 'fulfilled') return acc;
+    if (result.value.kind === 'thumbnail') acc.thumbnailKey = result.value.key;
+    if (result.value.kind === 'fullres') acc.fullresKey = result.value.key;
+    return acc;
+  }, {});
 }
 
 // Temporary rollout path. It keeps local/prod saves working while the revision
@@ -659,24 +721,48 @@ export const bannerStorage = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
+    const duplicatedId = crypto.randomUUID();
+    const duplicatedTemplate = { ...original.template };
+    delete duplicatedTemplate.thumbnail;
+
     // Shift all existing banners' display_order by +1 to make room at position 1
     await supabase.rpc('increment_display_orders', { p_user_id: user.id });
+
+    let duplicatedPreviewKeys: { thumbnailKey?: string; fullresKey?: string } = {};
+    try {
+      duplicatedPreviewKeys = await clonePreviewAssetsForDuplicate({
+        userId: user.id,
+        bannerId: duplicatedId,
+        thumbnailUrl: original.thumbnailUrl,
+        fullresUrl: original.fullresUrl,
+      });
+    } catch (error) {
+      console.warn('Failed to clone duplicated banner preview assets:', error);
+    }
 
     const { data, error } = await supabase
       .from('banners')
       .insert({
+        id: duplicatedId,
         user_id: user.id,
         name: `${original.name} (Copy)`,
-        template: original.template,
+        template: duplicatedTemplate,
         elements: JSON.parse(JSON.stringify(original.elements)),
         canvas_color: original.canvasColor,
         thumbnail_url: null,
+        fullres_url: null,
+        thumbnail_key: duplicatedPreviewKeys.thumbnailKey ?? null,
+        fullres_key: duplicatedPreviewKeys.fullresKey ?? null,
         display_order: 1,
       })
       .select()
       .single();
 
     if (error) {
+      await removeUploadedPreviewAssets(
+        [duplicatedPreviewKeys.thumbnailKey, duplicatedPreviewKeys.fullresKey].filter(Boolean) as string[],
+        'Failed to remove duplicated preview assets after banner insert failure:',
+      );
       console.error('Error duplicating banner:', error);
       return null;
     }

@@ -263,7 +263,7 @@ function FactoryBannerCard({
   const [imageFailed, setImageFailed] = useState(false);
   const { t } = useTranslation('common');
 
-  const previewUrl = imageFailed ? null : banner.thumbnailUrl ?? banner.fullresUrl ?? null;
+  const previewUrl = imageFailed ? null : banner.thumbnailUrl ?? null;
   const isPreviewGenerating = banner.previewStatus === 'pending' && Boolean(banner.previewRequestedAt);
 
   return (

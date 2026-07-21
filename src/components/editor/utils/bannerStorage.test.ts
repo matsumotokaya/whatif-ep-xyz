@@ -289,4 +289,144 @@ describe('bannerStorage.getAll preview metadata rollout', () => {
     ]);
     expect(select).toHaveBeenCalledTimes(2);
   });
+
+  it('does not fall back to template thumbnails when the banner preview is missing', async () => {
+    const rows = [{
+      ...BASE_ROW,
+      thumbnail_key: null,
+      thumbnail_url: null,
+      template: {
+        id: 'template-1',
+        name: 'Template',
+        width: 100,
+        height: 100,
+        thumbnail: 'https://example.com/template.jpg',
+      },
+    }];
+    const makeBuilder = (result: unknown) => {
+      const builder = {
+        order: vi.fn(),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
+      };
+      builder.order.mockReturnValue(builder);
+      return builder;
+    };
+    const builder = makeBuilder({ data: rows, error: null });
+    const select = vi.fn().mockReturnValue(builder);
+    vi.mocked(getSupabase).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockReturnValue({ select }),
+    } as never);
+
+    await expect(bannerStorage.getAll(false)).resolves.toEqual([
+      expect.objectContaining({
+        id: 'banner-1',
+        thumbnailUrl: undefined,
+        previewStatus: 'pending',
+        previewSource: 'none',
+      }),
+    ]);
+  });
+});
+
+describe('bannerStorage.duplicate preview cloning', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('duplicates preview assets onto the new banner and removes template thumbnail fallback', async () => {
+    vi.clearAllMocks();
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(new Blob(['thumb'], { type: 'image/jpeg' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(new Blob(['full'], { type: 'image/png' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('banner-2');
+    vi.spyOn(bannerStorage, 'getById').mockResolvedValue({
+      id: 'banner-1',
+      name: 'Banner',
+      template: {
+        id: 'template-1',
+        name: 'Template',
+        width: 100,
+        height: 100,
+        thumbnail: 'https://example.com/template.jpg',
+      },
+      elements: [],
+      canvasColor: '#808080',
+      thumbnailUrl: 'https://example.com/thumb.jpg',
+      fullresUrl: 'https://example.com/full.png',
+      createdAt: '2026-07-20T00:00:00.000Z',
+      updatedAt: '2026-07-20T00:00:00.000Z',
+    } as Banner);
+    vi.mocked(uploadAsset)
+      .mockImplementationOnce(async (key) => key)
+      .mockImplementationOnce(async (key) => key);
+
+    let insertedRow: Record<string, unknown> | undefined;
+    const single = vi.fn().mockImplementation(async () => ({
+      data: {
+        ...BASE_ROW,
+        id: 'banner-2',
+        name: 'Banner (Copy)',
+        template: insertedRow?.template,
+        thumbnail_key: insertedRow?.thumbnail_key ?? null,
+        fullres_key: insertedRow?.fullres_key ?? null,
+        preview_status: undefined,
+        preview_source: undefined,
+        preview_error: undefined,
+      },
+      error: null,
+    }));
+    const select = vi.fn().mockReturnValue({ single });
+    const insert = vi.fn((row: Record<string, unknown>) => {
+      insertedRow = row;
+      return { select };
+    });
+    const from = vi.fn().mockReturnValue({ insert });
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+
+    vi.mocked(getSupabase).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      rpc,
+      from,
+    } as never);
+
+    await expect(bannerStorage.duplicate('banner-1')).resolves.toMatchObject({
+      id: 'banner-2',
+      previewStatus: 'ready',
+    });
+
+    expect(rpc).toHaveBeenCalledWith('increment_display_orders', { p_user_id: 'user-1' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(uploadAsset).toHaveBeenNthCalledWith(
+      1,
+      expect.stringMatching(/user-images\/user-1\/banners\/banner-2\/thumb\//),
+      expect.any(Blob),
+      'image/jpeg',
+    );
+    expect(uploadAsset).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/user-images\/user-1\/banners\/banner-2\/full\//),
+      expect.any(Blob),
+      'image/png',
+    );
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'banner-2',
+      thumbnail_key: expect.stringMatching(/user-images\/user-1\/banners\/banner-2\/thumb\//),
+      fullres_key: expect.stringMatching(/user-images\/user-1\/banners\/banner-2\/full\//),
+    }));
+    expect(insertedRow?.template).toEqual({
+      id: 'template-1',
+      name: 'Template',
+      width: 100,
+      height: 100,
+    });
+
+    vi.stubGlobal('fetch', originalFetch);
+  });
 });

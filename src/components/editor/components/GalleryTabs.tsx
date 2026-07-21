@@ -10,6 +10,7 @@ export const GalleryTabs = () => {
   const navigate = useNavigate();
   const { profile, profileLoading } = useAuth();
   const isAdmin = !profileLoading && profile?.role === 'admin';
+  const pathname = location.pathname;
 
   const tabs = [
     { path: '/imagine', label: t('banner:templatesTab') },
@@ -22,9 +23,11 @@ export const GalleryTabs = () => {
       {tabs.map((tab) => {
         const isActive =
           tab.path === '/imagine'
-            ? location.pathname === '/imagine' || location.pathname.startsWith('/imagine/')
-            : location.pathname === tab.path ||
-              location.pathname.startsWith(`${tab.path}/`);
+            ? pathname === '/imagine' || pathname.startsWith('/imagine/')
+            : tab.path === '/mydesign'
+              ? pathname === '/mydesign'
+                || (/^\/mydesign\/[^/]+$/.test(pathname) && !pathname.startsWith('/mydesign/factory'))
+              : pathname === tab.path || pathname.startsWith(`${tab.path}/`);
         return (
           <button
             key={tab.path}
