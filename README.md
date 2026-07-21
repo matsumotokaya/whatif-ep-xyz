@@ -189,18 +189,21 @@ node scripts/generate-episodes-seed-sql.mjs > supabase/seeds/episodes.sql
 
 ### 移行前作品のフォールバック（暫定）
 
-この feed ベースのモデルは**今回のアップデートから**始まった。それ以前に作られた作品は `instagram_feed` 出力をまだ持たないため、ギャラリーの体裁を保つために**暫定的にフォールバック**する（旧 R2 サムネ → original PNG）。
+この feed ベースのモデルは**今回のアップデートから**始まった。それ以前に作られた作品は `instagram_feed` 出力をまだ持たないため、ギャラリーの体裁を保つためにフォールバックする。
 
-- **一覧カード**（`WorkCard` / `getWorkPrimaryImageCandidates`）: `feedImageUrl` → R2 `thumbnails/{number}.jpg` → original PNG
+- **一覧カード**（`WorkCard`）: `feedThumbUrl` → R2 Assets `gallery-thumbs/v1/{series}/{code}.webp` → `feedImageUrl` →旧 R2 thumbnail → original
 - **作品詳細メイン**（`getVariantDisplayImageCandidates`）: `feedImageUrl` → original PNG
 
-これらのフォールバックは応急処置であり、**移行前の作品もいずれすべて Content Factory から再生産**する。再生産後はどの作品も正式な `instagram_feed` を持ち、フォールバック経路は不要（削除可能）になる。
+一覧専用の `gallery-thumbs` は、正式な `feed_thumb` がない期間の軽量フォールバックである。既存の公開画像やproduction stateを変更せず、Content Factoryから再生産された作品では正式な `feed_thumb` が自動的に優先される。
 
-### パフォーマンス課題（対応予定）
+一覧専用画像のバックフィルは次のコマンドで再実行できる。既存の出力は認証付きHEADで確認してスキップするため冪等で、`--apply`なしでは書き込まない。
 
-現状、一覧カードと作品詳細メインは**同じフルサイズの `instagram_feed` PNG** を使っている。約1080px のクレジット入り PNG を小さなグリッドセルに読み込むのは無駄で、Vercel Image Optimization の *Transformations* と転送量を押し上げる（無料枠の transformation 消費が急増した原因）。
+```bash
+npm run backfill:gallery-thumbs
+npm run backfill:gallery-thumbs -- --apply
+```
 
-**対応方針**: Content Factory が一覧用に**軽量なクレジット入り feed サムネ**を追加で発行する（IMAGINE 側の対応）。これにより一覧は事前リサイズ済みの軽い画像を読み込み、フルサイズ feed 画像は作品詳細専用にする。
+2026-07-21時点で、正式な`feed_thumb`がなかった402作品すべてに576×720 WebPを生成済み。20件あたりの画像転送量は、Oldest先頭で約17.55MBから約1.16MBへ減少した。
 
 ---
 

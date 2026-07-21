@@ -16,6 +16,22 @@ function canResolveStorageKey(storageKey: string): boolean {
   return isFullUrl(storageKey) || canResolve("r2-legacy", storageKey);
 }
 
+// One-off normalized list thumbnails for works that predate Content Factory's
+// feed_thumb output. They live outside production_outputs so backfilling them
+// does not mutate wallpaper/project state. A future real feed_thumb remains the
+// first choice in WorkCard and naturally supersedes this fallback.
+export function getGalleryListThumbnailUrl(
+  seriesSlug: string,
+  displayCode: string
+): string {
+  const seriesSegment = encodeURIComponent(seriesSlug);
+  const codeSegment = encodeURIComponent(displayCode);
+  return resolveAssetUrl(
+    "r2-assets",
+    `gallery-thumbs/v1/${seriesSegment}/${codeSegment}.webp`
+  );
+}
+
 export function getVariantOriginalUrl(
   variant: Pick<WorkVariant, "originalStorageKey" | "updatedAt">
 ): string {

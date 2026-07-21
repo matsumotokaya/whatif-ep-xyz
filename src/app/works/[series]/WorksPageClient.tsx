@@ -30,6 +30,8 @@ const COPY: Record<
     emptyBody: string;
     noMatchTitle: string;
     noMatchBody: string;
+    loadError: string;
+    retry: string;
   }
 > = {
   en: {
@@ -43,6 +45,8 @@ const COPY: Record<
     emptyBody: "Works you save will appear here.",
     noMatchTitle: "No matching works",
     noMatchBody: "Try changing the current filters.",
+    loadError: "Works could not be loaded. The current list has been kept.",
+    retry: "Try again",
   },
   ja: {
     saved: "保存済み",
@@ -55,6 +59,8 @@ const COPY: Record<
     emptyBody: "保存した作品がここに表示されます。",
     noMatchTitle: "該当する作品がありません",
     noMatchBody: "フィルタ条件を変更してください。",
+    loadError: "作品を読み込めませんでした。現在の一覧は保持されています。",
+    retry: "再試行",
   },
   "zh-CN": {
     saved: "已保存",
@@ -67,6 +73,8 @@ const COPY: Record<
     emptyBody: "您保存的作品将显示在这里。",
     noMatchTitle: "没有匹配的作品",
     noMatchBody: "请更改当前筛选条件。",
+    loadError: "无法加载作品。当前列表已保留。",
+    retry: "重试",
   },
   "zh-TW": {
     saved: "已儲存",
@@ -79,6 +87,8 @@ const COPY: Record<
     emptyBody: "您儲存的作品將顯示在這裡。",
     noMatchTitle: "沒有符合的作品",
     noMatchBody: "請變更目前的篩選條件。",
+    loadError: "無法載入作品。目前的列表已保留。",
+    retry: "重試",
   },
   ko: {
     saved: "저장됨",
@@ -91,6 +101,8 @@ const COPY: Record<
     emptyBody: "저장한 작품이 여기에 표시됩니다.",
     noMatchTitle: "일치하는 작품이 없습니다",
     noMatchBody: "현재 필터를 바꿔 보세요.",
+    loadError: "작품을 불러오지 못했습니다. 현재 목록은 유지됩니다.",
+    retry: "다시 시도",
   },
 };
 
@@ -101,6 +113,11 @@ type WorkRange = {
   label: string;
   start: number;
   end: number;
+};
+
+type LoadFailure = {
+  offset: number;
+  replace: boolean;
 };
 
 interface WorksPageClientProps {
@@ -159,6 +176,7 @@ function WorksPageInner({
   const [total, setTotal] = useState(initialPage.total);
   const [hasMore, setHasMore] = useState(initialPage.hasMore);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
 
@@ -208,16 +226,19 @@ function WorksPageInner({
   }, []);
 
   const loadPage = useCallback(async (offset: number, replace: boolean) => {
+    const requestId = ++requestIdRef.current;
+
     if (savedOnly && savedWorkIds.length === 0) {
       setWorks([]);
       setTotal(0);
       setHasMore(false);
       setIsLoading(false);
+      setLoadFailure(null);
       return;
     }
 
-    const requestId = ++requestIdRef.current;
     setIsLoading(true);
+    setLoadFailure(null);
 
     const params = new URLSearchParams({
       sort,
@@ -257,13 +278,11 @@ function WorksPageInner({
       );
       setTotal(page.total);
       setHasMore(page.hasMore);
+      setLoadFailure(null);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       console.error(error);
-      if (replace) {
-        setWorks([]);
-        setTotal(0);
-        setHasMore(false);
-      }
+      setLoadFailure({ offset, replace });
     } finally {
       if (requestId === requestIdRef.current) {
         setIsLoading(false);
@@ -281,10 +300,12 @@ function WorksPageInner({
 
   useEffect(() => {
     if (queryKey === defaultQueryKey) {
+      requestIdRef.current += 1;
       setWorks(initialPage.items);
       setTotal(initialPage.total);
       setHasMore(initialPage.hasMore);
       setIsLoading(false);
+      setLoadFailure(null);
       return;
     }
 
@@ -479,6 +500,23 @@ function WorksPageInner({
         </div>
       )}
 
+      {loadFailure && (
+        <div
+          role="alert"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100"
+        >
+          <p className="text-pretty text-sm">{t.loadError}</p>
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => loadPage(loadFailure.offset, loadFailure.replace)}
+            className="btn-press rounded-lg border border-current px-3 py-1.5 text-sm font-medium transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/40"
+          >
+            {t.retry}
+          </button>
+        </div>
+      )}
+
       {displayedWorks.length > 0 ? (
         <>
           <div className="mb-6 flex items-center gap-3">
@@ -495,10 +533,10 @@ function WorksPageInner({
 
           <WorkGallery
             works={displayedWorks}
-            hasMore={!savedOnly && hasMore}
+            hasMore={!savedOnly && hasMore && !loadFailure}
             isLoading={isLoading}
             onLoadMore={() => {
-              if (!hasMore || isLoading || savedOnly) return;
+              if (!hasMore || isLoading || savedOnly || loadFailure) return;
               loadPage(works.length, false);
             }}
             purchasedCodes={purchasedCodeSet}

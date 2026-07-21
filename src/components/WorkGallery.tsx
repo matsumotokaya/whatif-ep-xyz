@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef, useEffect } from "react";
 import type { WorkListItem } from "@/lib/types";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { WorkCard } from "./WorkCard";
@@ -27,44 +26,16 @@ export function WorkGallery({
     onLoadMore: onLoadMore ?? (() => {}),
   });
 
-  const gridRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            (entry.target as HTMLElement).classList.add("animate-fade-in-up");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.05, rootMargin: "40px" }
-    );
-
-    const cards = grid.querySelectorAll("[data-card]");
-    cards.forEach((card) => {
-      if (!(card as HTMLElement).classList.contains("animate-fade-in-up")) {
-        observer.observe(card);
-      }
-    });
-
-    return () => observer.disconnect();
-  }, [works.length]);
-
   return (
     <div>
       <div
-        ref={gridRef}
         className="grid grid-cols-3 gap-1.5 sm:gap-2 md:grid-cols-4 md:gap-3 lg:grid-cols-5"
       >
         {works.map((work, index) => (
           <div
             key={work.id}
             data-card
-            className="opacity-0"
+            className="animate-fade-in-up motion-reduce:animate-none"
             style={{ animationDelay: `${(index % 20) * 30}ms` }}
           >
             <WorkCard

@@ -157,8 +157,9 @@ export interface WorkListItem {
    */
   feedThumbUrl: string | null;
   /**
-   * Optimized fallback chain (feedImageUrl first if present) rendered via
-   * normal next/image. Used when feedThumbUrl is null.
+   * List-image fallback chain. The normalized gallery thumbnail is first,
+   * followed by feedImageUrl and legacy variant assets. Used when feedThumbUrl
+   * is null or fails to load.
    */
   imageCandidates: string[];
   hasWallpaperOffer: boolean;

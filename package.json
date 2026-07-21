@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:m5-redirects": "node scripts/check-m5-redirects.mjs",
+    "backfill:gallery-thumbs": "node --env-file=../imagine/.env.r2backfill.local scripts/backfill-gallery-thumbnails.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

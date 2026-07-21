@@ -25,7 +25,10 @@ import type {
   WorkVariant,
   WorkVariantRow,
 } from "./types";
-import { getWorkPrimaryImageCandidates } from "./work-images";
+import {
+  getGalleryListThumbnailUrl,
+  getWorkPrimaryImageCandidates,
+} from "./work-images";
 
 const SERIES_COLUMNS = [
   "id",
@@ -669,9 +672,15 @@ export async function getSeriesDisplayName(seriesSlug: string): Promise<string> 
 // strip on the detail page.
 function toWorkListItem(work: Work): WorkListItem {
   const fallbackCandidates = getWorkPrimaryImageCandidates(work);
-  const imageCandidates = work.feedImageUrl
-    ? [work.feedImageUrl, ...fallbackCandidates]
-    : fallbackCandidates;
+  const normalizedListThumbnail = getGalleryListThumbnailUrl(
+    work.seriesSlug,
+    work.displayCode
+  );
+  const imageCandidates = [
+    normalizedListThumbnail,
+    ...(work.feedImageUrl ? [work.feedImageUrl] : []),
+    ...fallbackCandidates,
+  ];
 
   const primaryOffers = work.primaryVariant?.offers ?? [];
   const hasWallpaperOffer = primaryOffers.some((o) => o.offerType === "wallpaper");
