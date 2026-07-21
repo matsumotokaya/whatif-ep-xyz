@@ -39,11 +39,27 @@ page size instead of the total catalog size.
      20-card API pages completed in 35–38 ms with no overlaps. Newest, oldest,
      range, tag, wallpaper, saved-ID, empty-ID, and page-size-clamp cases passed.
 
-4. **Delivery and long-scroll performance — planned**
+4. **Delivery and long-scroll performance — complete**
    - Add immutable CDN caching for versioned list images.
    - Avoid touch-scroll detail prefetch contention.
    - Bound off-screen rendering with page chunks, `content-visibility`, or
      windowing based on profiling.
+   - Gallery fallback thumbnails use the immutable `gallery-thumbs/v1` path;
+     fixed-name Content Factory `feed_thumb` objects deliberately remain
+     non-immutable because publishing can overwrite them.
+   - Card rendering is split into memoized 60-item chunks (divisible by every
+     3/4/5-column layout), and only the initial 20 cards run entrance animation.
+     Detail prefetch is disabled in the scrolling grid.
+   - The next bounded cursor page starts 600 px before the sentinel. Repeated
+     request keys are ignored and superseded filter/sort requests are aborted;
+     image downloads remain browser-lazy.
+   - `content-visibility` was tested at card and chunk level, then rejected: it
+     reduced layout time but increased cumulative style recalculation for the
+     actual continuous-scroll workload.
+   - 2026-07-21 cache-disabled mobile Chrome comparison, all 469 cards: layout
+     526→327 ms, style recalculation 3,361→444 ms, script 983→396 ms, and total
+     task time 8,833→5,235 ms. All 23 cursor pages were requested exactly once.
+     Oldest 1–80 remained visible with no alert or touch-triggered detail fetch.
 
 5. **Performance regression coverage — planned**
    - Add sort/filter visibility E2E coverage.

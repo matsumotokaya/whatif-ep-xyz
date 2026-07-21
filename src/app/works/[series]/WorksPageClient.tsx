@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   GallerySeries,
   WorkFilterMeta,
@@ -163,7 +163,7 @@ function WorksPageInner({
   const t = COPY[lang];
   const { isSaved } = useSavedWorks();
 
-  const purchasedCodeSet = new Set(purchasedCodes);
+  const purchasedCodeSet = useMemo(() => new Set(purchasedCodes), [purchasedCodes]);
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedRange, setSelectedRange] = useState<WorkRange | null>(null);
@@ -180,6 +180,8 @@ function WorksPageInner({
   const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
+  const activeRequestKeyRef = useRef<string | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
   const ranges = buildWorkRanges(filterMeta.maxSequence);
   const tagFilters = filterMeta.tagFilters;
@@ -227,9 +229,11 @@ function WorksPageInner({
   }, []);
 
   const loadPage = useCallback(async (cursor: number | null, replace: boolean) => {
-    const requestId = ++requestIdRef.current;
-
     if (savedOnly && savedWorkIds.length === 0) {
+      requestAbortRef.current?.abort();
+      requestAbortRef.current = null;
+      activeRequestKeyRef.current = null;
+      requestIdRef.current += 1;
       setWorks([]);
       setTotal(0);
       setHasMore(false);
@@ -238,9 +242,6 @@ function WorksPageInner({
       setLoadFailure(null);
       return;
     }
-
-    setIsLoading(true);
-    setLoadFailure(null);
 
     const params = new URLSearchParams({
       sort,
@@ -264,10 +265,25 @@ function WorksPageInner({
       params.set("ids", savedWorkIds.join(","));
     }
 
+    const requestKey = `${selectedSeriesSlug}?${params.toString()}|replace=${replace}`;
+    if (activeRequestKeyRef.current === requestKey) return;
+
+    requestAbortRef.current?.abort();
+    const abortController = new AbortController();
+    requestAbortRef.current = abortController;
+    activeRequestKeyRef.current = requestKey;
+    const requestId = ++requestIdRef.current;
+
+    setIsLoading(true);
+    setLoadFailure(null);
+
     try {
       const response = await fetch(
         `/api/works/${selectedSeriesSlug}/cards?${params.toString()}`,
-        { credentials: "same-origin" }
+        {
+          credentials: "same-origin",
+          signal: abortController.signal,
+        }
       );
 
       if (!response.ok) {
@@ -286,9 +302,16 @@ function WorksPageInner({
       setLoadFailure(null);
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error(error);
       setLoadFailure({ cursor, replace });
     } finally {
+      if (activeRequestKeyRef.current === requestKey) {
+        activeRequestKeyRef.current = null;
+      }
+      if (requestAbortRef.current === abortController) {
+        requestAbortRef.current = null;
+      }
       if (requestId === requestIdRef.current) {
         setIsLoading(false);
       }
@@ -305,6 +328,9 @@ function WorksPageInner({
 
   useEffect(() => {
     if (queryKey === defaultQueryKey) {
+      requestAbortRef.current?.abort();
+      requestAbortRef.current = null;
+      activeRequestKeyRef.current = null;
       requestIdRef.current += 1;
       setWorks(initialPage.items);
       setTotal(initialPage.total);
@@ -317,6 +343,8 @@ function WorksPageInner({
 
     loadPage(null, true);
   }, [defaultQueryKey, initialPage, loadPage, queryKey]);
+
+  useEffect(() => () => requestAbortRef.current?.abort(), []);
 
   const progress = total > 0 ? (works.length / total) * 100 : 0;
   const displayedWorks = savedOnly ? works.filter((work) => isSaved(work.id)) : works;

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { memo } from "react";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSavedWorks } from "@/context/SavedWorksContext";
@@ -46,7 +46,7 @@ interface SaveButtonProps {
   className?: string;
 }
 
-export function SaveButton({
+export const SaveButton = memo(function SaveButton({
   workId,
   size = "card",
   className = "",
@@ -55,7 +55,6 @@ export function SaveButton({
   const t = COPY[lang];
   const { user } = useAuth();
   const { isSaved, toggle } = useSavedWorks();
-  const pathname = usePathname();
 
   const saved = isSaved(workId);
 
@@ -65,7 +64,7 @@ export function SaveButton({
     e.stopPropagation();
 
     if (!user) {
-      const next = pathname ?? "/";
+      const next = window.location.pathname;
       window.location.href = `/auth/login?next=${encodeURIComponent(next)}`;
       return;
     }
@@ -87,4 +86,4 @@ export function SaveButton({
       <BookmarkIcon filled={saved} className={iconSize} />
     </button>
   );
-}
+});
