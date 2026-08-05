@@ -12,6 +12,7 @@ import { WALLPAPER_COPY, type WallpaperCopy } from "./copy";
 interface WallpaperPackProps {
   cover: WallpaperOutput | null;
   wallpapers: WallpaperOutput[];
+  wallpaperCount: number;
 }
 
 interface WallpaperPageContentProps {
@@ -46,14 +47,16 @@ interface SizeGroup {
 
 function buildSizeGroups(
   wallpapers: WallpaperOutput[],
-  copy: WallpaperCopy
+  copy: WallpaperCopy,
+  publicFallback: WallpaperOutput | null
 ): SizeGroup[] {
   const byRole = new Map(wallpapers.map((output) => [output.role, output]));
   return [
     {
       key: "mobile",
       label: copy.spec.mobile,
-      preview: byRole.get("mobile_hd") ?? byRole.get("mobile_qhd") ?? null,
+      preview:
+        byRole.get("mobile_hd") ?? byRole.get("mobile_qhd") ?? publicFallback,
       aspect: "9 / 16",
       // Portrait frame: keep it narrow so the tall ratio reads instantly.
       frameClass: "mx-auto w-[150px] sm:w-[170px]",
@@ -65,7 +68,8 @@ function buildSizeGroups(
     {
       key: "desktop",
       label: copy.spec.desktop,
-      preview: byRole.get("pc_hd") ?? byRole.get("pc_qhd") ?? null,
+      preview:
+        byRole.get("pc_hd") ?? byRole.get("pc_qhd") ?? publicFallback,
       aspect: "16 / 9",
       frameClass: "w-full max-w-md",
       specs: [
@@ -173,7 +177,7 @@ export default function WallpaperPageContent({
 }: WallpaperPageContentProps) {
   const { lang } = useLanguage();
   const copy = WALLPAPER_COPY[lang];
-  const sizeGroups = buildSizeGroups(pack.wallpapers, copy);
+  const sizeGroups = buildSizeGroups(pack.wallpapers, copy, pack.cover);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background text-foreground">
@@ -262,7 +266,7 @@ export default function WallpaperPageContent({
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-xl font-bold sm:text-2xl">{copy.lineupTitle}</h2>
             <span className="font-mono text-xs text-muted">
-              {pack.wallpapers.length} {copy.included}
+              {pack.wallpaperCount} {copy.included}
             </span>
           </div>
           <p className="mt-1 text-xs text-muted">{copy.lineupNote}</p>

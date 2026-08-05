@@ -30,6 +30,23 @@ export interface WallpaperPack {
   wallpapers: WallpaperOutput[];
 }
 
+// Public sales pages use a same-origin cover proxy. The cover and paid files
+// share an R2 directory, so exposing package-cover.png would also reveal the
+// otherwise hidden mobile-hd.png / pc-qhd.png object locations.
+export function wallpaperCoverProxyUrl(
+  seriesSlug: string,
+  displayCode: string,
+  variantNumber: number
+): string {
+  const variant = Number.isFinite(variantNumber) && variantNumber > 0
+    ? variantNumber
+    : 1;
+  return (
+    `/api/works/${encodeURIComponent(seriesSlug)}` +
+    `/${encodeURIComponent(displayCode)}/wallpaper/cover?variant=${variant}`
+  );
+}
+
 // Human-readable labels for wallpaper sizes shown in the gallery UI.
 export const WALLPAPER_ROLE_LABELS: Record<WallpaperOutputRole, string> = {
   mobile_hd: "Mobile HD · 1080×1920",
@@ -115,6 +132,7 @@ const _cachedSeriesProductionImageRecord = unstable_cache(
       .select("project_id, role, storage_provider, storage_bucket, storage_path")
       .in("project_id", projects.map((project) => project.id))
       .in("role", ["instagram_feed", "feed_thumb", "package_cover"])
+      .eq("is_current", true)
       .eq("status", "ready");
     const outputs = (outputsData ?? []) as unknown as Array<{
       project_id: string;
@@ -141,7 +159,13 @@ const _cachedSeriesProductionImageRecord = unstable_cache(
       );
       if (output.role === "instagram_feed") record.feed[key] = url;
       if (output.role === "feed_thumb") record.feedThumb[key] = url;
-      if (output.role === "package_cover") record.cover[key] = url;
+      if (output.role === "package_cover") {
+        record.cover[key] = wallpaperCoverProxyUrl(
+          seriesSlug,
+          project.work_display_code,
+          project.variant_number
+        );
+      }
     }
     return record;
   },
@@ -230,6 +254,7 @@ const _cachedWallpaperPack = unstable_cache(
         "id, role, storage_provider, storage_bucket, storage_path, mime_type, width, height, status"
       )
       .eq("project_id", project.id)
+      .eq("is_current", true)
       .eq("status", "ready");
 
     const outputs = (outputsData ?? []) as unknown as ProductionOutputRow[];

@@ -7,9 +7,8 @@
 //   the Gallery login page with a `next` return path (the login page has its
 //   own login/signup toggle, so the former ?tab=signup param is dropped).
 // - Header/Footer come from the ported editor island components.
-// - Checkout success/cancel URLs stay relative (`/success`, current path);
-//   the create-checkout-session Edge Function makes them absolute against the
-//   request Origin header, so the flow is single-origin by construction.
+// - Checkout is created by the same-origin Next.js billing API. User, price,
+//   Stripe mode, and redirect origin are all resolved server-side.
 
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from '@/components/editor/lib/router';
@@ -145,7 +144,7 @@ export const PlansPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, session, profile } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const returnTarget = useMemo(
@@ -206,7 +205,7 @@ export const PlansPage = () => {
       const successPath = returnTarget
         ? `/success?return_to=${encodeURIComponent(returnTarget)}`
         : '/success';
-      const url = await createCheckoutSessionUrl(user.id, session?.access_token, {
+      const url = await createCheckoutSessionUrl({
         successPath,
         cancelPath: currentPath,
       });

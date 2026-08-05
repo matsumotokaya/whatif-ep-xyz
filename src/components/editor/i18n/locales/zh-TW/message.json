@@ -8,6 +8,8 @@
     "onlyImageFiles": "請選擇圖片檔案",
     "upgradeComingSoon": "升級功能即將推出",
     "upgradeError": "升級失敗，請重試。",
+    "upgradeVerificationTitle": "無法確認 Premium 已啟用",
+    "upgradeVerificationDescription": "請勿再次付款。付款可能已完成。請返回帳戶頁面；如果 Premium 尚未啟用，請聯絡支援。",
     "saveFailed": "儲存失敗",
     "imageLoginRequired": "訪客免費模式下無法上傳圖片。登入後即可上傳。",
     "imageUploadFailed": "圖片上傳失敗。"
@@ -16,6 +18,8 @@
     "uploadComplete": "已成功上傳 {{count}} 張圖片",
     "uploadPartial": "{{success}} 張成功，{{fail}} 張失敗",
     "upgradeComplete": "升級完成！",
+    "upgradeConfirming": "正在確認 Premium 權限…",
+    "upgradeConfirmingDescription": "您已從付款頁面正常返回。我們正在驗證訂閱並更新您的帳戶。",
     "welcomePremium": "歡迎使用 IMAGINE Premium！所有進階功能現已可用。",
     "premiumFeatures": "進階功能",
     "feature1": "存取所有進階版橫幅",

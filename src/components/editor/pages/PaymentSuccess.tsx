@@ -45,64 +45,116 @@ export const PaymentSuccess = () => {
   const { t } = useTranslation(['message', 'common']);
   const [searchParams] = useSearchParams();
   const [countdown, setCountdown] = useState(5);
+  const [phase, setPhase] = useState<'confirming' | 'success' | 'error'>(() =>
+    searchParams.get('session_id') ? 'confirming' : 'error'
+  );
   const movedRef = useRef(false);
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
-    const returnTarget = resolveReturnTarget(searchParams.get('return_to'));
-
-    const moveNext = () => {
-      if (movedRef.current) return;
-      movedRef.current = true;
-      // Full page load so the root AuthProvider refetches the profile and the
-      // fresh premium tier is visible everywhere (see header comment).
-      window.location.replace(returnTarget);
-    };
+    let active = true;
 
     if (!sessionId) {
-      moveNext();
-      return;
+      return () => {
+        active = false;
+      };
     }
 
-    // Countdown timer
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          moveNext();
+    const confirm = async () => {
+      for (let attempt = 0; attempt < 5 && active; attempt += 1) {
+        try {
+          const response = await fetch('/api/subscription/confirm', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (response.ok && payload?.tier === 'premium') {
+            if (active) setPhase('success');
+            return;
+          }
+          if (response.status !== 202) {
+            break;
+          }
+        } catch {
+          // A short retry window covers webhook/database propagation.
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+      }
+      if (active) setPhase('error');
+    };
+    void confirm();
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (phase !== 'success') return;
+    const returnTarget = resolveReturnTarget(searchParams.get('return_to'));
+    const timer = window.setInterval(() => {
+      setCountdown((previous) => {
+        if (previous <= 1) {
+          window.clearInterval(timer);
+          if (!movedRef.current) {
+            movedRef.current = true;
+            window.location.replace(returnTarget);
+          }
           return 0;
         }
-        return prev - 1;
+        return previous - 1;
       });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [searchParams]);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [phase, searchParams]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 text-center">
-        {/* Success Icon */}
+        {/* Verified status icon */}
         <div className="mb-6">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 rounded-full">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-            </svg>
+          <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full ${
+            phase === 'error'
+              ? 'bg-red-500'
+              : 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600'
+          }`}>
+            {phase === 'confirming' ? (
+              <div className="h-9 w-9 animate-spin rounded-full border-4 border-white/40 border-t-white" />
+            ) : (
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={3}
+                  d={phase === 'success' ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}
+                />
+              </svg>
+            )}
           </div>
         </div>
 
         {/* Title */}
         <h1 className="text-3xl font-bold text-gray-900 mb-3">
-          🎉 {t('message:success.upgradeComplete')}
+          {phase === 'success'
+            ? `🎉 ${t('message:success.upgradeComplete')}`
+            : phase === 'confirming'
+              ? t('message:success.upgradeConfirming')
+              : t('message:error.upgradeVerificationTitle')}
         </h1>
 
         {/* Message */}
         <p className="text-gray-600 mb-6">
-          {t('message:success.welcomePremium')}
+          {phase === 'success'
+            ? t('message:success.welcomePremium')
+            : phase === 'confirming'
+              ? t('message:success.upgradeConfirmingDescription')
+              : t('message:error.upgradeVerificationDescription')}
         </p>
 
         {/* Features List */}
-        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-6 mb-6 text-left">
+        {phase === 'success' ? <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-6 mb-6 text-left">
           <h2 className="text-lg font-bold text-gray-900 mb-3">
             ✨ {t('message:success.premiumFeatures')}
           </h2>
@@ -120,12 +172,14 @@ export const PaymentSuccess = () => {
               <span>{t('message:success.feature3')}</span>
             </li>
           </ul>
-        </div>
+        </div> : null}
 
         {/* Redirect Message */}
-        <p className="text-gray-500 text-sm mb-4">
-          {t('message:success.redirecting', { seconds: countdown })}
-        </p>
+        {phase === 'success' ? (
+          <p className="text-gray-500 text-sm mb-4">
+            {t('message:success.redirecting', { seconds: countdown })}
+          </p>
+        ) : null}
 
         {/* Manual Redirect Button */}
         <button

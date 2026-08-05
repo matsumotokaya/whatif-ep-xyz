@@ -113,6 +113,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 STRIPE_SECRET_KEY=<your-stripe-secret-key>
 STRIPE_WEBHOOK_SECRET=<your-stripe-webhook-secret>
+STRIPE_SUBSCRIPTION_PRICE_ID=<your-premium-subscription-price-id>
 STRIPE_WALLPAPER_PRICE_ID=<your-wallpaper-price-id>
 RESEND_API_KEY=<your-resend-api-key>
 RESEND_FROM_EMAIL=noreply@whatif-ep.xyz
@@ -325,7 +326,8 @@ The Club の機能移行はここで完了です。以降はサイト全体の�
 ### 運用状況とフォローアップ
 - [x] **統合移行完了** — 2026-07-08 に `app.whatif-ep.xyz` の `301`、旧 IMAGINE 停止、`work_offers.target_url` cleanup 完了を確認
 - [ ] **Deferred cleanup** — Stage D 破壊片付け、editor 移植時の互換 shim / stale comment の整理
-- [ ] **Deferred security** — `create-checkout-session` 呼び出し元検証、admin 直 Supabase 操作の RLS 確認
+- [ ] **Billing cutover** — 認証済みのNext.js Checkoutへ統合済み。旧Supabase決済Edge Functionsは本番スモークテスト後に停止する
+- [ ] **Deferred security** — admin 直 Supabase 操作の RLS 確認
 - [ ] **R2カスタムドメイン** — 既存ギャラリー画像は現在もR2のデフォルトURL（`pub-xxx.r2.dev`）。カスタムドメインへの切り替え予定（IMAGINE production アセットは既に `assets.whatif-ep.xyz`）
 
 ### Later-Session Backlog
@@ -334,7 +336,7 @@ The Club の機能移行はここで完了です。以降はサイト全体の�
 
 1. Stage D の asset cleanup を整理する
 2. editor 移植時に残した互換 shim / stale comment を減らす
-3. `create-checkout-session` の呼び出し元検証を入れる
+3. 旧Supabase決済Edge Functionsを新フローの本番確認後に停止する
 4. admin 直 Supabase 操作の RLS / 権限境界を確認する
 5. 必要なら既存ギャラリー画像の R2 カスタムドメイン化を進める
 
@@ -345,6 +347,7 @@ The Club の機能移行はここで完了です。以降はサイト全体の�
 ### 今後の作業計画
 - docs の入口と運用ルール: [docs/README.md](docs/README.md)
 - 現行アーキテクチャ: [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md)
+- 決済の構成・Webhook・障害対応: [docs/BILLING_RUNBOOK.md](docs/BILLING_RUNBOOK.md)
 - プロダクト方針: [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md)
 - 壁紙量産・収益動線・残タスク: [docs/WALLPAPER_PIPELINE_PLAN.md](docs/WALLPAPER_PIPELINE_PLAN.md)「現在地と残タスク」
 - 統合移行の履歴: [docs/archive/CUTOVER_MILESTONES.md](docs/archive/CUTOVER_MILESTONES.md), [docs/archive/NEXT_SESSION_HANDOFF.md](docs/archive/NEXT_SESSION_HANDOFF.md), [docs/archive/CONSOLIDATION_PLAN.md](docs/archive/CONSOLIDATION_PLAN.md)

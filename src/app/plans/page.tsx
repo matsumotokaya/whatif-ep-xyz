@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 // /plans (was IMAGINE's /upgrade) -> three plan cards + premium checkout via
-// the create-checkout-session Edge Function. /upgrade redirects here (see
+// the authenticated Next.js subscription Checkout route. /upgrade redirects here (see
 // next.config.ts).
 export default function PlansPage() {
   return (

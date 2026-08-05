@@ -25,3 +25,7 @@ export function getStripe(): Stripe {
 export function getWallpaperPriceId(): string | undefined {
   return process.env.STRIPE_WALLPAPER_PRICE_ID;
 }
+
+export function getSubscriptionPriceId(): string | undefined {
+  return process.env.STRIPE_SUBSCRIPTION_PRICE_ID;
+}

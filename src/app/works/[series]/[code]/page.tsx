@@ -9,7 +9,10 @@ import {
   getVariantDetailImageCandidates,
   getVariantDisplayImageCandidates,
 } from "@/lib/work-images";
-import { getPublishedWallpaperPack } from "@/lib/wallpaper";
+import {
+  getPublishedWallpaperPack,
+  wallpaperCoverProxyUrl,
+} from "@/lib/wallpaper";
 import { SavedWorksProvider } from "@/context/SavedWorksContext";
 import { SaveButton } from "@/components/SaveButton";
 import { NearbyWallpapers } from "./NearbyWallpapers";
@@ -350,7 +353,15 @@ export default async function WorkDetailPage({
               downloadFilename={downloadFilename}
               storeUrl={resolveOfferUrl(storeOffer?.targetUrl)}
               wallpaperHref={wallpaperHref}
-              wallpaperCoverUrl={wallpaperPack?.cover?.publicUrl ?? null}
+              wallpaperCoverUrl={
+                wallpaperPack?.cover
+                  ? wallpaperCoverProxyUrl(
+                      work.seriesSlug,
+                      work.displayCode,
+                      currentVariant.variantNumber
+                    )
+                  : null
+              }
               wallpaperStateUrl={
                 wallpaperPack
                   ? `${userStateUrl}&purchaseOnly=1`

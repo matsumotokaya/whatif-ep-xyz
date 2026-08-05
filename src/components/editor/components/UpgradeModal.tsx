@@ -11,7 +11,7 @@ interface UpgradeModalProps {
 
 export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
   const { t } = useTranslation(['modal', 'message', 'common']);
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +27,7 @@ export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
     setLoading(true);
 
     try {
-      const url = await createCheckoutSessionUrl(user.id, session?.access_token);
+      const url = await createCheckoutSessionUrl();
       window.location.href = url;
     } catch (error) {
       console.error('Failed to start upgrade checkout:', error);
