@@ -36,6 +36,7 @@ export interface RecordWallpaperPurchaseResult {
   // Per-purchase download token (newly generated, or the existing row's token
   // when the session was already recorded). Null only on failure.
   downloadToken: string | null;
+  notificationStatus: "pending" | "sent" | "failed";
 }
 
 // Returns true when the user already owns the wallpaper (status = 'paid').
@@ -167,43 +168,11 @@ export async function recordWallpaperPurchase(
     console.error(
       "recordWallpaperPurchase: admin client unavailable (missing service role key)."
     );
-    return { ok: false, alreadyExisted: false, downloadToken: null };
-  }
-
-  const { data: existingPurchase, error: existingPurchaseError } = await (
-    supabase.from("wallpaper_purchases") as unknown as {
-      select: (
-        columns: string
-      ) => {
-        eq: (
-          column: string,
-          value: string
-        ) => {
-          maybeSingle: () => Promise<{
-            data: { id: string; download_token: string | null } | null;
-            error: { message: string } | null;
-          }>;
-        };
-      };
-    }
-  )
-    .select("id, download_token")
-    .eq("stripe_checkout_session_id", input.stripeCheckoutSessionId)
-    .maybeSingle();
-
-  if (existingPurchaseError) {
-    console.error(
-      "recordWallpaperPurchase existing lookup failed:",
-      existingPurchaseError.message
-    );
-    return { ok: false, alreadyExisted: false, downloadToken: null };
-  }
-
-  if (existingPurchase?.id) {
     return {
-      ok: true,
-      alreadyExisted: true,
-      downloadToken: existingPurchase.download_token ?? null,
+      ok: false,
+      alreadyExisted: false,
+      downloadToken: null,
+      notificationStatus: "failed",
     };
   }
 
@@ -223,28 +192,135 @@ export async function recordWallpaperPurchase(
     amount: input.amount,
     currency: input.currency,
     status: "paid",
+    notification_status: "pending",
     purchased_at: nowIso,
     updated_at: nowIso,
   };
 
-  // The admin client is created without generated DB types, so the typed
-  // upsert overloads resolve to `never`. Cast the table builder to bypass the
-  // unknown-schema inference (matches the untyped pattern used elsewhere).
-  const { error } = await (
+  // Insert exactly once by Checkout Session. ignoreDuplicates prevents the
+  // webhook and success-page fallback from overwriting each other's token.
+  const { data: inserted, error } = await (
     supabase.from("wallpaper_purchases") as unknown as {
       upsert: (
         values: typeof row,
-        options: { onConflict: string }
-      ) => Promise<{ error: { message: string } | null }>;
+        options: { onConflict: string; ignoreDuplicates: boolean }
+      ) => {
+        select: (columns: string) => {
+          maybeSingle: () => Promise<{
+            data: {
+              id: string;
+              download_token: string | null;
+              notification_status: "pending" | "sent" | "failed";
+            } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
     }
-  ).upsert(row, { onConflict: "stripe_checkout_session_id" });
+  )
+    .upsert(row, {
+      onConflict: "stripe_checkout_session_id",
+      ignoreDuplicates: true,
+    })
+    .select("id, download_token, notification_status")
+    .maybeSingle();
 
   if (error) {
     console.error("recordWallpaperPurchase upsert failed:", error.message);
-    return { ok: false, alreadyExisted: false, downloadToken: null };
+    return {
+      ok: false,
+      alreadyExisted: false,
+      downloadToken: null,
+      notificationStatus: "failed",
+    };
   }
 
-  return { ok: true, alreadyExisted: false, downloadToken };
+  if (inserted?.id) {
+    return {
+      ok: true,
+      alreadyExisted: false,
+      downloadToken: inserted.download_token ?? downloadToken,
+      notificationStatus: inserted.notification_status,
+    };
+  }
+
+  const { data: existingPurchase, error: existingPurchaseError } = await (
+    supabase.from("wallpaper_purchases") as unknown as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => Promise<{
+            data: {
+              id: string;
+              download_token: string | null;
+              notification_status: "pending" | "sent" | "failed";
+            } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    }
+  )
+    .select("id, download_token, notification_status")
+    .eq("stripe_checkout_session_id", input.stripeCheckoutSessionId)
+    .maybeSingle();
+
+  if (existingPurchaseError || !existingPurchase?.id) {
+    console.error(
+      "recordWallpaperPurchase idempotent lookup failed:",
+      existingPurchaseError?.message ?? "row missing after conflict"
+    );
+    return {
+      ok: false,
+      alreadyExisted: false,
+      downloadToken: null,
+      notificationStatus: "failed",
+    };
+  }
+
+  return {
+    ok: true,
+    alreadyExisted: true,
+    downloadToken: existingPurchase.download_token ?? null,
+    notificationStatus: existingPurchase.notification_status,
+  };
+}
+
+export async function markWallpaperPurchaseNotification(params: {
+  stripeCheckoutSessionId: string;
+  status: "sent" | "failed";
+  error?: string | null;
+}): Promise<boolean> {
+  const supabase = createAdminClient();
+  if (!supabase) return false;
+
+  const now = new Date().toISOString();
+  const { error } = await (
+    supabase.from("wallpaper_purchases") as unknown as {
+      update: (values: {
+        notification_status: "sent" | "failed";
+        notification_error: string | null;
+        notification_sent_at: string | null;
+        updated_at: string;
+      }) => {
+        eq: (column: string, value: string) => Promise<{
+          error: { message: string } | null;
+        }>;
+      };
+    }
+  )
+    .update({
+      notification_status: params.status,
+      notification_error: params.error ?? null,
+      notification_sent_at: params.status === "sent" ? now : null,
+      updated_at: now,
+    })
+    .eq("stripe_checkout_session_id", params.stripeCheckoutSessionId);
+
+  if (error) {
+    console.error("markWallpaperPurchaseNotification failed:", error.message);
+    return false;
+  }
+  return true;
 }
 
 export interface VerifyCheckoutSessionResult {
@@ -318,9 +394,10 @@ export async function verifyAndRecordCheckoutSession(
   // If this fallback created the row (buyer landed before the webhook), send
   // the confirmation/download-link email here; the webhook will then see
   // alreadyExisted and skip its own send.
-  if (result.ok && !result.alreadyExisted && buyerEmail) {
+  if (result.ok && result.notificationStatus !== "sent" && buyerEmail) {
     try {
       await sendWallpaperPurchaseNotifications({
+        notificationId: session.id,
         buyerEmail,
         buyerName: session.customer_details?.name ?? null,
         seriesSlug: metadata.series_slug ?? null,
@@ -331,7 +408,19 @@ export async function verifyAndRecordCheckoutSession(
         downloadToken: result.downloadToken,
         isGuest: !userId,
       });
+      await markWallpaperPurchaseNotification({
+        stripeCheckoutSessionId: session.id,
+        status: "sent",
+      });
     } catch (notificationError) {
+      await markWallpaperPurchaseNotification({
+        stripeCheckoutSessionId: session.id,
+        status: "failed",
+        error:
+          notificationError instanceof Error
+            ? notificationError.message
+            : String(notificationError),
+      });
       console.error(
         "verifyAndRecordCheckoutSession: failed to send purchase notification:",
         notificationError instanceof Error

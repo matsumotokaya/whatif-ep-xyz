@@ -11,6 +11,15 @@ interface SendEmailParams {
   subject: string;
   text: string;
   replyTo?: string | null;
+  idempotencyKey?: string;
+}
+
+interface PremiumActivatedNotificationParams {
+  notificationId: string;
+  email: string;
+  fullName?: string | null;
+  status: "active" | "canceling" | "canceled";
+  expiresAt: string | null;
 }
 
 async function sendEmail(params: SendEmailParams): Promise<void> {
@@ -24,6 +33,9 @@ async function sendEmail(params: SendEmailParams): Promise<void> {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      ...(params.idempotencyKey
+        ? { "Idempotency-Key": params.idempotencyKey }
+        : {}),
     },
     body: JSON.stringify({
       from: DEFAULT_FROM_EMAIL,
@@ -42,6 +54,7 @@ async function sendEmail(params: SendEmailParams): Promise<void> {
 }
 
 interface WallpaperPurchaseNotificationParams {
+  notificationId: string;
   buyerEmail: string;
   buyerName?: string | null;
   seriesSlug: string | null;
@@ -130,6 +143,7 @@ export async function sendWallpaperPurchaseNotifications(
         downloadSection +
         `Thank you for your purchase.\n`,
       replyTo: DEFAULT_ADMIN_EMAIL,
+      idempotencyKey: `wallpaper-buyer/${params.notificationId}`,
     }),
     sendEmail({
       to: DEFAULT_ADMIN_EMAIL,
@@ -143,6 +157,41 @@ export async function sendWallpaperPurchaseNotifications(
         `Variant: ${variantLabel}\n` +
         `Amount: ${amountLabel}\n`,
       replyTo: params.buyerEmail,
+      idempotencyKey: `wallpaper-admin/${params.notificationId}`,
+    }),
+  ]);
+}
+
+export async function sendPremiumActivatedNotifications(
+  params: PremiumActivatedNotificationParams
+): Promise<void> {
+  const memberName = params.fullName?.trim() || params.email;
+  const expiry = params.expiresAt ?? "-";
+
+  await Promise.all([
+    sendEmail({
+      to: params.email,
+      subject: "Your WHATIF Premium membership is active",
+      text:
+        `Hello ${memberName},\n\n` +
+        `Your WHATIF Premium membership is now active.\n` +
+        `Status: ${params.status}\n` +
+        `Current period ends: ${expiry}\n\n` +
+        `Thank you for joining Premium.\n`,
+      replyTo: DEFAULT_ADMIN_EMAIL,
+      idempotencyKey: `premium-buyer/${params.notificationId}`,
+    }),
+    sendEmail({
+      to: DEFAULT_ADMIN_EMAIL,
+      subject: `[WHATIF] Premium activated: ${params.email}`,
+      text:
+        `A WHATIF account became Premium.\n\n` +
+        `Name: ${memberName}\n` +
+        `Email: ${params.email}\n` +
+        `Status: ${params.status}\n` +
+        `Current period ends: ${expiry}\n`,
+      replyTo: params.email,
+      idempotencyKey: `premium-admin/${params.notificationId}`,
     }),
   ]);
 }

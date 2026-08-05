@@ -22,7 +22,7 @@ import {
 
 export function MyPage() {
   const { t } = useTranslation(['auth', 'common', 'message']);
-  const { user, session, profile, loading, profileLoading, signOut } = useAuth();
+  const { user, profile, loading, profileLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<SubscriptionPortalErrorDetails | null>(null);
@@ -46,7 +46,7 @@ export function MyPage() {
     setPortalLoading(true);
     setPortalError(null);
     try {
-      window.location.href = await createPortalSessionUrl(session?.access_token);
+      window.location.href = await createPortalSessionUrl('/mypage');
     } catch (error) {
       console.error('Unexpected error creating portal session:', error);
       if (isSubscriptionPortalSessionRecoveryError(error)) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 
 interface BuyWallpaperButtonProps {
@@ -50,18 +50,20 @@ export default function BuyWallpaperButton({
   const labels = COPY[lang];
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
+  const attemptIdRef = useRef<string | null>(null);
 
   async function handleClick() {
     setPending(true);
     setError(false);
 
     try {
+      attemptIdRef.current ??= crypto.randomUUID();
       const response = await fetch(
         `/api/works/${series}/${code}/wallpaper/checkout`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ variant }),
+          body: JSON.stringify({ variant, attemptId: attemptIdRef.current }),
         }
       );
 

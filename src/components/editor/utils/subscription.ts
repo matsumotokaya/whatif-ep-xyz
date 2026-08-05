@@ -1,8 +1,3 @@
-import { getSupabase } from './supabase';
-
-const STRIPE_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID;
-const STRIPE_MODE = process.env.NEXT_PUBLIC_STRIPE_MODE === 'test' ? 'test' : 'live';
-
 export interface SubscriptionPortalErrorDetails {
   code: string;
   errorId?: string;
@@ -32,52 +27,6 @@ export function isSubscriptionPortalSessionRecoveryError(error: unknown) {
     && SESSION_RECOVERY_ERROR_CODES.has(error.details.code);
 }
 
-async function getAuthHeaders() {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.auth.getSession();
-
-  if (error) {
-    throw new SubscriptionPortalError({
-      code: 'SubscriptionPortalClientSessionFailed',
-      message: error.message,
-      copyText: [
-        'error_code=SubscriptionPortalClientSessionFailed',
-        'status=n/a',
-        'error_id=n/a',
-        `message=${error.message}`,
-      ].join('\n'),
-    });
-  }
-
-  const accessToken = data.session?.access_token;
-  if (!accessToken) {
-    throw new SubscriptionPortalError({
-      code: 'SubscriptionPortalClientSessionMissing',
-      message: 'Login session is missing on the client.',
-      copyText: [
-        'error_code=SubscriptionPortalClientSessionMissing',
-        'status=n/a',
-        'error_id=n/a',
-        'message=Login session is missing on the client.',
-      ].join('\n'),
-    });
-  }
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
-  };
-}
-
-async function resolveAuthHeaders(accessToken?: string) {
-  if (accessToken) {
-    return {
-      Authorization: `Bearer ${accessToken}`,
-    };
-  }
-
-  return getAuthHeaders();
-}
-
 async function parsePortalErrorResponse(response?: Response) {
   if (!response) {
     return null;
@@ -100,7 +49,11 @@ async function parsePortalErrorResponse(response?: Response) {
 async function buildPortalError(error: unknown, response?: Response) {
   const payload = await parsePortalErrorResponse(response);
   const code = payload?.error_code
-    || (error instanceof Error ? error.name : 'SubscriptionPortalUnknownError');
+    || (response?.status === 401
+      ? 'SubscriptionPortalUnauthorized'
+      : error instanceof Error
+        ? error.name
+        : 'SubscriptionPortalUnknownError');
   const message = payload?.details
     || payload?.message
     || payload?.error
@@ -130,47 +83,37 @@ export interface CheckoutSessionOptions {
 }
 
 export async function createCheckoutSessionUrl(
-  userId: string,
-  accessToken?: string,
   options: CheckoutSessionOptions = {},
 ) {
-  if (!STRIPE_PRICE_ID) {
-    throw new Error('stripe_price_id_missing');
-  }
-
-  const headers = await resolveAuthHeaders(accessToken);
-  const supabase = await getSupabase();
-
-  const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-    headers,
-    body: {
-      userId,
-      priceId: STRIPE_PRICE_ID,
-      stripeMode: STRIPE_MODE,
-      successPath: options.successPath,
-      cancelPath: options.cancelPath,
-    },
+  const response = await fetch('/api/subscription/checkout', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
   });
+  const data = await response.json().catch(() => null);
 
-  if (error || !data?.url) {
+  if (!response.ok || !data?.url) {
     throw new Error('checkout_session_failed');
   }
 
   return data.url as string;
 }
 
-export async function createPortalSessionUrl(accessToken?: string) {
-  const headers = await resolveAuthHeaders(accessToken);
-  const supabase = await getSupabase();
-  const { data, error, response } = await supabase.functions.invoke('create-portal-session', {
-    headers,
-    body: {
-      stripeMode: STRIPE_MODE,
-    },
+export async function createPortalSessionUrl(returnPath = '/mypage') {
+  const response = await fetch('/api/account/portal', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ returnPath }),
   });
+  const data = await response.json().catch(() => null);
 
-  if (error) {
-    throw await buildPortalError(error, response);
+  if (!response.ok) {
+    throw await buildPortalError(
+      new Error(data?.error || 'Subscription portal request failed'),
+      response,
+    );
   }
 
   if (!data?.url) {

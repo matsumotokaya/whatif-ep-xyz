@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { canAccessClub, getClubAccess } from "@/lib/club/access";
-import { getPublishedWallpaperPack } from "@/lib/wallpaper";
+import {
+  getPublishedWallpaperPack,
+  wallpaperCoverProxyUrl,
+} from "@/lib/wallpaper";
 import {
   hasPurchasedWallpaper,
   isValidWallpaperDownloadToken,
@@ -129,6 +132,12 @@ export default async function WallpaperPage({
   const justPurchased = purchasedValue === "1";
 
   const entitled = isPremium || hasPurchased || tokenEntitled;
+  const publicCover = pack.cover
+    ? {
+        ...pack.cover,
+        publicUrl: wallpaperCoverProxyUrl(series, code, variantNumber),
+      }
+    : null;
 
   const variantQuery = variantNumber > 1 ? `?variant=${variantNumber}` : "";
   const downloadUrl =
@@ -144,7 +153,15 @@ export default async function WallpaperPage({
 
   return (
     <WallpaperPageContent
-      pack={{ cover: pack.cover, wallpapers: pack.wallpapers }}
+      // Clean full-resolution outputs are paid deliverables. Never serialize
+      // their public object URLs into an unentitled page; a CSS watermark does
+      // not protect the underlying <img src>. The package cover is the public
+      // sales asset and remains safe to show.
+      pack={{
+        cover: publicCover,
+        wallpapers: entitled ? pack.wallpapers : [],
+        wallpaperCount: pack.wallpapers.length,
+      }}
       workTitle={work.title}
       workDisplayCode={work.displayCode}
       series={series}

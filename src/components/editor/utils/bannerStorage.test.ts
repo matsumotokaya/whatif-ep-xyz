@@ -301,6 +301,7 @@ describe('bannerStorage.getAll preview metadata rollout', () => {
         width: 100,
         height: 100,
         thumbnail: 'https://example.com/template.jpg',
+        backgroundColor: '#ffffff',
       },
     }];
     const makeBuilder = (result: unknown) => {
@@ -353,6 +354,7 @@ describe('bannerStorage.duplicate preview cloning', () => {
         width: 100,
         height: 100,
         thumbnail: 'https://example.com/template.jpg',
+        backgroundColor: '#ffffff',
       },
       elements: [],
       canvasColor: '#808080',
@@ -425,6 +427,7 @@ describe('bannerStorage.duplicate preview cloning', () => {
       name: 'Template',
       width: 100,
       height: 100,
+      backgroundColor: '#ffffff',
     });
 
     vi.stubGlobal('fetch', originalFetch);

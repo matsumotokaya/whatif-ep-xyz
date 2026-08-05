@@ -26,6 +26,11 @@ export async function POST(
     // Empty / invalid body is fine; variant defaults to 1.
   }
   const variant = parseVariant(body.variant);
+  const attemptId =
+    typeof body.attemptId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(body.attemptId)
+      ? body.attemptId
+      : null;
 
   // Guest checkout is allowed: anonymous visitors go straight to Stripe,
   // which collects their email. Signed-in users keep the existing flow
@@ -53,7 +58,11 @@ export async function POST(
   }
 
   const origin =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || requestOrigin;
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ||
+    (requestOrigin === "http://localhost:3710" ||
+    requestOrigin === "http://127.0.0.1:3710"
+      ? requestOrigin
+      : "https://whatif-ep.xyz");
 
   // user_id is only present for signed-in buyers; its absence marks a guest
   // purchase for the webhook / success fallback.
@@ -68,21 +77,29 @@ export async function POST(
   }
 
   try {
-    const session = await getStripe().checkout.sessions.create({
-      mode: "payment",
-      line_items: [
-        { price: process.env.STRIPE_WALLPAPER_PRICE_ID, quantity: 1 },
-      ],
-      client_reference_id: access.user?.id,
-      // Signed-in buyers get their email prefilled; guests type theirs in
-      // Checkout (Stripe always collects it), and we reuse it for the
-      // download-link email.
-      customer_email: access.user?.email ?? undefined,
-      metadata,
-      payment_intent_data: { metadata },
-      success_url: `${origin}/works/${series}/${code}/wallpaper?variant=${variant}&purchased=1&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/works/${series}/${code}/wallpaper?variant=${variant}`,
-    });
+    const priceId = process.env.STRIPE_WALLPAPER_PRICE_ID;
+    if (!priceId) {
+      throw new Error("STRIPE_WALLPAPER_PRICE_ID is not configured.");
+    }
+    const session = await getStripe().checkout.sessions.create(
+      {
+        mode: "payment",
+        // Keep fulfillment synchronous until async-payment event delivery is
+        // explicitly enabled and tested in production.
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        client_reference_id: access.user?.id,
+        // Signed-in buyers get their email prefilled; guests type theirs in
+        // Checkout (Stripe always collects it), and we reuse it for the
+        // download-link email.
+        customer_email: access.user?.email ?? undefined,
+        metadata,
+        payment_intent_data: { metadata },
+        success_url: `${origin}/works/${series}/${code}/wallpaper?variant=${variant}&purchased=1&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/works/${series}/${code}/wallpaper?variant=${variant}`,
+      },
+      attemptId ? { idempotencyKey: `wallpaper-checkout:${attemptId}` } : undefined
+    );
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
