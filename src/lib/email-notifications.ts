@@ -119,6 +119,9 @@ export async function sendWallpaperPurchaseNotifications(
       : "variant -";
   const amountLabel = formatMoney(params.amount, params.currency);
   const downloadPageUrl = buildDownloadPageUrl(params);
+  const plansUrl =
+    (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ||
+      "https://whatif-ep.xyz") + "/plans";
 
   // English base with a Japanese supplement for the download link — the mail
   // is transactional and the link is the actionable part.
@@ -129,6 +132,16 @@ export async function sendWallpaperPurchaseNotifications(
       `以下のリンクから壁紙パックをダウンロードできます（ご購入者専用のリンクです。第三者と共有しないでください）:\n` +
       `${downloadPageUrl}\n\n`
     : "";
+
+  // Someone who just bought one wallpaper is a strong Premium candidate —
+  // a one-line upsell to unlimited downloads, same bilingual pattern as the
+  // download link above.
+  const premiumUpsellSection =
+    `Want every wallpaper in the gallery? WHATIF Premium ($3/month) gives you unlimited wallpaper downloads, plus IMAGINE premium assets:\n` +
+    `${plansUrl}\n\n` +
+    `--\n` +
+    `すべての壁紙をダウンロードし放題にしたい方へ：WHATIF プレミアム（月額$3）なら、ギャラリーの全壁紙が無制限、IMAGINEのプレミアムアセットもご利用いただけます:\n` +
+    `${plansUrl}\n\n`;
 
   await Promise.all([
     sendEmail({
@@ -141,6 +154,7 @@ export async function sendWallpaperPurchaseNotifications(
         `Variant: ${variantLabel}\n` +
         `Amount: ${amountLabel}\n\n` +
         downloadSection +
+        premiumUpsellSection +
         `Thank you for your purchase.\n`,
       replyTo: DEFAULT_ADMIN_EMAIL,
       idempotencyKey: `wallpaper-buyer/${params.notificationId}`,
