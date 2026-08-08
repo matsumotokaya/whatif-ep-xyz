@@ -7,7 +7,7 @@
 
 ## Current
 
-毎回まず読むのはこの3つだけ:
+毎回まず読むのはこの4つだけ:
 
 1. [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
    - プロダクト方針、価値、価格の正本
@@ -15,6 +15,8 @@
    - 現行アーキテクチャの横断地図。構成を忘れたときだけ読む
 3. [WALLPAPER_PIPELINE_PLAN.md](./WALLPAPER_PIPELINE_PLAN.md)
    - 壁紙運用・量産・収益動線まわりの残タスク
+4. [UX_BILLING_FIX_LIST.md](./UX_BILLING_FIX_LIST.md)
+   - 本番確認で見つかったUX・決済の修正一覧と受け入れ条件
 
 補足:
 

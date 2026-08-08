@@ -16,6 +16,7 @@ WHATIF EP - Digital Art Gallery
 2. [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) — プロダクト全体の正本（4層ラダー / 価格 / The Club 格下げ）
 3. [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) — 現行アーキテクチャの横断地図
 4. [docs/WALLPAPER_PIPELINE_PLAN.md](docs/WALLPAPER_PIPELINE_PLAN.md) — 壁紙運用・量産・収益動線の残タスク
+5. [docs/UX_BILLING_FIX_LIST.md](docs/UX_BILLING_FIX_LIST.md) — 本番確認で見つかったUX・決済の修正一覧
 
 データモデルは `episode` から `work` / `work_variant` 中心へ移行済み（canonical works は IMAGINE Content Factory から同期）。
 
@@ -128,6 +129,18 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 `NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は管理画面からの画像アップロード/削除用。
 `R2_ENDPOINT` は未指定なら `R2_ACCOUNT_ID` から自動生成します。
 `RESEND_*` は壁紙購入通知メール（購入者 + 管理者）に使います。
+
+## Billing verification status
+
+2026-08-08にStripe SandboxとVercel Previewで、別の新規アカウントを使って次を確認済み:
+
+- サブスクリプションCheckoutとカード決済
+- 成功画面への実Checkout Session ID付きリダイレクト
+- 手動操作なしのPremium反映とPremium権限
+- Customer Portalでの期間終了時解約予約（期間内はPremiumを維持）
+- 壁紙の単品購入とダウンロード
+
+期間終了時の自動失効は今回の本番リリース条件から除外し、解約予約済みのSandboxテストアカウントで後日確認する。確認時は `customer.subscription.deleted` のWebhookが2xxで完了し、Supabaseが `free / canceled`、画面とPremium権限が失効状態になることを確認する。残項目と受け入れ条件は [UX・決済 修正一覧](docs/UX_BILLING_FIX_LIST.md) を参照。
 
 ## Development
 
