@@ -30,6 +30,8 @@ interface AuthContextType {
     password: string,
     nextPath?: string
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -204,6 +206,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const resetPasswordForEmail = async (email: string) => {
+    // Same cookie-based "next" handoff as signUpWithEmail: /auth/callback
+    // reads whatif_auth_next when the recovery link redirects back without
+    // its own next param.
+    setAuthNextCookie('/auth/update-password');
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    return { error: error?.message || null };
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    return { error: error?.message || null };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut({ scope: 'local' });
     setProfile(null);
@@ -221,6 +238,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithEmail,
         signInWithLegacyId,
         signUpWithEmail,
+        resetPasswordForEmail,
+        updatePassword,
         signOut,
       }}
     >

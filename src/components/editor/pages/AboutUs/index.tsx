@@ -7,7 +7,7 @@ import { JapaneseContent } from './content/JapaneseContent';
 import { KoreanContent } from './content/KoreanContent';
 import { ChineseSimplifiedContent } from './content/ChineseSimplifiedContent';
 import { ChineseTraditionalContent } from './content/ChineseTraditionalContent';
-import { PublicPageLayout } from '../../components/PublicPageLayout';
+import { WhatifPublicPageLayout } from '@/components/WhatifPublicPageLayout';
 import { resolvePageLanguage } from '../../utils/pageLanguage';
 
 export function AboutUs() {
@@ -40,7 +40,7 @@ export function AboutUs() {
   }[pageLanguage];
 
   return (
-    <PublicPageLayout
+    <WhatifPublicPageLayout
       title={title}
       description={description}
       maxWidthClassName="max-w-5xl"
@@ -73,7 +73,7 @@ export function AboutUs() {
           </div>
         </div>
       )}
-    </PublicPageLayout>
+    </WhatifPublicPageLayout>
   );
 }
 

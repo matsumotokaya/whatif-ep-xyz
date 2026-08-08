@@ -41,9 +41,23 @@ WHATIF EP - Digital Art Gallery
 | Styling | Tailwind CSS v4 |
 | Hosting | Vercel |
 | Database | Supabase (Postgres) |
+| Auth | Supabase Auth（email/password・Google OAuth・legacy Instagram会員は `/auth/legacy-login`） |
+| Payments | Stripe（サブスク + 壁紙単品購入） |
+| Email | Resend。**2つの独立した送信経路**があるので注意（詳細は下記「Auth・メール配信の仕組み」） |
 | Image Storage | Cloudflare R2 |
 | Analytics | Google Analytics (G-X5E0WH9Y43) |
 | Repository | github.com/matsumotokaya/whatif-ep-xyz |
+
+### Auth・メール配信の仕組み（重要・見落としやすい）
+
+Resend は **アプリコードから直接呼ぶ経路** と **Supabase Auth 経由の経路** の2つがあり、設定場所が別々。
+
+| 送信内容 | 経路 | 設定場所 |
+|---|---|---|
+| 壁紙購入通知・アカウント通知 | アプリコード（`src/lib/...`）が Resend API を直接呼ぶ | この repo の `.env.local`（`RESEND_API_KEY` / `RESEND_FROM_EMAIL`） |
+| サインアップ確認・パスワードリセット等の認証メール | **Supabase Auth（GoTrue）** がカスタムSMTP経由で送る。SMTPサーバーとして `smtp.resend.com` を指定しているだけで、コード上は `supabase.auth.signUp()` を呼んでいるのみ | **Supabaseダッシュボード** `Authentication → Emails → SMTP Settings`（接続情報・送信者名）と `→ Templates`（件名・本文）。**この repo のコード・env var には一切現れない** |
+
+認証メールの送信元表示名やメール本文の文言（旧IMAGINE表記など）を直したいときは、コードではなく上記のSupabaseダッシュボードを編集する。カスタムSMTP未設定の場合、Supabaseのビルトインメール送信は**プロジェクトのチームメンバー宛にしか届かない**という制限があるため、本番で一般ユーザーへの確認メールが届かない場合はまずこの設定を確認する。
 
 ## Project Structure
 
@@ -133,7 +147,7 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 
 `NEXT_PUBLIC_R2_BASE_URL` はギャラリー画像用、`R2_*` は管理画面からの画像アップロード/削除用。
 `R2_ENDPOINT` は未指定なら `R2_ACCOUNT_ID` から自動生成します。
-`RESEND_*` は壁紙購入通知メール（購入者 + 管理者）に使います。
+`RESEND_*` は壁紙購入通知メール（購入者 + 管理者）に使います。**サインアップ確認等の認証メールはこの env var を経由しません**（Supabaseダッシュボードの別設定。詳細は上記「Auth・メール配信の仕組み」）。
 
 ## Billing verification status
 

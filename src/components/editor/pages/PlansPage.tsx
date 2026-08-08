@@ -195,7 +195,7 @@ export const PlansPage = () => {
     }
 
     if (isPremium) {
-      openTarget(navigate, returnTarget ?? '/mypage');
+      openTarget(navigate, returnTarget ?? '/account');
       return;
     }
 

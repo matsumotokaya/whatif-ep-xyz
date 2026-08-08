@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { ImaginePublicPagesApp } from "@/components/editor/ImaginePublicPagesApp";
+import ContactPageClient from "./ContactPageClient";
 
 export const metadata: Metadata = {
-  title: "IMAGINE Contact",
-  description: "Contact IMAGINE.",
+  title: "Contact — WHATIF",
+  description: "Contact WHATIF.",
 };
 
 export default function ImagineContactPage() {
-  return (
-    <Suspense fallback={null}>
-      <ImaginePublicPagesApp page="contact" />
-    </Suspense>
-  );
+  return <ContactPageClient />;
 }

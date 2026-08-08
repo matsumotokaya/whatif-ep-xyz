@@ -5,10 +5,11 @@ import { useEditorFonts } from './lib/fonts';
 import { useParams } from './lib/router';
 import { TemplateGallery } from './pages/TemplateGallery';
 import { TemplatesBySize } from './pages/TemplatesBySize';
-import './i18n';
+import { useEditorLanguageSync } from './i18n/useLanguageSync';
 
 export function ImagineTemplatesApp() {
   useEditorFonts();
+  useEditorLanguageSync();
   const { sizeKey } = useParams<{ sizeKey: string }>();
 
   return (

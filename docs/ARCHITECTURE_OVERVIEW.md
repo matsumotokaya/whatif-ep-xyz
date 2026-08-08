@@ -49,6 +49,15 @@ app.whatif-ep.xyz
   -> https://whatif-ep.xyz/
 ```
 
+### Auth & Email Delivery（見落としやすいので明記）
+
+Resend への送信経路は**アプリコード経由**と**Supabase Auth経由**の2つがあり、設定場所が完全に別れている。
+
+- **アプリコード経由**（`src/lib/...` が Resend API を直接叩く）: 壁紙購入通知・アカウント通知メール。設定はこの repo の `.env.local`（`RESEND_API_KEY` / `RESEND_FROM_EMAIL`）
+- **Supabase Auth経由**（GoTrue が SMTP 経由で送る。SMTPサーバーとして `smtp.resend.com` を指しているだけ）: サインアップ確認・パスワードリセット等の認証メール。アプリ側は `supabase.auth.signUp()` 等を呼ぶのみで、送信者名・件名・本文・SMTP認証情報はすべて**Supabaseダッシュボード**（`Authentication → Emails → SMTP Settings` / `→ Templates`）で管理。**この repo のコード・env varには一切現れない。**
+
+カスタムSMTP未設定だとSupabaseのビルトインメール送信は「プロジェクトのチームメンバー宛にしか届かない」制限があるため、認証メールが届かないトラブルの調査ではまずこのダッシュボード設定を確認する。
+
 ## Source Of Truth
 
 - App behavior: `src/app`, `src/components`, `src/lib`

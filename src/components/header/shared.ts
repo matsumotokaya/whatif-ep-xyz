@@ -59,7 +59,7 @@ export const sharedChromeCopy: Record<
   },
   ja: {
     menu: "メニュー",
-    login: "ログイン",
+    login: "サインイン",
     logout: "ログアウト",
     account: "マイアカウント",
     adminDashboard: "Admin Dashboard",

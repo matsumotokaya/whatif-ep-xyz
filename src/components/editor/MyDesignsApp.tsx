@@ -16,10 +16,11 @@ import { useEditorFonts } from './lib/fonts';
 import { useParams } from './lib/router';
 import { BannerManager } from './pages/BannerManager';
 import { BannersBySize } from './pages/BannersBySize';
-import './i18n';
+import { useEditorLanguageSync } from './i18n/useLanguageSync';
 
 export function MyDesignsApp() {
   useEditorFonts();
+  useEditorLanguageSync();
   const { sizeKey } = useParams<{ sizeKey: string }>();
 
   return (

@@ -31,8 +31,6 @@ export interface AccountView {
   subscriptionExpiresAt: string | null;
   hasStripeCustomer: boolean;
   purchases: PurchaseView[];
-  contactUrl: string | null;
-  contactEmail: string | null;
 }
 
 interface AccountCopy {
@@ -70,13 +68,6 @@ interface AccountCopy {
   purchases: string;
   purchasesEmpty: string;
   variant: string;
-  // Library / saved works.
-  library: string;
-  libraryDesc: string;
-  libraryCta: string;
-  savedWorks: string;
-  savedWorksDesc: string;
-  savedWorksCta: string;
   // Support.
   support: string;
   supportDesc: string;
@@ -110,7 +101,7 @@ const COPY: Record<Language, AccountCopy> = {
     planLegacy: "Premium (Legacy member)",
     planImagine: "Premium (/IMAGINE)",
     planFreeDesc:
-      "You are on the free plan. Upgrade to access The Club wallpaper library.",
+      "You are on the free plan. Upgrading to Premium unlocks unlimited downloads of all paid content in the WHATIF gallery, plus access to premium assets and more in the IMAGINE design tool.",
     planStripeDesc:
       "You have an active premium subscription with unlimited wallpaper downloads.",
     planLegacyDesc:
@@ -122,19 +113,13 @@ const COPY: Record<Language, AccountCopy> = {
     statusCanceled: "Canceled",
     renewsOn: "Renews on",
     endsOn: "Ends on",
-    upgradeCta: "Upgrade in /IMAGINE",
+    upgradeCta: "Premium plan ($3)",
     manageBilling: "Manage subscription",
     manageBillingDesc:
       "Cancel your subscription or update your payment method via the secure Stripe portal.",
     purchases: "Purchase history",
     purchasesEmpty: "No purchases yet.",
     variant: "Variant",
-    library: "The Club library",
-    libraryDesc: "Browse and download member wallpapers.",
-    libraryCta: "Open library",
-    savedWorks: "Saved works",
-    savedWorksDesc: "Artworks you have bookmarked.",
-    savedWorksCta: "View gallery",
     support: "Support",
     supportDesc: "Questions or issues? Get in touch.",
     contactCta: "Contact us",
@@ -162,7 +147,7 @@ const COPY: Record<Language, AccountCopy> = {
     planLegacy: "プレミアム（旧会員）",
     planImagine: "プレミアム（/IMAGINE）",
     planFreeDesc:
-      "現在は無料プランです。アップグレードするとザ・クラブの壁紙ライブラリを利用できます。",
+      "現在は無料プランです。プレミアムプランにアップグレードするとWHATIFギャラリーのすべての有料コンテンツがダウンロードし放題になります。またデザインツール IMAGINE のプレミアムアセットへのアクセスなど、様々な機能が開放されます。",
     planStripeDesc:
       "プレミアムサブスクリプションが有効です。壁紙をダウンロードし放題です。",
     planLegacyDesc:
@@ -174,19 +159,13 @@ const COPY: Record<Language, AccountCopy> = {
     statusCanceled: "解約済み",
     renewsOn: "更新日",
     endsOn: "終了日",
-    upgradeCta: "/IMAGINE でアップグレード",
+    upgradeCta: "プレミアムプラン ($3)",
     manageBilling: "サブスクリプション管理",
     manageBillingDesc:
       "Stripe のセキュアなポータルから解約や支払い方法の変更ができます。",
     purchases: "購入履歴",
     purchasesEmpty: "購入履歴はまだありません。",
     variant: "バリエーション",
-    library: "ザ・クラブ ライブラリ",
-    libraryDesc: "会員向け壁紙を閲覧・ダウンロードできます。",
-    libraryCta: "ライブラリを開く",
-    savedWorks: "保存した作品",
-    savedWorksDesc: "ブックマークしたアートワークです。",
-    savedWorksCta: "ギャラリーを見る",
     support: "サポート",
     supportDesc: "ご質問やお困りごとはこちらから。",
     contactCta: "お問い合わせ",
@@ -213,7 +192,8 @@ const COPY: Record<Language, AccountCopy> = {
     planStripe: "高级会员",
     planLegacy: "高级会员（旧会员）",
     planImagine: "高级会员（/IMAGINE）",
-    planFreeDesc: "您当前为免费方案。升级即可使用 The Club 壁纸库。",
+    planFreeDesc:
+      "您当前为免费方案。升级到高级方案后，可无限下载 WHATIF 画廊的所有付费内容，并开放设计工具 IMAGINE 的高级素材访问等多项功能。",
     planStripeDesc: "您的高级订阅有效，可无限下载壁纸。",
     planLegacyDesc: "您的高级权限来自原 Instagram 订阅会员。",
     planImagineDesc: "您的高级权限来自 /IMAGINE 高级账户的关联。",
@@ -222,18 +202,12 @@ const COPY: Record<Language, AccountCopy> = {
     statusCanceled: "已取消",
     renewsOn: "续费日期",
     endsOn: "结束日期",
-    upgradeCta: "在 /IMAGINE 升级",
+    upgradeCta: "高级方案 ($3)",
     manageBilling: "管理订阅",
     manageBillingDesc: "通过安全的 Stripe 门户取消订阅或更新付款方式。",
     purchases: "购买记录",
     purchasesEmpty: "暂无购买记录。",
     variant: "版本",
-    library: "The Club 壁纸库",
-    libraryDesc: "浏览并下载会员壁纸。",
-    libraryCta: "打开壁纸库",
-    savedWorks: "已保存作品",
-    savedWorksDesc: "您收藏的作品。",
-    savedWorksCta: "查看画廊",
     support: "支持",
     supportDesc: "有疑问或问题？请联系我们。",
     contactCta: "联系我们",
@@ -259,7 +233,8 @@ const COPY: Record<Language, AccountCopy> = {
     planStripe: "進階會員",
     planLegacy: "進階會員（舊會員）",
     planImagine: "進階會員（/IMAGINE）",
-    planFreeDesc: "您目前為免費方案。升級即可使用 The Club 桌布庫。",
+    planFreeDesc:
+      "您目前為免費方案。升級為進階方案後，可無限下載 WHATIF 藝廊的所有付費內容，並開放設計工具 IMAGINE 的進階素材存取等多項功能。",
     planStripeDesc: "您的進階訂閱有效，可無限下載桌布。",
     planLegacyDesc: "您的進階權限來自原 Instagram 訂閱會員。",
     planImagineDesc: "您的進階權限來自 /IMAGINE 進階帳戶的連結。",
@@ -268,18 +243,12 @@ const COPY: Record<Language, AccountCopy> = {
     statusCanceled: "已取消",
     renewsOn: "續訂日期",
     endsOn: "結束日期",
-    upgradeCta: "在 /IMAGINE 升級",
+    upgradeCta: "進階方案 ($3)",
     manageBilling: "管理訂閱",
     manageBillingDesc: "透過安全的 Stripe 入口取消訂閱或更新付款方式。",
     purchases: "購買紀錄",
     purchasesEmpty: "尚無購買紀錄。",
     variant: "版本",
-    library: "The Club 桌布庫",
-    libraryDesc: "瀏覽並下載會員桌布。",
-    libraryCta: "開啟桌布庫",
-    savedWorks: "已儲存作品",
-    savedWorksDesc: "您收藏的作品。",
-    savedWorksCta: "查看藝廊",
     support: "支援",
     supportDesc: "有疑問或問題？請與我們聯絡。",
     contactCta: "聯絡我們",
@@ -306,7 +275,7 @@ const COPY: Record<Language, AccountCopy> = {
     planLegacy: "프리미엄(기존 회원)",
     planImagine: "프리미엄(/IMAGINE)",
     planFreeDesc:
-      "현재 무료 플랜입니다. 업그레이드하면 The Club 배경화면 라이브러리를 이용할 수 있습니다.",
+      "현재 무료 플랜입니다. 프리미엄 플랜으로 업그레이드하면 WHATIF 갤러리의 모든 유료 콘텐츠를 무제한으로 다운로드할 수 있고, 디자인 툴 IMAGINE의 프리미엄 에셋 이용 등 다양한 기능이 열립니다.",
     planStripeDesc:
       "프리미엄 구독이 활성화되어 있어 배경화면을 무제한 다운로드할 수 있습니다.",
     planLegacyDesc:
@@ -318,19 +287,13 @@ const COPY: Record<Language, AccountCopy> = {
     statusCanceled: "해지됨",
     renewsOn: "갱신일",
     endsOn: "종료일",
-    upgradeCta: "/IMAGINE에서 업그레이드",
+    upgradeCta: "프리미엄 플랜 ($3)",
     manageBilling: "구독 관리",
     manageBillingDesc:
       "안전한 Stripe 포털에서 구독 해지나 결제 수단 변경을 할 수 있습니다.",
     purchases: "구매 내역",
     purchasesEmpty: "아직 구매 내역이 없습니다.",
     variant: "버전",
-    library: "The Club 라이브러리",
-    libraryDesc: "회원 배경화면을 둘러보고 다운로드하세요.",
-    libraryCta: "라이브러리 열기",
-    savedWorks: "저장한 작품",
-    savedWorksDesc: "북마크한 작품입니다.",
-    savedWorksCta: "갤러리 보기",
     support: "지원",
     supportDesc: "문의나 문제가 있으신가요? 연락 주세요.",
     contactCta: "문의하기",
@@ -472,12 +435,6 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
     router.refresh();
   };
 
-  const contactHref = view.contactUrl
-    ? view.contactUrl
-    : view.contactEmail
-      ? `mailto:${view.contactEmail}`
-      : null;
-
   return (
     <div className="w-full px-4 py-10 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -559,14 +516,12 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
               )}
 
               {view.membership === "free" && (
-                <a
+                <Link
                   href={IMAGINE_UPGRADE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="btn-press mt-4 inline-flex items-center justify-center rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
                 >
                   {t.upgradeCta}
-                </a>
+                </Link>
               )}
             </div>
           </div>
@@ -583,40 +538,6 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
               <ManageSubscriptionButton label={t.manageBilling} />
             </div>
           )}
-        </SectionCard>
-
-        {/* Library + saved works links */}
-        <SectionCard title={t.membership}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Link
-              href="/the-club/library"
-              className="group flex flex-col rounded-xl border border-border p-4 transition-colors hover:bg-surface-hover"
-            >
-              <span className="text-sm font-semibold text-foreground">
-                {t.library}
-              </span>
-              <span className="mt-1 text-xs leading-5 text-muted">
-                {t.libraryDesc}
-              </span>
-              <span className="mt-3 text-xs font-medium text-foreground">
-                {t.libraryCta} →
-              </span>
-            </Link>
-            <Link
-              href="/works/episode"
-              className="group flex flex-col rounded-xl border border-border p-4 transition-colors hover:bg-surface-hover"
-            >
-              <span className="text-sm font-semibold text-foreground">
-                {t.savedWorks}
-              </span>
-              <span className="mt-1 text-xs leading-5 text-muted">
-                {t.savedWorksDesc}
-              </span>
-              <span className="mt-3 text-xs font-medium text-foreground">
-                {t.savedWorksCta} →
-              </span>
-            </Link>
-          </div>
         </SectionCard>
 
         {/* Purchase history */}
@@ -677,17 +598,12 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
         {/* Support */}
         <SectionCard title={t.support}>
           <p className="text-sm text-muted">{t.supportDesc}</p>
-          {contactHref && (
-            <a
-              href={contactHref}
-              {...(view.contactUrl
-                ? { target: "_blank", rel: "noopener noreferrer" }
-                : {})}
-              className="btn-press mt-4 inline-flex items-center justify-center rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-            >
-              {t.contactCta}
-            </a>
-          )}
+          <Link
+            href="/imagine/contact"
+            className="btn-press mt-4 inline-flex items-center justify-center rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+          >
+            {t.contactCta}
+          </Link>
         </SectionCard>
 
         {/* Session */}

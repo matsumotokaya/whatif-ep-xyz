@@ -15,9 +15,12 @@ Stripe、Vercel、Supabaseを扱う前に同文書を確認する。
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4
 - **Database**: Supabase (Postgres)
+- **Auth**: Supabase Auth（email/password・Google OAuth・legacy Instagram会員は `/auth/legacy-login`）
 - **Images**: Cloudflare R2（IMAGINE production アセット = `assets.whatif-ep.xyz` / 旧ギャラリー画像 = `pub-…r2.dev`）
 - **Payments**: Stripe（The Club サブスク + 壁紙単品購入）
-- **Email**: Resend（購入/アカウント通知）
+- **Email**: Resend。🔴 **2つの独立した送信経路がある**（混同注意）
+  - アプリコードから直接送信: 購入/アカウント通知（env var は `.env.local` の `RESEND_*`）
+  - **Supabase Auth のカスタムSMTP経由**: サインアップ確認・パスワードリセット等の認証メール。設定はコードに一切現れず、**Supabaseダッシュボード**（`Authentication → Emails → SMTP Settings` / `→ Templates`）のみ。詳細は [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) の「Auth & Email Delivery」節
 - **Hosting**: Vercel ／ **DNS**: Cloudflare（レジストラはお名前.com）
 
 ## Data Model
