@@ -7,20 +7,6 @@ import AccountPageClient, {
   type PurchaseView,
 } from "./AccountPageClient";
 
-function resolveContactUrl(rawUrl: string | undefined): string | null {
-  if (!rawUrl) return null;
-
-  try {
-    const url = new URL(rawUrl);
-    if (url.hostname === "app.whatif-ep.xyz") {
-      return null;
-    }
-    return rawUrl;
-  } catch {
-    return rawUrl;
-  }
-}
-
 export const metadata: Metadata = {
   title: "My Account",
   description: "WHATIF account settings and membership",
@@ -85,13 +71,6 @@ export default async function AccountPage() {
 
   const purchases = await loadPurchases();
 
-  // The legacy IMAGINE contact page is being retired with the app subdomain.
-  // Prefer a configured same-origin/new canonical contact URL when present,
-  // otherwise fall back to direct email.
-  const contactUrl = resolveContactUrl(process.env.NEXT_PUBLIC_CONTACT_URL);
-  const contactEmail =
-    process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "contact@whatif-ep.xyz";
-
   const view: AccountView = {
     email: account.profile?.email ?? account.user.email ?? null,
     displayName: account.displayName,
@@ -104,8 +83,6 @@ export default async function AccountPage() {
     subscriptionExpiresAt: account.profile?.subscription_expires_at ?? null,
     hasStripeCustomer: account.hasStripeCustomer,
     purchases,
-    contactUrl,
-    contactEmail,
   };
 
   return <AccountPageClient view={view} />;

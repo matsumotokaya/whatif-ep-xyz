@@ -100,7 +100,7 @@ export async function createCheckoutSessionUrl(
   return data.url as string;
 }
 
-export async function createPortalSessionUrl(returnPath = '/mypage') {
+export async function createPortalSessionUrl(returnPath = '/account') {
   const response = await fetch('/api/account/portal', {
     method: 'POST',
     credentials: 'same-origin',

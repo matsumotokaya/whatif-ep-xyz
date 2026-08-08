@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import {
   deriveAppSubscriptionState,
   getSubscriptionPeriodEnd,
+  hasBillableSubscription,
 } from "@/lib/subscription-state";
 
 function subscription(
@@ -106,5 +107,44 @@ describe("subscription state reconciliation", () => {
         subscription({ id: "sub_retrying", status: "past_due" }),
       ])
     ).toMatchObject({ tier: "premium", status: "active" });
+  });
+});
+
+describe("account deletion billing guard", () => {
+  it("treats a customer with no subscriptions as deletable", () => {
+    expect(hasBillableSubscription([])).toBe(false);
+  });
+
+  it("treats fully terminated subscriptions as deletable", () => {
+    expect(
+      hasBillableSubscription([
+        subscription({ id: "sub_gone", status: "canceled" }),
+        subscription({ id: "sub_never_paid", status: "incomplete_expired" }),
+      ])
+    ).toBe(false);
+  });
+
+  it.each([
+    "active",
+    "trialing",
+    "past_due",
+    "unpaid",
+    "paused",
+    // Grants no access yet, but can still become active, so deleting the
+    // account would orphan it.
+    "incomplete",
+  ] as const)("blocks deletion while a subscription is %s", (status) => {
+    expect(
+      hasBillableSubscription([subscription({ id: `sub_${status}`, status })])
+    ).toBe(true);
+  });
+
+  it("blocks deletion when only one of several subscriptions is live", () => {
+    expect(
+      hasBillableSubscription([
+        subscription({ id: "sub_old", status: "canceled" }),
+        subscription({ id: "sub_current", status: "active" }),
+      ])
+    ).toBe(true);
   });
 });

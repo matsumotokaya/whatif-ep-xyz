@@ -2,16 +2,21 @@
 
 import { useEditorFonts } from './lib/fonts';
 import { AboutUs } from './pages/AboutUs';
-import { Contact } from './pages/Contact';
 import { PrivacyPolicy } from './pages/legal/PrivacyPolicy';
 import { SecurityPolicy } from './pages/legal/SecurityPolicy';
 import { TermsOfService } from './pages/legal/TermsOfService';
 import { Tokushoho } from './pages/legal/Tokushoho';
-import './i18n';
+import { useEditorLanguageSync } from './i18n/useLanguageSync';
 
+// 'contact' was retired from here — /imagine/contact now renders a
+// WHATIF-toned page directly (src/app/imagine/contact/ContactPageClient.tsx)
+// instead of the ported IMAGINE Contact page, to stop the double
+// header/footer stack (this app's pages bring their own IMAGINE chrome via
+// PublicPageLayout, on top of the Gallery shell's own Header/Footer).
+// about/privacy/security/terms/commercial still have that same double-chrome
+// issue and are unchanged for now.
 export type ImaginePublicPage =
   | 'about'
-  | 'contact'
   | 'privacy'
   | 'security'
   | 'terms'
@@ -21,8 +26,6 @@ function renderPage(page: ImaginePublicPage) {
   switch (page) {
     case 'about':
       return <AboutUs />;
-    case 'contact':
-      return <Contact />;
     case 'privacy':
       return <PrivacyPolicy />;
     case 'security':
@@ -38,5 +41,6 @@ function renderPage(page: ImaginePublicPage) {
 
 export function ImaginePublicPagesApp({ page }: { page: ImaginePublicPage }) {
   useEditorFonts();
+  useEditorLanguageSync();
   return renderPage(page);
 }

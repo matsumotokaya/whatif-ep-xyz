@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getStripe } from "@/lib/stripe";
+import { hasBillableSubscription } from "@/lib/subscription-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +44,46 @@ export async function POST() {
       "Account deletion failed: admin client unavailable (missing service role key)."
     );
     return NextResponse.json({ error: "delete_failed" }, { status: 500 });
+  }
+
+  // Deleting the account does not touch Stripe. Removing the profile while a
+  // subscription is still live would keep billing the card with no owner left
+  // to cancel it, so refuse and send the member to the Customer Portal first.
+  // Stripe is queried directly rather than trusting profiles.subscription_tier,
+  // which can be stale.
+  const { data: billingProfile } = await admin
+    .from("profiles")
+    .select("stripe_customer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  const customerId =
+    (billingProfile as { stripe_customer_id: string | null } | null)
+      ?.stripe_customer_id ?? null;
+
+  if (customerId) {
+    try {
+      const subscriptions = await getStripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 100,
+      });
+      if (hasBillableSubscription(subscriptions.data)) {
+        return NextResponse.json(
+          { error: "active_subscription" },
+          { status: 409 }
+        );
+      }
+    } catch (error) {
+      // Never delete an account whose billing state could not be verified.
+      console.error(
+        "Account deletion: Stripe subscription check failed:",
+        error instanceof Error ? error.message : String(error)
+      );
+      return NextResponse.json(
+        { error: "subscription_check_failed" },
+        { status: 503 }
+      );
+    }
   }
 
   // Purge personal rows first so no orphaned data remains after the auth user

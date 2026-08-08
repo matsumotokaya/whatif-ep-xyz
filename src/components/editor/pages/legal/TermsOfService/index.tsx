@@ -6,7 +6,7 @@ import { JapaneseContent } from './content/JapaneseContent';
 import { KoreanContent } from './content/KoreanContent';
 import { ChineseSimplifiedContent } from './content/ChineseSimplifiedContent';
 import { ChineseTraditionalContent } from './content/ChineseTraditionalContent';
-import { PublicPageLayout } from '../../../components/PublicPageLayout';
+import { WhatifPublicPageLayout } from '@/components/WhatifPublicPageLayout';
 import { resolvePageLanguage } from '../../../utils/pageLanguage';
 
 export function TermsOfService() {
@@ -38,9 +38,9 @@ export function TermsOfService() {
   }[pageLanguage];
 
   return (
-    <PublicPageLayout title={title} description={lastUpdated} contentClassName="space-y-6">
+    <WhatifPublicPageLayout title={title} description={lastUpdated} contentClassName="space-y-6">
       {content}
-    </PublicPageLayout>
+    </WhatifPublicPageLayout>
   );
 }
 

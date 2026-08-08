@@ -7,8 +7,11 @@
 
 ## Current
 
-毎回まず読むのはこの4つだけ:
+毎回まず読むのはこの5つだけ:
 
+0. 🔴 [BILLING_REBUILD_PLAN.md](./BILLING_REBUILD_PLAN.md)
+   - **進行中の最優先プロジェクト**。決済・会員権限の再構築計画とフェーズ進捗。
+     他案件と並行して進めるが外せない。セッション開始時に進捗サマリを必ず確認する
 1. [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
    - プロダクト方針、価値、価格の正本
 2. [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)

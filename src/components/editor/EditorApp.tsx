@@ -14,10 +14,11 @@
 import { EditorQueryProvider } from './EditorQueryProvider';
 import { useEditorFonts } from './lib/fonts';
 import { BannerEditor } from './pages/BannerEditor';
-import './i18n';
+import { useEditorLanguageSync } from './i18n/useLanguageSync';
 
 export function EditorApp() {
   useEditorFonts();
+  useEditorLanguageSync();
 
   return (
     <div className="fixed inset-0 z-[70] overflow-hidden bg-white">

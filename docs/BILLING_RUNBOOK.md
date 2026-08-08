@@ -1,5 +1,9 @@
 # Billing runbook
 
+> 本書は **現行構成の運用手順**（日々の運用・障害対応）である。
+> 構成そのものを変えていく計画は [BILLING_REBUILD_PLAN.md](./BILLING_REBUILD_PLAN.md) が正本。
+> 各フェーズ完了時に本書も追随して更新すること。
+
 ## Source of truth
 
 - Stripe is the source of truth for Premium subscription state.

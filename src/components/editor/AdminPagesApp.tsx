@@ -16,7 +16,7 @@ import { ContentFactory } from './pages/ContentFactory';
 import { CoverLab } from './pages/CoverLab';
 import { StorageCleanup } from './pages/StorageCleanup';
 import { FactoryProjectManager } from './pages/FactoryProjectManager';
-import './i18n';
+import { useEditorLanguageSync } from './i18n/useLanguageSync';
 
 export type AdminPage =
   | 'dashboard'
@@ -42,6 +42,7 @@ function renderPage(page: AdminPage) {
 
 export function AdminPagesApp({ page }: { page: AdminPage }) {
   useEditorFonts();
+  useEditorLanguageSync();
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#101010]">
