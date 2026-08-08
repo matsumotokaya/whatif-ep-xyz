@@ -153,13 +153,15 @@ export default async function WallpaperPage({
 
   return (
     <WallpaperPageContent
-      // Clean full-resolution outputs are paid deliverables. Never serialize
-      // their public object URLs into an unentitled page; a CSS watermark does
-      // not protect the underlying <img src>. The package cover is the public
-      // sales asset and remains safe to show.
+      // Preview images (mobile_hd/pc_hd/...) are shown to everyone, watermarked
+      // via CSS overlay only — not baked into the pixels, so the raw <img src>
+      // is technically fetchable without the watermark. Known, accepted
+      // trade-off for now: without a real per-device preview, visitors can't
+      // see what they'd be buying (docs/UX_BILLING_FIX_LIST.md P1 "壁紙商品ページ").
+      // Actual zip download still requires purchase (see downloadUrl below).
       pack={{
         cover: publicCover,
-        wallpapers: entitled ? pack.wallpapers : [],
+        wallpapers: pack.wallpapers,
         wallpaperCount: pack.wallpapers.length,
       }}
       workTitle={work.title}
