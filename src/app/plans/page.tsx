@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { AccountPagesClientOnly } from "@/components/editor/AccountPagesClientOnly";
+import PlansPageClient from "./PlansPageClient";
 
 export const metadata: Metadata = {
-  title: "Plans",
-  description: "WHATIF / IMAGINE plans: guest, free member and premium.",
+  title: "Plans — WHATIF",
+  description: "WHATIF plans: free account and Premium membership.",
 };
 
-// /plans (was IMAGINE's /upgrade) -> three plan cards + premium checkout via
-// the authenticated Next.js subscription Checkout route. /upgrade redirects here (see
-// next.config.ts).
+// /plans (was IMAGINE's /upgrade) -> Free vs. Premium comparison + premium
+// checkout via the authenticated Next.js subscription Checkout route.
+// /upgrade redirects here (see next.config.ts).
 export default function PlansPage() {
   return (
     <Suspense fallback={null}>
-      <AccountPagesClientOnly page="plans" />
+      <PlansPageClient />
     </Suspense>
   );
 }
