@@ -717,6 +717,13 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
             <DeleteAccountDialog
               triggerLabel={t.deleteAccount}
               userEmail={view.email}
+              // Only Stripe-backed members can have live billing. Legacy and
+              // /IMAGINE premium have nothing to cancel, so they are not blocked.
+              subscriptionActive={
+                view.hasStripeCustomer &&
+                view.subscriptionStatus !== null &&
+                view.subscriptionStatus !== "canceled"
+              }
             />
           </div>
         </section>

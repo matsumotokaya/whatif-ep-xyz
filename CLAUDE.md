@@ -34,7 +34,16 @@ README の「Project Structure」が正本（`works/[series]/[code]` 構成、`/
 
 ## The Club / Auth
 - Supabase Auth。**通常会員**（email/Google）＋ **IMAGINE プレミアム会員**（同一アカウント連携）＋ **legacy 会員**（`/auth/legacy-login`、`profiles.legacy_login_id` で識別）。
+- 🔴 **legacy 会員 = Instagram サブスク加入者。premium は Stripe 由来ではなく手動付与**。
+  Stripe を正とする処理が彼らの premium を剥奪しないこと（Stripe 顧客を持たないため
+  「契約が無い＝free」と判定すると即座に特典を失う）。詳細は README「legacy premium は手動付与」。
 - 旧ロリポップ The Club は**停止済み**。
+
+## 🔴 決済まわりに触れる前に（最優先プロジェクト進行中）
+
+決済・会員権限は **再構築プロジェクトが進行中**。`docs/BILLING_REBUILD_PLAN.md` が正本。
+決済・サブスク・Premium判定に触れる作業の前に、同文書の「進捗サマリ」で現在のフェーズを確認する。
+フェーズは飛ばさない。DB変更は必ずSQLを提示してユーザーが手動実行する。
 
 ## Wallpaper 単品購入
 - Stripe Checkout `mode:"payment"` ＋ `STRIPE_WALLPAPER_PRICE_ID`。成功時に webhook が `public.wallpaper_purchases`（`status='paid'`）を `stripe_checkout_session_id` で冪等記録。premium 会員または購入者でダウンロード解放。

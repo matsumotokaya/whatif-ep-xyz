@@ -10,8 +10,13 @@ WHATIF EP - Digital Art Gallery
 
 このリポジトリは、WHATIF の**現行本番アプリ**です。Gallery と IMAGINE の統合は完了しており、`whatif-ep.xyz` の単一アプリ・単一ドメイン運用が正本です。`app.whatif-ep.xyz` は履歴互換の 301 のみを返します。
 
+> 🔴 **進行中の最優先プロジェクト: 決済・会員権限アーキテクチャ再構築**
+> → [docs/BILLING_REBUILD_PLAN.md](docs/BILLING_REBUILD_PLAN.md)
+> 他案件と並行して進めるが外せない。決済まわりに触れる前に必ず進捗サマリを確認すること。
+
 正本ドキュメント（この順で読む）:
 
+0. [docs/BILLING_REBUILD_PLAN.md](docs/BILLING_REBUILD_PLAN.md) — 決済再構築の計画とフェーズ進捗（進行中）
 1. [docs/README.md](docs/README.md) — docs の入口。Current / Archive の区分
 2. [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) — プロダクト全体の正本（4層ラダー / 価格 / The Club 格下げ）
 3. [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) — 現行アーキテクチャの横断地図
@@ -302,9 +307,11 @@ The Club と `/IMAGINE` は同一アカウントでログインでき、対象�
   - Google OAuth
   - `/IMAGINE` プレミアム会員（同一アカウント連携）
 - legacy 会員
+  - **Instagram のサブスクリプション加入者**。特典として The Club の壁紙DLを提供している
   - 旧 The Club の `ID` + パスワード
   - ログイン画面は `/auth/legacy-login`
   - `public.profiles.legacy_login_id` で識別する
+  - **Stripe とは無関係。premium は手動で付与し、手動で維持する**（下記「legacy premium は手動付与」）
 
 実装上の扱いは次のとおりです。
 
@@ -316,14 +323,45 @@ The Club と `/IMAGINE` は同一アカウントでログインでき、対象�
 
 この設計にしている理由は、現在は 3 名程度でも、将来 legacy 会員が増減する前提で、平文パスワードをアプリ側で管理しない方が安全で、運用を変えずに済むためです。
 
-legacy 会員を追加する手順は次のとおりです。
+#### 🔴 legacy premium は手動付与（決済自動化から必ず除外する）
+
+**legacy 会員の premium は Stripe に一切由来しない。** Instagram 側でサブスクした人を、
+こちら側でも会員にする必要があるため、**手動で `subscription_tier = 'premium'` を立てている**。
+
+したがって次が**不変条件**である。
+
+- legacy 会員は `stripe_customer_id` を持たない。Stripe を照会しても契約は見つからない
+- **Stripe を正とする同期処理が、legacy 会員の premium を剥奪してはならない**。
+  「Stripeに契約がない＝free」という素朴な実装は、この 3 名を即座に無料会員に落とす
+- 退会・請求まわりの自動処理も、Stripe 顧客を持たない会員には作用させない
+  （`/api/account/delete` の解約ガードが legacy をブロックしないのはこのため）
+
+この運用は **Instagram 特典が整理されるまで、今後数か月〜数年は続く前提**である
+（[docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) §4 参照）。
+`entitlements` へ移行する際も `source='legacy'` として Stripe 同期から独立させること
+（[docs/BILLING_REBUILD_PLAN.md](docs/BILLING_REBUILD_PLAN.md) Phase B2）。
+
+#### legacy 会員を追加する手順
 
 1. Supabase Auth にユーザーを作成する
 2. メールを `legacy+<id>@club.whatif.local` にする
 3. パスワードは Supabase Auth 側で設定する
 4. `public.profiles.legacy_login_id` に `<id>` を入れる
+5. **`public.profiles.subscription_tier` を `'premium'` にする**
+   （これを忘れると、ログインはできるが The Club のダウンロードが使えない）
+
+`subscription_status` と `subscription_expires_at` は **NULL のままにする**。
+Stripe 由来の状態ではないため、期限も解約予約も存在しない。
 
 legacy 会員の ID は UUID である必要はありません。`bam.5878` のような文字列をそのまま使えます。
+
+現在の legacy 会員（2026-08-08 時点、3 名）:
+
+```sql
+select legacy_login_id, subscription_tier
+from public.profiles
+where legacy_login_id is not null;
+```
 
 The Club の機能移行はここで完了です。以降はサイト全体の運用タスクだけを残しています。
 
