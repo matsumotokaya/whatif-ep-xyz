@@ -7,6 +7,9 @@ WHATIF EP digital art gallery（本番: https://whatif-ep.xyz）。**作品ハ�
 Next.js 16 + Tailwind CSS v4 + Vercel + Supabase + Cloudflare R2。
 姉妹アプリ **IMAGINE**（`app.whatif-ep.xyz`）と**同一 Supabase プロジェクトを共有**する。
 
+外部サービスのMCP／CLI接続先とセッション開始時チェックは `docs/AGENT_TOOLING.md` を正本とする。
+Stripe、Vercel、Supabaseを扱う前に同文書を確認する。
+
 ## Tech Stack
 - **Framework**: Next.js 16 (App Router, `src/`)
 - **Language**: TypeScript
