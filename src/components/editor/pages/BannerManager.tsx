@@ -12,7 +12,7 @@
 // - Guests get an explicit "log in to save more designs" notice above their
 //   single localStorage design.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, Link } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
@@ -35,12 +35,16 @@ import { filterBySize, getAspectClass, getAvailableSizeCategories, getGridCols }
 import { downloadImageFromUrl } from '../utils/exportImage';
 
 const MAX_DISPLAY_COUNT = 10;
+// NEXT_PUBLIC_* env vars are inlined at build time, safe to read directly in a client component.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://whatif-ep.xyz';
 
 export const BannerManager = () => {
   const { t, i18n } = useTranslation(['banner', 'common', 'message', 'auth']);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({});
+  // Tracks which "copy" action last showed feedback, keyed as `${banner.id}:id` or `${banner.id}:url`.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
@@ -149,6 +153,25 @@ export const BannerManager = () => {
     } catch (error) {
       console.error('Failed to download banner asset:', error);
       alert(t('message:error.exportFailed'));
+    }
+  };
+
+  // Clear any pending "copied" feedback timeout on unmount.
+  const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimeoutRef.current) clearTimeout(copyFeedbackTimeoutRef.current);
+    };
+  }, []);
+
+  const handleCopyToClipboard = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      if (copyFeedbackTimeoutRef.current) clearTimeout(copyFeedbackTimeoutRef.current);
+      copyFeedbackTimeoutRef.current = setTimeout(() => setCopiedKey(null), 1500);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
     }
   };
 
@@ -284,7 +307,21 @@ export const BannerManager = () => {
                 )}
               </div>
             )}
-            <p className="text-xs text-white/80">{formatDate(banner.updatedAt)}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-white/80">{formatDate(banner.updatedAt)}</p>
+              {!isGuestBanner && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleCopyToClipboard(`${banner.id}:id`, banner.id);
+                  }}
+                  className="px-1.5 py-0.5 text-xs font-mono text-white/80 bg-white/10 hover:bg-white/20 rounded transition-colors"
+                  title={t('banner:copyId')}
+                >
+                  {copiedKey === `${banner.id}:id` ? t('banner:copied') : banner.id.slice(0, 8)}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Action buttons overlay (top right) */}
@@ -305,6 +342,19 @@ export const BannerManager = () => {
             </button>
             {!isGuest && (
               <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleCopyToClipboard(`${banner.id}:url`, `${SITE_URL}/ref/${banner.id}`);
+                }}
+                className="w-7 h-7 bg-white/90 hover:bg-white text-gray-700 rounded-md transition-colors flex items-center justify-center group/copyref relative shadow-sm"
+                title={t('banner:copyRefUrl')}
+              >
+                <span className="material-symbols-outlined text-[16px]">link</span>
+                <span className="absolute bottom-full mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/copyref:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  {copiedKey === `${banner.id}:url` ? t('banner:copied') : t('banner:copyRefUrl')}
+                </span>
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

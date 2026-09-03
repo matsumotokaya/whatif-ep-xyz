@@ -33,7 +33,8 @@
 - Admin: `/admin/content-factory`, `/admin/cover-lab`, `/admin/storage-cleanup`
 - Account / Auth: `/account`, `/auth/*`
 - The Club: `/the-club`, `/auth/legacy-login`
-- API routes: Stripe webhook, wallpaper checkout/download, work download, account actions
+- API routes: Stripe webhook, wallpaper checkout/download, work download, account actions,
+  Ref Library (`/api/ref/designs`, `/ref/{id}`, `/api/mcp`)
 
 ## Runtime Topology
 
@@ -64,6 +65,7 @@ Resend への送信経路は**アプリコード経由**と**Supabase Auth経由
 - Data model / SQL: `supabase/`, `scripts/`
 - Product direction: [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
 - Operational notes: [README.md](../README.md)
+- External design references (Ref Library): [REF_LIBRARY.md](./REF_LIBRARY.md)
 
 ## Editor Client State And Preview Saves
 

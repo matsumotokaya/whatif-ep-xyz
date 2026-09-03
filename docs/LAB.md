@@ -1,6 +1,6 @@
 # WHATIF LAB — UI実験とモーション制作の正本
 
-最終更新: 2026-07-12
+最終更新: 2026-09-04
 
 `/lab` は次期UIとブランド表現の**長期探索の場**。プロトタイプを本番環境で安定して閲覧でき、
 かつどんどん増やしていける構造にしている。
@@ -60,6 +60,10 @@ node scripts/fetch-assets.mjs --role character_cutout --limit 50
 # → public/library/<name> に保存。コード側は staticFile("library/<name>")
 ```
 
+**自分が保存したIMAGINEデザイン**（`default_images` ではなく `banners`）を参照する場合は、
+事前ダウンロードせず [docs/REF_LIBRARY.md](./REF_LIBRARY.md) の `/api/ref/designs` を使う。
+DLせずURLだけで参照でき、再現性が要る場合はバージョン付きの`url`を固定すればよい。
+
 ## Video Factory（動画の生産ライン）
 
 **`/admin/video-factory`** — Content Factory の兄弟にあたる動画製造の管理板（admin専用・アバターメニューから）。
@@ -78,6 +82,10 @@ node scripts/fetch-assets.mjs --role character_cutout --limit 50
   認証後はservice roleで読むので、どのアカウントのバナーでも取得できる
 
 CLIからの個別取得は従来どおり `scripts/fetch-banner.sh <BANNER_ID> <slug>` も使える。
+
+> **画像参照としての `fetch-banner.sh`（service-role直叩き）は [docs/REF_LIBRARY.md](./REF_LIBRARY.md) の
+> `/api/ref/designs` に置き換え済み。** BannerRenderer用のfixtures JSON取得はVideo Factory側の
+> 用途として引き続きこのスクリプト・上記APIを使う。
 
 > 将来メモ: LAB / Content Factory / Video Factory は性質が近いので、ゆくゆく1つのシェル
 > （タブ: Episodes / Videos / Experiments）へ統合する構想。現状は `/admin/*` 兄弟ルート＋

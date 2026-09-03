@@ -27,6 +27,8 @@
 - 実行物は `scripts/` と `supabase/` を正本とし、docs は説明だけに留める
 - バナープレビューのrevision化と後続のdurable job / server renderer計画は
   [ADR 0001](./adr/0001-revisioned-banner-previews.md) を正本とする
+- 保存済みデザインをMCP/CLI/Remotion/動画生成AIからURLで参照する Ref Library は
+  [REF_LIBRARY.md](./REF_LIBRARY.md) を正本とする
 
 ## Archive
 
