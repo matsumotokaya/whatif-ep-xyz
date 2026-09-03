@@ -3,19 +3,39 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveAsset } from "@/lib/asset";
 
-// Ref Library (v1): exposes the owner's saved IMAGINE designs (public.banners)
-// as public image references so external tools — MCP clients, curl/CLI,
-// Remotion, video-generation APIs — can point at a rendered design by URL
-// instead of re-exporting and re-uploading files by hand.
+// Ref Library: exposes saved IMAGINE designs (public.banners) as public image
+// references so external tools — MCP clients, curl/CLI, Remotion,
+// video-generation APIs — can point at a rendered design by URL instead of
+// re-exporting and re-uploading files by hand.
 //
-// Only designs owned by the configured "ref owner" accounts are ever exposed.
-// The owner has more than one account, so the set is configurable through
-// REF_OWNER_USER_IDS and falls back to profiles.role = 'admin'.
+// TRUST MODEL: the design uuid is the capability. Anyone who knows an id may
+// resolve it, whoever owns the design, exactly like the R2 objects behind it —
+// those keys are world-readable with permissive CORS, so a resolvable id was
+// never more secret than the image it points at. Users hand their own id or
+// /ref/{id} URL to a video AI, a CLI or another person, and it has to work
+// without an account.
+//
+// ...but ENUMERATION STAYS OWNER-SCOPED, and that asymmetry is the whole
+// design, not an oversight to tidy up later. Obscurity only protects a design
+// while its id stays unguessable, so the unfiltered listing and the name search
+// remain restricted to the configured "ref owner" accounts
+// (REF_OWNER_USER_IDS, falling back to profiles.role = 'admin'). Opening those
+// to everyone would let one request walk every design of every user, which is
+// precisely what an id-as-capability model cannot survive. Adding an owner
+// filter to the id path, or dropping it from the listing, each break one half of
+// this contract — see docs/REF_LIBRARY.md.
+//
+// Every query below uses the service-role client, so RLS is bypassed by design
+// and the scope of each function is whatever its own query says it is. Hence the
+// two entry points are separate, named functions rather than one function with
+// a flag that quietly changes its security posture:
+//
+//   listRefDesigns()      owner-scoped   browse / search
+//   getRefDesignsByIds()  unscoped       exact id lookup
 //
 // Rendered previews live in R2 under immutable, revisioned keys
-// (user-images/{uid}/banners/{bannerId}/full/{revision}.jpg) and are
-// world-readable with permissive CORS, so the resolved URLs can be handed
-// straight to any consumer.
+// (user-images/{uid}/banners/{bannerId}/full/{revision}.jpg), so the resolved
+// URLs can be handed straight to any consumer.
 
 const DEFAULT_SITE_URL = "https://whatif-ep.xyz";
 const DEFAULT_LIMIT = 50;
@@ -166,6 +186,9 @@ function requireAdminClient() {
   return supabase;
 }
 
+const mapRows = (data: unknown[] | null): RefDesign[] =>
+  (data ?? []).map((row) => mapRowToRefDesign(row as RefDesignRow));
+
 let ownerIdsPromise: Promise<string[]> | null = null;
 
 function parseOwnerIdsEnv(): string[] {
@@ -213,10 +236,9 @@ export function getRefOwnerIds(): Promise<string[]> {
 export interface ListRefDesignsOptions {
   search?: string;
   limit?: number;
-  ids?: string[];
 }
 
-export interface ListRefDesignsResult {
+export interface RefDesignsByIdsResult {
   designs: RefDesign[];
   missing: string[];
 }
@@ -226,48 +248,79 @@ const clampLimit = (limit: number | undefined): number => {
   return Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
 };
 
+// Postgres stores uuids canonically lower-cased, so a caller's mixed-case id
+// must be folded before it is compared against a returned row id.
+const normalizeId = (value: string): string => value.trim().toLowerCase();
+
+/**
+ * OWNER-SCOPED. The enumeration path: browse and search the ref owners'
+ * designs only. Anything outside REF_OWNER_USER_IDS (or, unset, the admin
+ * accounts) is invisible here, because a listing that spanned every account
+ * would let one request harvest the ids that `getRefDesignsByIds` treats as
+ * access capabilities.
+ */
 export async function listRefDesigns(
   options: ListRefDesignsOptions = {}
-): Promise<ListRefDesignsResult> {
-  const { search, ids } = options;
+): Promise<RefDesign[]> {
   const ownerIds = await getRefOwnerIds();
-  if (ownerIds.length === 0) {
-    return { designs: [], missing: ids ?? [] };
-  }
+  if (ownerIds.length === 0) return [];
 
-  const requestedIds = ids?.filter((id) => id.length > 0);
   const supabase = requireAdminClient();
 
   let query = supabase
     .from("banners")
     .select(REF_DESIGN_COLUMNS)
-    // Owner scoping is applied for every query shape, id lookups included, so
-    // a foreign banner id can never be read through this API.
     .in("user_id", ownerIds)
     .order("updated_at", { ascending: false })
-    .limit(requestedIds ? Math.min(requestedIds.length, MAX_LIMIT) : clampLimit(options.limit));
+    .limit(clampLimit(options.limit));
 
-  if (requestedIds) query = query.in("id", requestedIds);
-  if (search) query = query.ilike("name", `%${search}%`);
+  if (options.search) query = query.ilike("name", `%${options.search}%`);
 
   const { data, error } = await query;
   if (error) {
     throw new Error(`Failed to list ref designs: ${error.message}`);
   }
 
-  const designs = (data ?? []).map((row) =>
-    mapRowToRefDesign(row as unknown as RefDesignRow)
-  );
+  return mapRows(data);
+}
 
-  if (!requestedIds) {
-    return { designs, missing: [] };
+// Pure. Narrows a caller's raw id list down to what is worth sending to
+// Postgres: non-uuid entries can never match a banner id (and must not reach an
+// `in` filter), duplicates would waste a slot, and MAX_LIMIT bounds how much one
+// request may resolve. Everything dropped here resurfaces as `missing`.
+export function selectLookupIds(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const lookupIds: string[] = [];
+
+  for (const raw of ids) {
+    const id = normalizeId(raw);
+    if (!isUuid(id) || seen.has(id)) continue;
+    seen.add(id);
+    lookupIds.push(id);
+    if (lookupIds.length >= MAX_LIMIT) break;
   }
 
-  // Preserve the caller's id order and report what could not be resolved.
-  const byId = new Map(designs.map((design) => [design.id, design]));
+  return lookupIds;
+}
+
+// Pure. Puts the fetched designs back into the order the caller asked for and
+// reports every distinct requested id that did not resolve — unknown, not a
+// uuid, or past MAX_LIMIT — so `designs.length + missing.length` accounts for
+// each one exactly once.
+export function orderByRequestedIds(
+  designs: RefDesign[],
+  requestedIds: string[]
+): RefDesignsByIdsResult {
+  const byId = new Map(designs.map((design) => [normalizeId(design.id), design]));
+  const seen = new Set<string>();
   const ordered: RefDesign[] = [];
   const missing: string[] = [];
-  for (const id of requestedIds) {
+
+  for (const raw of requestedIds) {
+    const id = normalizeId(raw);
+    if (id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+
     const design = byId.get(id);
     if (design) ordered.push(design);
     else missing.push(id);
@@ -276,8 +329,39 @@ export async function listRefDesigns(
   return { designs: ordered, missing };
 }
 
+/**
+ * UNSCOPED, deliberately. Resolves designs by exact id for any owner: the id is
+ * the access capability (see the trust model at the top of this file), so a
+ * caller holding one gets the design whether or not the account behind it is a
+ * ref owner. There is no owner filter to add back without breaking the shared
+ * /ref/{id} URLs users copy from /mydesign.
+ *
+ * Ids come back in the caller's requested order; unresolved ones in `missing`.
+ */
+export async function getRefDesignsByIds(
+  ids: string[]
+): Promise<RefDesignsByIdsResult> {
+  const lookupIds = selectLookupIds(ids);
+  if (lookupIds.length === 0) {
+    return orderByRequestedIds([], ids);
+  }
+
+  const supabase = requireAdminClient();
+  const { data, error } = await supabase
+    .from("banners")
+    .select(REF_DESIGN_COLUMNS)
+    .in("id", lookupIds)
+    .limit(lookupIds.length);
+
+  if (error) {
+    throw new Error(`Failed to load ref designs by id: ${error.message}`);
+  }
+
+  return orderByRequestedIds(mapRows(data), ids);
+}
+
+// Unscoped by way of getRefDesignsByIds: knowing the id is enough.
 export async function getRefDesign(id: string): Promise<RefDesign | null> {
-  if (!isUuid(id)) return null;
-  const { designs } = await listRefDesigns({ ids: [id] });
+  const { designs } = await getRefDesignsByIds([id]);
   return designs[0] ?? null;
 }

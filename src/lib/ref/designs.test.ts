@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   isUuid,
   mapRowToRefDesign,
+  orderByRequestedIds,
+  selectLookupIds,
   stripImageExtension,
   type RefDesignRow,
 } from "./designs";
@@ -148,5 +150,119 @@ describe("mapRowToRefDesign", () => {
     expect(design.width).toBeNull();
     expect(design.height).toBeNull();
     expect(design.previewStatus).toBeNull();
+  });
+});
+
+// Ids that differ only in their last block, for bulk/cap cases.
+const idAt = (n: number) =>
+  `11111111-2222-4333-8444-${String(n).padStart(12, "0")}`;
+
+// ID is all digits, so upper-casing it changes nothing; case handling needs a
+// uuid that actually contains hex letters.
+const HEX_ID = "aabbccdd-1122-4333-8444-abcdefabcdef";
+
+const designWithId = (id: string) => mapRowToRefDesign(row({ id }));
+
+describe("selectLookupIds", () => {
+  it("keeps uuids in first-occurrence order and drops duplicates", () => {
+    expect(
+      selectLookupIds([idAt(2), idAt(1), idAt(2), idAt(1), idAt(3)])
+    ).toEqual([idAt(2), idAt(1), idAt(3)]);
+  });
+
+  it("drops anything that could never match a banner id", () => {
+    // Non-uuid input must not reach the `in` filter at all.
+    expect(
+      selectLookupIds(["", "   ", "not-a-uuid", `${ID}' or '1`, ID])
+    ).toEqual([ID]);
+  });
+
+  it("trims and lower-cases so mixed-case input still matches a row id", () => {
+    // Postgres hands back canonical lower-case uuids.
+    expect(selectLookupIds([`  ${HEX_ID.toUpperCase()}  `])).toEqual([HEX_ID]);
+    // ...and the case-folded form counts as the same id for deduping.
+    expect(selectLookupIds([HEX_ID, HEX_ID.toUpperCase()])).toEqual([HEX_ID]);
+  });
+
+  it("caps one request at MAX_LIMIT ids", () => {
+    const ids = Array.from({ length: 250 }, (_, i) => idAt(i));
+    const lookupIds = selectLookupIds(ids);
+
+    expect(lookupIds).toHaveLength(200);
+    expect(lookupIds[0]).toBe(idAt(0));
+    expect(lookupIds.at(-1)).toBe(idAt(199));
+  });
+});
+
+describe("orderByRequestedIds", () => {
+  it("returns the designs in the caller's order, not the query's", () => {
+    const requested = [idAt(3), idAt(1), idAt(2)];
+    const fetched = [idAt(1), idAt(2), idAt(3)].map(designWithId);
+
+    const { designs, missing } = orderByRequestedIds(fetched, requested);
+
+    expect(designs.map((d) => d.id)).toEqual(requested);
+    expect(missing).toEqual([]);
+  });
+
+  it("reports unresolved ids in `missing`, in the requested order", () => {
+    const { designs, missing } = orderByRequestedIds(
+      [designWithId(idAt(2))],
+      [idAt(1), idAt(2), idAt(3)]
+    );
+
+    expect(designs.map((d) => d.id)).toEqual([idAt(2)]);
+    expect(missing).toEqual([idAt(1), idAt(3)]);
+  });
+
+  it("reports non-uuid requests as missing rather than dropping them", () => {
+    // selectLookupIds never queries these, so this is where the caller learns
+    // they went nowhere.
+    const { designs, missing } = orderByRequestedIds(
+      [designWithId(ID)],
+      ["not-a-uuid", ID, "12345"]
+    );
+
+    expect(designs.map((d) => d.id)).toEqual([ID]);
+    expect(missing).toEqual(["not-a-uuid", "12345"]);
+  });
+
+  it("collapses duplicate requests to one entry, case included", () => {
+    const found = orderByRequestedIds(
+      [designWithId(HEX_ID)],
+      [HEX_ID, HEX_ID, HEX_ID.toUpperCase()]
+    );
+    expect(found.designs.map((d) => d.id)).toEqual([HEX_ID]);
+    expect(found.missing).toEqual([]);
+
+    const absent = orderByRequestedIds([], [idAt(9), idAt(9)]);
+    expect(absent.missing).toEqual([idAt(9)]);
+  });
+
+  it("ignores empty and whitespace-only entries entirely", () => {
+    const { designs, missing } = orderByRequestedIds([], ["", "   "]);
+
+    expect(designs).toEqual([]);
+    expect(missing).toEqual([]);
+  });
+
+  it("accounts for every distinct requested id exactly once", () => {
+    // The invariant getRefDesignsByIds leans on: whatever is dropped before the
+    // query (non-uuid, past MAX_LIMIT) still surfaces as missing.
+    const requested = [
+      idAt(1),
+      idAt(1),
+      "nope",
+      idAt(2),
+      HEX_ID.toUpperCase(),
+      HEX_ID,
+    ];
+    const { designs, missing } = orderByRequestedIds(
+      [designWithId(idAt(2))],
+      requested
+    );
+
+    expect(designs).toHaveLength(1);
+    expect(missing).toEqual([idAt(1), "nope", HEX_ID]);
   });
 });

@@ -11,8 +11,14 @@ import { getRefDesign, stripImageExtension } from "@/lib/ref/designs";
 // R2 keys are immutable and revisioned, so the underlying URL changes whenever
 // the design is re-rendered. This route is the reference that does not: it can
 // be pasted into a prompt, a Remotion composition or a video API and always
-// resolves to the latest render. Only designs owned by the configured ref
-// owners resolve; anything else is a 404.
+// resolves to the latest render.
+//
+// Any design whose id you know resolves here, whichever account saved it: the
+// uuid IS the access capability, which is what makes a /ref/{id} URL copied out
+// of /mydesign shareable with a tool or a person who has no account. 404 means
+// the id does not exist or has never been rendered, not that it is someone
+// else's. The image behind it is a world-readable R2 object anyway — see the
+// trust model in src/lib/ref/designs.ts.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

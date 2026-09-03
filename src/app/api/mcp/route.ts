@@ -4,8 +4,8 @@ import { z } from "zod";
 import { getRefDesign, listRefDesigns } from "@/lib/ref/designs";
 
 // MCP endpoint for the Ref Library: lets any MCP client (Claude, an agent
-// framework, a video pipeline) discover the owner's saved IMAGINE designs and
-// grab a public image URL for each one.
+// framework, a video pipeline) discover the site owner's saved IMAGINE designs
+// and grab a public image URL for any design whose id it knows.
 //
 // Streamable HTTP in stateless mode: a fresh McpServer + transport per request,
 // no session store, JSON responses instead of SSE streams. That is what a
@@ -13,7 +13,10 @@ import { getRefDesign, listRefDesigns } from "@/lib/ref/designs";
 // land on different instances.
 //
 // The tools are read-only and unauthenticated because the data they return is
-// already public (world-readable R2 objects, plus /api/ref/designs).
+// already public (world-readable R2 objects, plus /api/ref/designs). Their
+// scopes differ on purpose: get_design resolves any design by id (the uuid is
+// the capability) while list_designs only enumerates the owner's showcase, so
+// no client can harvest every user's ids. See src/lib/ref/designs.ts.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +42,9 @@ function createServer(): McpServer {
     {
       title: "List WHATIF designs",
       description:
-        "List the owner's saved IMAGINE designs, newest first, as public image references. " +
+        "List only the site owner's showcase IMAGINE designs, newest first, as public image references. " +
+        "This listing is deliberately limited to the owner's accounts and is not a directory of every user's designs; " +
+        "to reach a design saved by anyone else, call get_design with its id. " +
         URL_DOC,
       inputSchema: {
         search: z
@@ -57,7 +62,7 @@ function createServer(): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ search, limit }) => {
-      const { designs } = await listRefDesigns({ search, limit });
+      const designs = await listRefDesigns({ search, limit });
       return {
         content: [
           {
@@ -75,9 +80,15 @@ function createServer(): McpServer {
       title: "Get one WHATIF design",
       description:
         "Fetch a single saved IMAGINE design by id as a public image reference. " +
+        "Accepts ANY design id, not just the ones list_designs returns: the uuid itself is the access token, " +
+        "so an id pasted in by the user resolves whichever account saved that design. " +
         URL_DOC,
       inputSchema: {
-        id: z.string().describe("The design's uuid (as returned by list_designs)."),
+        id: z
+          .string()
+          .describe(
+            "The design's uuid — from list_designs, or supplied by the user for a design owned by any account."
+          ),
         preview: z
           .boolean()
           .optional()

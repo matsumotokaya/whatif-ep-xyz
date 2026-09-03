@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listRefDesigns } from "@/lib/ref/designs";
+import { getRefDesignsByIds, listRefDesigns } from "@/lib/ref/designs";
 
-// Ref Library index: lists the owner's saved IMAGINE designs (public.banners)
-// with their rendered image already resolved to a public R2 URL, so external
-// tools (MCP clients, curl/CLI, Remotion, video-generation APIs) can reference
-// a design without exporting and re-uploading it.
+// Ref Library index: lists saved IMAGINE designs (public.banners) with their
+// rendered image already resolved to a public R2 URL, so external tools (MCP
+// clients, curl/CLI, Remotion, video-generation APIs) can reference a design
+// without exporting and re-uploading it.
 //
-// Read-only. Only designs owned by the configured ref owners are returned
-// (REF_OWNER_USER_IDS, falling back to profiles.role = 'admin').
+// Read-only, and its scope depends on the query shape:
+//
+//   GET /api/ref/designs?id=uuid1,uuid2
+//     Exact lookup, ANY owner. The design uuid is the access capability, so a
+//     caller who knows an id resolves it regardless of which account saved it.
+//     Response order matches the request; unresolvable ids come back in
+//     `missing`.
 //
 //   GET /api/ref/designs
 //     ?search=teaser        (name ilike)
 //     ?limit=50             (1..200)
-//     ?id=uuid1,uuid2       (exact lookup; response order matches the request,
-//                            unresolvable ids come back in `missing`)
+//     Listing and search, RESTRICTED to the ref owners (REF_OWNER_USER_IDS,
+//     falling back to profiles.role = 'admin'). Enumeration stays scoped so no
+//     one can harvest every user's design ids — see src/lib/ref/designs.ts for
+//     why the two paths differ.
 //
 // Each design carries `url` (direct public image, usable as an image
 // reference), `refUrl` (stable alias that redirects to the current render) and
@@ -40,11 +47,16 @@ export async function GET(request: NextRequest) {
     .filter((id) => id.length > 0);
 
   try {
-    const { designs, missing } = await listRefDesigns({
-      search,
-      limit: Number.isNaN(limit) ? undefined : limit,
-      ids: ids && ids.length > 0 ? ids : undefined,
-    });
+    const { designs, missing } =
+      ids && ids.length > 0
+        ? await getRefDesignsByIds(ids)
+        : {
+            designs: await listRefDesigns({
+              search,
+              limit: Number.isNaN(limit) ? undefined : limit,
+            }),
+            missing: [] as string[],
+          };
 
     return NextResponse.json(
       {
