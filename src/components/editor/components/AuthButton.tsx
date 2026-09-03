@@ -7,6 +7,7 @@ import {
 } from '@/components/header/shared';
 import { cn } from '../utils/cn';
 import { useAuth } from '../contexts/AuthContext';
+import { PremiumCrown } from '@/components/PremiumCrown';
 
 export const AuthButton = () => {
   const { t, i18n } = useTranslation(['auth', 'common', 'message']);
@@ -71,13 +72,12 @@ export const AuthButton = () => {
           <span className="hidden max-w-[9rem] truncate text-sm text-white sm:block">
             {displayName}
           </span>
-          <span
-            className={cn(
-              'hidden size-2 rounded-full sm:block',
-              isPremium ? 'bg-amber-400' : 'bg-white/45'
-            )}
-            aria-hidden="true"
-          />
+          {isPremium && (
+            <PremiumCrown
+              className="hidden size-4 shrink-0 text-amber-400 sm:block"
+              aria-label={t('auth:premium')}
+            />
+          )}
           <svg
             className={cn(
               'hidden h-3 w-3 text-white/70 transition-transform duration-200 sm:block',
