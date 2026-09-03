@@ -151,7 +151,7 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 
 ## Billing verification status
 
-2026-08-08にStripe SandboxとVercel Previewで、別の新規アカウントを使って次を確認済み:
+2026-08-08にStripe SandboxとVercel Previewで、別の新規アカウントを使って次を確認済み。認証まわりのリニューアルは、この本番テストをもってクローズした。
 
 - サブスクリプションCheckoutとカード決済
 - 成功画面への実Checkout Session ID付きリダイレクト
@@ -159,7 +159,7 @@ R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 - Customer Portalでの期間終了時解約予約（期間内はPremiumを維持）
 - 壁紙の単品購入とダウンロード
 
-期間終了時の自動失効は今回の本番リリース条件から除外し、解約予約済みのSandboxテストアカウントで後日確認する。確認時は `customer.subscription.deleted` のWebhookが2xxで完了し、Supabaseが `free / canceled`、画面とPremium権限が失効状態になることを確認する。残項目と受け入れ条件は [UX・決済 修正一覧](docs/UX_BILLING_FIX_LIST.md) を参照。
+今回の認証・会員更新における唯一の残タスクは、期間終了時の自動失効確認である。解約予約済みのSandboxテストアカウントで、`customer.subscription.deleted` のWebhookが2xxで完了し、Supabaseが `free / canceled`、画面とPremium権限が失効状態になることを後日確認する。残項目と受け入れ条件は [UX・決済 修正一覧](docs/UX_BILLING_FIX_LIST.md) を参照。
 
 ## Development
 

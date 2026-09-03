@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getAccountData } from "@/lib/account/membership";
+import {
+  getAccountData,
+  reconcileAccountSubscription,
+} from "@/lib/account/membership";
 import { createClient } from "@/lib/supabase/server";
 import AccountPageClient, {
   type AccountView,
@@ -69,19 +72,24 @@ export default async function AccountPage() {
     redirect(`/auth/login?next=${encodeURIComponent("/account")}`);
   }
 
-  const purchases = await loadPurchases();
+  const [reconciledAccount, purchases] = await Promise.all([
+    reconcileAccountSubscription(account),
+    loadPurchases(),
+  ]);
 
   const view: AccountView = {
-    email: account.profile?.email ?? account.user.email ?? null,
-    displayName: account.displayName,
-    avatarUrl: account.profile?.avatar_url ?? null,
-    providers: account.providers,
-    legacyLoginId: account.profile?.legacy_login_id ?? null,
-    createdAt: account.profile?.created_at ?? account.user.created_at ?? null,
-    membership: account.membership,
-    subscriptionStatus: account.profile?.subscription_status ?? null,
-    subscriptionExpiresAt: account.profile?.subscription_expires_at ?? null,
-    hasStripeCustomer: account.hasStripeCustomer,
+    email: reconciledAccount.profile?.email ?? reconciledAccount.user.email ?? null,
+    displayName: reconciledAccount.displayName,
+    avatarUrl: reconciledAccount.profile?.avatar_url ?? null,
+    providers: reconciledAccount.providers,
+    legacyLoginId: reconciledAccount.profile?.legacy_login_id ?? null,
+    createdAt:
+      reconciledAccount.profile?.created_at ?? reconciledAccount.user.created_at ?? null,
+    membership: reconciledAccount.membership,
+    subscriptionStatus: reconciledAccount.profile?.subscription_status ?? null,
+    subscriptionExpiresAt:
+      reconciledAccount.profile?.subscription_expires_at ?? null,
+    hasStripeCustomer: reconciledAccount.hasStripeCustomer,
     purchases,
   };
 

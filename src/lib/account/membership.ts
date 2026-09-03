@@ -2,6 +2,8 @@ import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { getStripe, getSubscriptionPriceId } from "@/lib/stripe";
+import { syncCustomerSubscriptionState } from "@/lib/subscription-sync";
 
 // Full profile row needed for the account (My Page) screen. This is a superset
 // of ClubProfile in @/lib/club/access — it adds Stripe and legacy fields that
@@ -37,6 +39,48 @@ export interface AccountData {
   // Auth provider(s) backing the account (e.g. "google", "email").
   providers: string[];
   displayName: string;
+}
+
+// The webhook remains the normal path for subscription changes. Reconcile when
+// rendering My Page as well, so a delayed delivery cannot leave a member with
+// an alarming, stale "Renews on" message after they have scheduled a cancel.
+// Only Stripe-backed accounts enter this path; legacy and manually granted
+// Premium access are intentionally never inferred from Stripe.
+export async function reconcileAccountSubscription(
+  account: AccountData
+): Promise<AccountData> {
+  const customerId = account.profile?.stripe_customer_id;
+  const priceId = getSubscriptionPriceId();
+  if (!customerId || !priceId) return account;
+
+  try {
+    const state = await syncCustomerSubscriptionState({
+      stripe: getStripe(),
+      customerId,
+      priceId,
+      userId: account.user.id,
+    });
+    const profile = {
+      ...account.profile!,
+      subscription_tier: state.tier,
+      subscription_status: state.status,
+      subscription_expires_at: state.expiresAt,
+    };
+
+    return {
+      ...account,
+      profile,
+      membership: classifyMembership(profile),
+    };
+  } catch (error) {
+    // Keep the last durable state visible if Stripe is temporarily unavailable.
+    // The webhook and a later My Page request will retry reconciliation.
+    console.error(
+      "Account subscription reconciliation failed:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return account;
+  }
 }
 
 // Derives the membership kind from profile + auth fields. A premium tier can be

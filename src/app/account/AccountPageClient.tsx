@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage, type Language } from "@/context/LanguageContext";
+import { PremiumCrown } from "@/components/PremiumCrown";
 import type { MembershipKind } from "@/lib/account/membership";
 import { DeleteAccountDialog } from "./DeleteAccountDialog";
 import { ManageSubscriptionButton } from "./ManageSubscriptionButton";
@@ -53,10 +54,12 @@ interface AccountCopy {
   planImagine: string;
   planFreeDesc: string;
   planStripeDesc: string;
+  planStripeCancelingDesc: string;
   planLegacyDesc: string;
   planImagineDesc: string;
   statusActive: string;
   statusCanceling: string;
+  statusCancelingDesc: string;
   statusCanceled: string;
   renewsOn: string;
   endsOn: string;
@@ -104,12 +107,15 @@ const COPY: Record<Language, AccountCopy> = {
       "You are on the free plan. Upgrading to Premium unlocks unlimited downloads of all paid content in the WHATIF gallery, plus access to premium assets and more in the IMAGINE design tool.",
     planStripeDesc:
       "You have an active premium subscription with unlimited wallpaper downloads.",
+    planStripeCancelingDesc:
+      "Your subscription is canceled. You can keep using Premium until your current billing period ends.",
     planLegacyDesc:
       "Your premium access comes from your original Instagram subscription membership.",
     planImagineDesc:
       "Your premium access is linked from your /IMAGINE premium account.",
     statusActive: "Active",
-    statusCanceling: "Cancels at period end",
+    statusCanceling: "Canceled",
+    statusCancelingDesc: "Premium access remains available until the date below.",
     statusCanceled: "Canceled",
     renewsOn: "Renews on",
     endsOn: "Ends on",
@@ -150,12 +156,15 @@ const COPY: Record<Language, AccountCopy> = {
       "現在は無料プランです。プレミアムプランにアップグレードするとWHATIFギャラリーのすべての有料コンテンツがダウンロードし放題になります。またデザインツール IMAGINE のプレミアムアセットへのアクセスなど、様々な機能が開放されます。",
     planStripeDesc:
       "プレミアムサブスクリプションが有効です。壁紙をダウンロードし放題です。",
+    planStripeCancelingDesc:
+      "サブスクリプションは解約済みです。現在の契約期間が終わるまでPremiumをご利用いただけます。",
     planLegacyDesc:
       "Instagram サブスク会員からの移行により、プレミアム機能をご利用いただけます。",
     planImagineDesc:
       "/IMAGINE のプレミアムアカウント連携により、プレミアム機能をご利用いただけます。",
     statusActive: "有効",
-    statusCanceling: "期間終了時に解約予定",
+    statusCanceling: "解約済み",
+    statusCancelingDesc: "以下の利用終了日まではPremiumをご利用いただけます。",
     statusCanceled: "解約済み",
     renewsOn: "更新日",
     endsOn: "終了日",
@@ -195,10 +204,12 @@ const COPY: Record<Language, AccountCopy> = {
     planFreeDesc:
       "您当前为免费方案。升级到高级方案后，可无限下载 WHATIF 画廊的所有付费内容，并开放设计工具 IMAGINE 的高级素材访问等多项功能。",
     planStripeDesc: "您的高级订阅有效，可无限下载壁纸。",
+    planStripeCancelingDesc: "您的订阅已取消。在当前计费周期结束前，仍可使用高级会员功能。",
     planLegacyDesc: "您的高级权限来自原 Instagram 订阅会员。",
     planImagineDesc: "您的高级权限来自 /IMAGINE 高级账户的关联。",
     statusActive: "有效",
-    statusCanceling: "将于本期结束时取消",
+    statusCanceling: "已取消",
+    statusCancelingDesc: "在以下日期前仍可使用高级会员功能。",
     statusCanceled: "已取消",
     renewsOn: "续费日期",
     endsOn: "结束日期",
@@ -236,10 +247,12 @@ const COPY: Record<Language, AccountCopy> = {
     planFreeDesc:
       "您目前為免費方案。升級為進階方案後，可無限下載 WHATIF 藝廊的所有付費內容，並開放設計工具 IMAGINE 的進階素材存取等多項功能。",
     planStripeDesc: "您的進階訂閱有效，可無限下載桌布。",
+    planStripeCancelingDesc: "您的訂閱已取消。在目前計費週期結束前，仍可使用進階會員功能。",
     planLegacyDesc: "您的進階權限來自原 Instagram 訂閱會員。",
     planImagineDesc: "您的進階權限來自 /IMAGINE 進階帳戶的連結。",
     statusActive: "有效",
-    statusCanceling: "將於本期結束時取消",
+    statusCanceling: "已取消",
+    statusCancelingDesc: "在以下日期前仍可使用進階會員功能。",
     statusCanceled: "已取消",
     renewsOn: "續訂日期",
     endsOn: "結束日期",
@@ -278,12 +291,15 @@ const COPY: Record<Language, AccountCopy> = {
       "현재 무료 플랜입니다. 프리미엄 플랜으로 업그레이드하면 WHATIF 갤러리의 모든 유료 콘텐츠를 무제한으로 다운로드할 수 있고, 디자인 툴 IMAGINE의 프리미엄 에셋 이용 등 다양한 기능이 열립니다.",
     planStripeDesc:
       "프리미엄 구독이 활성화되어 있어 배경화면을 무제한 다운로드할 수 있습니다.",
+    planStripeCancelingDesc:
+      "구독이 해지되었습니다. 현재 결제 기간이 끝날 때까지 프리미엄 기능을 계속 이용할 수 있습니다.",
     planLegacyDesc:
       "기존 Instagram 구독 회원에서 이전되어 프리미엄 기능을 이용하실 수 있습니다.",
     planImagineDesc:
       "/IMAGINE 프리미엄 계정 연동으로 프리미엄 기능을 이용하실 수 있습니다.",
     statusActive: "활성",
-    statusCanceling: "기간 종료 시 해지 예정",
+    statusCanceling: "해지됨",
+    statusCancelingDesc: "아래 날짜까지 프리미엄 기능을 계속 이용할 수 있습니다.",
     statusCanceled: "해지됨",
     renewsOn: "갱신일",
     endsOn: "종료일",
@@ -346,14 +362,6 @@ function formatAmount(
   }
 }
 
-function CrownIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M3 7l4 4 5-7 5 7 4-4-1.6 11H4.6L3 7zm1.8 13h14.4v1.2a.8.8 0 01-.8.8H5.6a.8.8 0 01-.8-.8V20z" />
-    </svg>
-  );
-}
-
 function SectionCard({
   title,
   children,
@@ -402,7 +410,9 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
     view.membership === "free"
       ? t.planFreeDesc
       : view.membership === "stripe_premium"
-        ? t.planStripeDesc
+        ? view.subscriptionStatus === "canceling"
+          ? t.planStripeCancelingDesc
+          : t.planStripeDesc
         : view.membership === "legacy_premium"
           ? t.planLegacyDesc
           : t.planImagineDesc;
@@ -462,7 +472,7 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
               </h1>
               {isPremium && (
                 <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-500">
-                  <CrownIcon className="h-3.5 w-3.5" />
+                  <PremiumCrown className="h-3.5 w-3.5" />
                   {planLabel}
                 </span>
               )}
@@ -489,7 +499,7 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
         <SectionCard title={t.membership}>
           <div className="flex items-start gap-3">
             {isPremium && (
-              <CrownIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+              <PremiumCrown className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
             )}
             <div className="flex-1">
               <p className="text-base font-semibold text-foreground">
@@ -498,21 +508,21 @@ export default function AccountPageClient({ view }: { view: AccountView }) {
               <p className="mt-1 text-sm leading-6 text-muted">{planDesc}</p>
 
               {statusLabel && (
-                <p className="mt-3 text-xs text-muted">
-                  <span className="font-medium text-foreground">
-                    {statusLabel}
-                  </span>
+                <div className="mt-3 text-xs text-muted">
+                  <p className="font-medium text-foreground">{statusLabel}</p>
+                  {view.subscriptionStatus === "canceling" && (
+                    <p className="mt-1 leading-5">{t.statusCancelingDesc}</p>
+                  )}
                   {view.subscriptionExpiresAt && (
-                    <>
-                      {" · "}
+                    <p className="mt-1 tabular-nums">
                       {view.subscriptionStatus === "canceling" ||
                       view.subscriptionStatus === "canceled"
                         ? t.endsOn
                         : t.renewsOn}{" "}
                       {formatDate(view.subscriptionExpiresAt, lang)}
-                    </>
+                    </p>
                   )}
-                </p>
+                </div>
               )}
 
               {view.membership === "free" && (
