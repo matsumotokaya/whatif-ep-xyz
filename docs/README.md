@@ -15,7 +15,8 @@
 1. [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md)
    - プロダクト方針、価値、価格の正本
 2. [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)
-   - 現行アーキテクチャの横断地図。構成を忘れたときだけ読む
+   - 現行アーキテクチャの横断地図。構成を忘れたときだけ読む。
+     Premium判定の三層（機能アクセス / 課金表示 / Stripe整合）と踏みやすい罠もここが正本
 3. [WALLPAPER_PIPELINE_PLAN.md](./WALLPAPER_PIPELINE_PLAN.md)
    - 壁紙運用・量産・収益動線まわりの残タスク
 4. [UX_BILLING_FIX_LIST.md](./UX_BILLING_FIX_LIST.md)

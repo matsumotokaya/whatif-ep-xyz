@@ -117,6 +117,17 @@ create-portal-session   ACTIVE
 [subscription-sync.ts](../src/lib/subscription-sync.ts) は `subscription_tier` を**無条件に上書き**するため、
 **legacy会員が一度Stripeで課金し後に解約すると、legacy特典ごと `free` に落ちて復元不能**になる。
 
+**2026-09-04 追記: この単一カラム依存が実害を出した。**
+判定マップと罠は [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md) の
+「Premium Access Model」を正本とする。
+
+- 保存済みデザインを開く経路が `banners.template.planType`（作成時スナップショット）でゲートしており、
+  所有者判定がないため**解約した本人が自分の作品を開けなかった**（本番20件・2ユーザー）
+- premium 判定4箇所が `profileLoading` を待っておらず、**現役の課金会員も誤ブロックされうる**状態だった
+  （同じ罠を admin 判定は全箇所で回避していた。premium 側だけレビュー漏れ）
+- B2 の entitlements 移行では、**機能アクセス / 課金表示 / Stripe整合の3層を分けたまま**移す。
+  `role='admin'` は legacy と同じく `source='admin'` として Stripe 同期から独立させる
+
 ### 2.4 その他
 
 - **定期照合が存在しない** — `vercel.json` なし、cron API なし。Webhookが1度失敗すると誰も直さない
@@ -628,3 +639,10 @@ where (subscription_tier = 'free'    and subscription_status = 'canceling')
   (3) live に有効な価格が2つあり価格ID不一致が障害の有力候補、
   (4) Webhook の api_version が live=clover固定 / sandbox=既定追従で不一致。
   Vercel のログ保持期間（Pro=1日）が短く、過去の webhook 失敗ログは追跡不可。
+- 2026-09-04: Premium判定の実害を修正（`aed58dd` / `b054c71`）。B2 の前倒し分ではなく、
+  現行 `subscription_tier` のまま判定の入口だけを整理したもの。
+  (1) 保存済みデザインを開く経路の premium ゲートを撤去。所有者が自分の作品を開けなかった（本番20件・2ユーザー）。
+  (2) premium 判定4箇所に `profileLoading` ガードを追加。課金会員の誤ブロックを封じた。
+  (3) `hasPremiumFeatureAccess()`（`role='admin' || tier='premium'`）を追加し、機能アクセスの判定を一本化。
+  `club_items` の RLS も admin を通すよう `alter policy` で更新（適用済み）。
+  課金表示と Stripe 整合には admin バイパスを入れていない（admin は free と表示され、決済フローもテストできる）。

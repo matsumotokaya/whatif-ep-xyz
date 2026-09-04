@@ -50,6 +50,11 @@ README の「Project Structure」が正本（`works/[series]/[code]` 構成、`/
 決済・サブスク・Premium判定に触れる作業の前に、同文書の「進捗サマリ」で現在のフェーズを確認する。
 フェーズは飛ばさない。DB変更は必ずSQLを提示してユーザーが手動実行する。
 
+Premium判定の三層（機能アクセス / 課金表示 / Stripe整合）と踏みやすい罠は
+`docs/ARCHITECTURE_OVERVIEW.md` の「Premium Access Model」が正本。
+🔴 `subscription_tier` を手で書き換えて特権を与えないこと（`stripe_customer_id` を持つ会員は
+`/account` を開いた瞬間に Stripe を正として上書きされる）。
+
 ## Wallpaper 単品購入
 - Stripe Checkout `mode:"payment"` ＋ `STRIPE_WALLPAPER_PRICE_ID`。成功時に webhook が `public.wallpaper_purchases`（`status='paid'`）を `stripe_checkout_session_id` で冪等記録。premium 会員または購入者でダウンロード解放。
 - 開始は `src/app/api/works/[series]/[code]/wallpaper/checkout/route.ts`。

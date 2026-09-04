@@ -77,6 +77,40 @@ Resend への送信経路は**アプリコード経由**と**Supabase Auth経由
 - 🔴 `url` は full-res だけを指し、`width`/`height` は `url` が指す画像の実寸のみを申告する
   （寸法の誤申告は、課金される動画生成の入力にサムネイルを掴ませる）
 
+## Premium Access Model
+
+Premium は**3つの別々の問い**に分かれる。混ぜると事故になるので判定の入口を分けている。
+
+| 層 | 問い | 判定 | 実装 |
+|---|---|---|---|
+| 機能アクセス | この機能を使わせるか | `role === 'admin' \|\| tier === 'premium'` | [access/entitlement.ts](../src/lib/access/entitlement.ts) の `hasPremiumFeatureAccess()`。サーバーは [club/access.ts](../src/lib/club/access.ts) の `canAccessClub()`、クライアントは editor の `useAuth().hasPremiumAccess` を経由する |
+| 課金表示 | この人は課金しているか | `subscription_tier === 'premium'` のみ | Header の王冠、`/account`、`/plans`、editor の AuthButton バッジ |
+| Stripe整合 | Stripe 上の契約はどうなっているか | Stripe API を再取得 | checkout / confirm / portal / 退会ガード / [subscription-sync.ts](../src/lib/subscription-sync.ts) |
+
+🔴 **admin は機能アクセスだけ通す。** 課金表示と Stripe 整合に admin バイパスを入れてはいけない。
+王冠を出せば課金実態と食い違い、checkout に入れれば admin 自身が決済フローをテストできなくなる。
+
+🔴 **DB にも premium ゲートが1つある。** `club_items` の RLS `club_items_select_premium` が
+`subscription_tier` を直接読む（`subscription_tier` を参照する RLS はデータベース全体でこれだけ）。
+The Club の権限を変えるときは、コードと同時にこのポリシーも変える。コードだけ直すと一覧が空になる。
+
+### 踏みやすい罠
+
+- **`loading` と `profileLoading` は別物。** 前者はセッション解決、後者は `profiles` 行の取得。
+  editor の [AuthContext](../src/components/editor/contexts/AuthContext.tsx) は profile 未取得の間
+  楽観的に `tier: 'free'` を返すため、`profileLoading` を待たずに premium 判定すると**課金会員を弾く**。
+  admin 判定は元から全箇所で待っていたが、premium 判定側は待っていなかった（2026-09-04 に修正）。
+- **`subscription_tier` を手で `premium` にしても定着しない。** `stripe_customer_id` を持つ profile は
+  `/account` を開くたびに `reconcileAccountSubscription` が Stripe を正として上書きする。
+  legacy 会員が無事なのは「Stripe customer を持たない」という構造のおかげであって、除外フラグは存在しない。
+  **Stripe 由来でない恒久的な特権は、`role` のように Stripe 同期の対象外の列で表現する。**
+- **`banners.template.planType` は作成時点のスナップショット**であり、権限の正本ではない。
+  保存済みデザインを開く経路の判定に使ってはいけない（使っていたため、解約した本人が
+  自分の作品を開けなくなっていた。本番20件・2ユーザー）。
+- **premium 素材そのものは保護されていない。** `default_images` / `templates` の SELECT RLS は全公開で、
+  `/api/lab/assets` と `/ref/asset/{id}` は anon に開いている。現状の premium ゲートは
+  「ライブラリを**開くボタン**」というUIだけであり、素材の秘匿は成立していない（既知の穴）。
+
 ## Source Of Truth
 
 - App behavior: `src/app`, `src/components`, `src/lib`
