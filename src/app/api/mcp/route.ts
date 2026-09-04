@@ -3,6 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 import {
   getRefDesign,
+  getRefDesignLayers,
   listRefDesigns,
   projectRefDesigns,
   resolveRefDesignFields,
@@ -18,12 +19,18 @@ import {
 // framework, a video pipeline) discover the site's referenceable images and
 // grab a public URL for any of them.
 //
-// Two kinds are exposed. DESIGNS (list_designs / get_design) are saved IMAGINE
-// documents, owned by users and rendered on save. ASSETS (list_assets /
-// get_asset) are the site's official, curated image library — character cutouts
-// and general art — which is public data with a recorded pixel size on every
-// row. An agent choosing a source needs to know both exist, so each pair's
-// description points at the other.
+// Two kinds are exposed. DESIGNS (list_designs / get_design /
+// get_design_layers) are saved IMAGINE documents, owned by users and rendered
+// on save. ASSETS (list_assets / get_asset) are the site's official, curated
+// image library — character cutouts and general art — which is public data with
+// a recorded pixel size on every row. An agent choosing a source needs to know
+// both exist, so each pair's description points at the other.
+//
+// get_design_layers is the one tool that does not return an image reference: it
+// returns the DOCUMENT STRUCTURE, so a consumer can animate a design's parts
+// separately instead of panning the flattened render. get_design and it point
+// at each other, because "still image" vs "animate the parts" is the choice a
+// model has to make and neither payload states it alone.
 //
 // Streamable HTTP in stateless mode: a fresh McpServer + transport per request,
 // no session store, JSON responses instead of SSE streams. That is what a
@@ -187,6 +194,7 @@ function createServer(): McpServer {
         "For an id that came from the official asset library instead, use get_asset. " +
         "Such an id is not limited to what list_designs returns — it resolves whichever account saved that design — so ids must not be guessed, enumerated, incremented or tried at random; " +
         "resolve only an id you were actually given. " +
+        "This returns the design as ONE FLATTENED IMAGE, which is what a still needs; call get_design_layers with the same id to get its parts separately, which is what animating it needs. " +
         URL_DOC,
       inputSchema: {
         id: z
@@ -228,6 +236,48 @@ function createServer(): McpServer {
       }
 
       return { content };
+    }
+  );
+
+  server.registerTool(
+    "get_design_layers",
+    {
+      title: "Get one WHATIF design's layers",
+      description:
+        "Fetch the LAYER STRUCTURE of one saved IMAGINE design — its elements in draw order, each with geometry and, for image layers, the public URL of its original source file. " +
+        "THIS IS WHAT MAKES A DESIGN ANIMATABLE PER PART rather than as one flat image: with it a background, a character cutout and a caption can move independently, which get_design's single flattened render cannot express. " +
+        "For a still image, or when the whole composed picture is what you want, get_design's `url` remains the right choice — do not rebuild a still out of layers. " +
+        "IMAGE LAYERS REPRODUCE EXACTLY: their `url` is the original file the editor itself loads (a transparent-PNG cutout, or the user's background), so placing it at the given x/y/width/height/rotation/opacity recreates that part of the flattened render pixel for pixel (`exact: true`). " +
+        "TEXT LAYERS ARE APPROXIMATE TODAY: the editor lays text out with a canvas engine, so a DOM-based renderer (Remotion, HTML) will differ slightly in letter spacing and wrapping (`exact: false`); a pre-rendered transparent text PNG is planned. Each layer carries its own `exact` flag and the response's `fidelity` block states this for the design as a whole. " +
+        "`index` is the draw order, 0 at the BOTTOM and ascending on top — render in that order. " +
+        "Elements hidden in the editor (`visible: false`) are already omitted, so draw everything returned and nothing else: the result matches the flattened render. " +
+        "`width`/`height` at the top level are the canvas size and `backgroundColor` the canvas colour, so the container to place layers in is fully described. Text layers have `width`/`height` null because the document does not store a measured box for them.",
+      inputSchema: {
+        id: z
+          .string()
+          .describe(
+            "The design's uuid, exactly as the user gave it or as list_designs returned it. Never invent or guess one."
+          ),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ id }) => {
+      const layers = await getRefDesignLayers(id);
+      if (!layers) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `No design found for id "${id}".`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(layers) }],
+      };
     }
   );
 

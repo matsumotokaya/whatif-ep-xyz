@@ -3,6 +3,7 @@ import {
   formatAspectRatio,
   isUuid,
   mapRowToRefDesign,
+  mapRowToRefDesignLayers,
   orderByRequestedIds,
   parseRefDesignName,
   projectRefDesign,
@@ -11,6 +12,7 @@ import {
   resolveRefDesignFields,
   selectLookupIds,
   stripImageExtension,
+  type RefDesignLayersRow,
   type RefDesignRow,
 } from "./designs";
 
@@ -520,5 +522,229 @@ describe("orderByRequestedIds", () => {
 
     expect(designs).toHaveLength(1);
     expect(missing).toEqual([idAt(1), "nope", HEX_ID]);
+  });
+});
+
+describe("mapRowToRefDesignLayers", () => {
+  // Shaped after the real row for 15866eb5-… (EPISODE 0313-1 Feed): a
+  // user-images background, a default-images cutout, and two text elements.
+  const layersRow = (
+    overrides: Partial<RefDesignLayersRow> = {}
+  ): RefDesignLayersRow => ({
+    id: ID,
+    name: "EPISODE 0313-1 Feed",
+    template: { width: 1080, height: 1350 },
+    canvas_color: "#808080",
+    elements: [
+      {
+        id: "image-bg",
+        type: "image",
+        src: "user-images/uid/uploads/bg.jpg",
+        x: -110,
+        y: -6.85,
+        width: 1348.21,
+        height: 1789.75,
+        visible: true,
+        rotation: 0,
+      },
+      {
+        id: "image-cutout",
+        type: "image",
+        src: "default-images/official/episode/0313-1/cutout.png",
+        x: 150,
+        y: 42.87,
+        width: 782.84,
+        height: 1320.52,
+        opacity: 1,
+        visible: true,
+        rotation: 0,
+      },
+      {
+        id: "text-title",
+        type: "text",
+        text: "/IMAGINE: EP0313",
+        x: 45.72,
+        y: 1262.83,
+        fill: "#fd4d52",
+        stroke: "#000000",
+        fontSize: 55,
+        fontFamily: '"Bebas Neue", sans-serif',
+        fontWeight: 400,
+        fillEnabled: true,
+        strokeWidth: 2,
+        letterSpacing: 0,
+        strokeEnabled: false,
+        visible: true,
+      },
+    ],
+    ...overrides,
+  });
+
+  it("resolves an image layer's url exactly as the editor loads it, with the stored geometry", () => {
+    const { layers } = mapRowToRefDesignLayers(layersRow());
+    const [background, cutout] = layers;
+
+    // resolveElementSrc: assets origin + the key, with the CORS-anonymous
+    // cache-bust the editor's ImageRenderer also requests.
+    expect(background.url).toBe(
+      "https://assets.whatif-ep.xyz/user-images/uid/uploads/bg.jpg?v=cors-anon-v1"
+    );
+    expect(cutout.url).toBe(
+      "https://assets.whatif-ep.xyz/default-images/official/episode/0313-1/cutout.png?v=cors-anon-v1"
+    );
+
+    expect(background).toMatchObject({
+      type: "image",
+      x: -110,
+      y: -6.85,
+      width: 1348.21,
+      height: 1789.75,
+      rotation: 0,
+      opacity: 1,
+    });
+  });
+
+  it("carries the text fields a renderer needs, with no size", () => {
+    const { layers } = mapRowToRefDesignLayers(layersRow());
+    const text = layers[2];
+
+    expect(text).toMatchObject({
+      index: 2,
+      type: "text",
+      text: "/IMAGINE: EP0313",
+      x: 45.72,
+      y: 1262.83,
+      fontFamily: '"Bebas Neue", sans-serif',
+      fontSize: 55,
+      fontWeight: 400,
+      letterSpacing: 0,
+      fill: "#fd4d52",
+      fillEnabled: true,
+      stroke: "#000000",
+      strokeWidth: 2,
+      strokeEnabled: false,
+    });
+    // Konva measures the box from the content, so the document stores none and
+    // guessing one here is what `exact: false` exists to avoid.
+    expect(text.width).toBeNull();
+    expect(text.height).toBeNull();
+  });
+
+  it("marks images and shapes exact and text approximate", () => {
+    const { layers } = mapRowToRefDesignLayers(
+      layersRow({
+        elements: [
+          ...(layersRow().elements ?? []),
+          {
+            id: "shape-1",
+            type: "shape",
+            shapeType: "rectangle",
+            x: 10,
+            y: 20,
+            width: 100,
+            height: 50,
+            fill: "#000000",
+            fillEnabled: true,
+            stroke: "#ffffff",
+            strokeWidth: 4,
+            strokeEnabled: true,
+            visible: true,
+          },
+        ],
+      })
+    );
+
+    expect(layers.map((layer) => [layer.type, layer.exact])).toEqual([
+      ["image", true],
+      ["image", true],
+      ["text", false],
+      ["shape", true],
+    ]);
+    expect(layers[3]).toMatchObject({
+      shapeType: "rectangle",
+      width: 100,
+      height: 50,
+    });
+  });
+
+  it("omits elements hidden in the editor and renumbers what is left", () => {
+    // `visible: false` elements are absent from the flattened render too, so a
+    // consumer that draws everything it is handed lands on the same picture.
+    const rows = layersRow().elements ?? [];
+    const { layers } = mapRowToRefDesignLayers(
+      layersRow({
+        elements: [
+          { ...(rows[0] as object), visible: false },
+          rows[1],
+          rows[2],
+        ],
+      })
+    );
+
+    expect(layers).toHaveLength(2);
+    expect(layers.map((layer) => layer.index)).toEqual([0, 1]);
+    expect(layers[0].url).toContain("cutout.png");
+  });
+
+  it("preserves the stored draw order, bottom first", () => {
+    const { layers } = mapRowToRefDesignLayers(layersRow());
+
+    expect(layers.map((layer) => layer.index)).toEqual([0, 1, 2]);
+    // Element 0 is the background and the last one is drawn on top.
+    expect(layers[0].url).toContain("bg.jpg");
+    expect(layers.at(-1)?.type).toBe("text");
+  });
+
+  it("reports the canvas, and fidelity.text approximate when there is text", () => {
+    const design = mapRowToRefDesignLayers(layersRow());
+
+    expect(design).toMatchObject({
+      id: ID,
+      name: "EPISODE 0313-1 Feed",
+      width: 1080,
+      height: 1350,
+      backgroundColor: "#808080",
+    });
+    expect(design.fidelity.images).toBe("exact");
+    expect(design.fidelity.text).toBe("approximate");
+    expect(design.fidelity.note).toContain("Konva");
+  });
+
+  it("reports fidelity.text `none` for a design with no text at all", () => {
+    const design = mapRowToRefDesignLayers(
+      layersRow({ elements: (layersRow().elements ?? []).slice(0, 2) })
+    );
+
+    expect(design.fidelity.text).toBe("none");
+    expect(design.fidelity.note).toContain("no text");
+    expect(design.layers.every((layer) => layer.exact)).toBe(true);
+  });
+
+  it("survives a row with no elements", () => {
+    const design = mapRowToRefDesignLayers(layersRow({ elements: null }));
+
+    expect(design.layers).toEqual([]);
+    expect(design.fidelity.text).toBe("none");
+  });
+
+  it("defaults rotation to 0 and opacity to 1 when unset", () => {
+    const { layers } = mapRowToRefDesignLayers(
+      layersRow({
+        elements: [
+          {
+            id: "image-bare",
+            type: "image",
+            src: "default-images/library/a.png",
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+          },
+        ],
+      })
+    );
+
+    expect(layers[0].rotation).toBe(0);
+    expect(layers[0].opacity).toBe(1);
   });
 });

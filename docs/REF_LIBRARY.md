@@ -112,6 +112,10 @@ assets では**例外なく成立する**。`thumbnail_path` も全行にある�
   `REF_OWNER_USER_IDS` は**未設定のままでよい**（admin へのフォールバックで足りる）
 - したがって「一覧に出ない」≠「参照できない」。オーナー範囲外のデザインは一覧・検索には
   現れないが、id を知っていれば参照・ダウンロードできる
+- 🔴 **2026-09-04 以降、id で取れるのは合成済み画像だけではない**。
+  [`/layers`](#get-apirefdesignsidlayers) が**ドキュメント構造**
+  （テキスト本文・元アセットキー＝元アップロードのフル解像度）も同じ範囲で返す。
+  公開量が増えている点は[今後](#今後)の「ドキュメント構造の公開範囲」に記録してある
 
 ### assets（`public.default_images`）
 
@@ -135,7 +139,7 @@ assets では**例外なく成立する**。`thumbnail_path` も全行にある�
 | `width`/`height` | `url` の実寸。`url` が無ければ `null` | `url` の実寸。**全行に記録あり** |
 | `aspect` | ドキュメント寸法の比（`"4:5"` 等の整った値） | 実寸の比（`"1223:2063"` 等・等値フィルタ不可） |
 | 恒久リンク | `/ref/{id}` | `/ref/asset/{id}` |
-| MCPツール | `list_designs` / `get_design` | `list_assets` / `get_asset` |
+| MCPツール | `list_designs` / `get_design` / `get_design_layers` | `list_assets` / `get_asset` |
 | キャッシュ | `s-maxage=60` | `s-maxage=300` |
 | 更新頻度 | 保存のたび | まれ（キュレーション時のみ） |
 
@@ -149,6 +153,7 @@ assets では**例外なく成立する**。`thumbnail_path` も全行にある�
 | `GET /api/ref/designs?id=...` | designs | ID指定取得（**フルレコード**） | **全アカウント** |
 | `GET /api/ref/designs`（一覧パラメータ） | designs | 一覧・検索（**コンパクトレコード**） | オーナー範囲のみ |
 | `GET /ref/{id}` (`/ref/{id}.jpg` も可) | designs | 現在のfull-resレンダリングへ302リダイレクト | **全アカウント** |
+| `GET /api/ref/designs/{id}/layers` | designs | **レイヤー構造**（合成前の要素を描画順＋ジオメトリで返す。パーツ別アニメーション用） | **全アカウント** |
 | `GET /api/ref/assets?id=...` | assets | ID指定取得（**フルレコード**） | 公開 |
 | `GET /api/ref/assets`（一覧パラメータ） | assets | 一覧・検索（**コンパクトレコード**） | 公開 |
 | `GET /ref/asset/{id}` (`.jpg`/`.png` も可) | assets | フルサイズ画像へ302リダイレクト | 公開 |
@@ -368,6 +373,132 @@ curl -sI "https://whatif-ep.xyz/ref/<uuid>?size=thumb" # 302 → thumbnail
 
 実装: [src/app/ref/[id]/route.ts](../src/app/ref/%5Bid%5D/route.ts)
 
+### `GET /api/ref/designs/{id}/layers`
+
+**デザインを「1枚のフラットなJPEG」ではなく「レイヤー構造」として返す**
+（2026-09-04 追加・**フェーズ1/3**）。
+
+`url` が返すのは合成済みのJPEGで、静止画にはそれで十分だが、
+**動画にすると全体をパン／ズームするしかない**。この経路は保存されたドキュメント側
+（`banners.elements` / `canvas_color` / `template`）を返すので、
+背景・キャラクター切り抜き・キャプションを**別々に動かせる**。
+Remotion から使う形は[使い方 → Remotion からレイヤーを別々に動かす](#remotion-からレイヤーを別々に動かす)にある。
+
+🔴 **画像レイヤーは再レンダリングが一切不要**なのが、この機能の形を決めている。
+`elements[].src` は元アップロードファイル（`default-images/…` の公式透過PNG切り抜き、
+`user-images/…` の背景）を指す相対アセットキーで、実体はすでにR2で公開されている。
+つまり **URL＋ジオメトリを渡せば、近似ではなくそのレイヤーそのもの**になる。
+近似が発生するのは**テキストだけ**（エディタはKonvaで組んでおり、
+DOM系レンダラは字送りと折り返しがわずかに違う）。
+
+```bash
+curl -s "https://whatif-ep.xyz/api/ref/designs/15866eb5-f7f7-4758-a59b-f94a48ffa73d/layers" | jq .
+```
+
+- `GET` / `OPTIONS`・CORS `*`・`Cache-Control: public, s-maxage=60, stale-while-revalidate=300`
+  （他の `/api/ref/*` と同じ）
+- **存在しないid・uuid形式でない文字列はどちらも 404**（`{"error":"Design not found"}`）
+- 範囲は `?id=` 指定と同じ **全アカウント**（idがアクセス権）。
+  🔴 ただし**公開する情報量は合成画像より増えている** →
+  [今後](#今後)の「ドキュメント構造の公開範囲」を必ず読むこと
+- ネストしたセグメントだが `GET /api/ref/designs`（一覧・`?id=`）を**シャドウしない**。
+  Next.js はパス全体に対してのみルートをマッチするため、深さの違う別ルートになる（実機確認済み）
+- 変換系クエリガード（`REF_TRANSFORM_PARAMS`）は**適用していない**。
+  返すのはJSONで画像ではないので、`?w=1920` が「黙って原寸を返す」問題は起きない
+
+#### ペイロード
+
+```ts
+interface RefDesignLayers {
+  id: string;
+  name: string;
+  width: number | null;            // キャンバス幅（= docWidth）
+  height: number | null;
+  backgroundColor: string;         // banners.canvas_color
+  layers: RefDesignLayer[];
+  fidelity: {                      // 「何が厳密に再現できるか」の機械可読な宣言
+    images: "exact";
+    text: "approximate" | "none";  // "none" = テキスト要素が無いデザイン
+    note: string;                  // 同じ内容を人間可読で1〜2文
+  };
+}
+
+interface RefDesignLayer {
+  index: number;                   // 0 = 最下層、増えるほど上に描く
+  type: "image" | "text" | "shape";
+  x: number; y: number;            // キャンバスpx・左上原点・保存値そのまま
+  width: number | null;            // text は null（Konvaが実測するので保存されていない）
+  height: number | null;
+  rotation: number;                // 度。未設定なら 0
+  opacity: number;                 // 未設定なら 1
+  exact: boolean;                  // 記載どおり置けば厳密に再現できるか
+  url?: string;                    // image: 元ファイルの公開URL
+  text?: string;                   // 以下 text
+  fontFamily?: string; fontSize?: number; fontWeight?: number;
+  letterSpacing?: number; lineHeight?: number; align?: string;
+  fill?: string; fillEnabled?: boolean;             // text / shape 共通
+  stroke?: string; strokeWidth?: number; strokeEnabled?: boolean;
+  shapeType?: string;              // shape
+}
+```
+
+実例（`15866eb5-…` = EPISODE 0313-1 Feed・1080×1350・4要素）:
+
+```jsonc
+{
+  "id": "15866eb5-f7f7-4758-a59b-f94a48ffa73d",
+  "name": "EPISODE 0313-1 Feed",
+  "width": 1080, "height": 1350, "backgroundColor": "#808080",
+  "layers": [
+    { "index": 0, "type": "image", "exact": true,
+      "x": -110.0, "y": -6.85, "width": 1348.21, "height": 1789.75,
+      "rotation": 0, "opacity": 1,
+      "url": "https://assets.whatif-ep.xyz/user-images/…/uploads/….jpg?v=cors-anon-v1" },
+    { "index": 1, "type": "image", "exact": true,
+      "x": 150.0, "y": 42.87, "width": 782.84, "height": 1320.52,
+      "rotation": 0, "opacity": 1,
+      "url": "https://assets.whatif-ep.xyz/default-images/official/episode/0313-1/….png?v=cors-anon-v1" },
+    { "index": 2, "type": "text", "exact": false,
+      "x": 45.72, "y": 1262.83, "width": null, "height": null,
+      "rotation": 0, "opacity": 1,
+      "text": "/IMAGINE: EP0313", "fontFamily": "\"Bebas Neue\", sans-serif",
+      "fontSize": 55, "fontWeight": 400, "letterSpacing": 0,
+      "fill": "#fd4d52", "fillEnabled": true,
+      "stroke": "#000000", "strokeWidth": 2, "strokeEnabled": false },
+    { "index": 3, "type": "text", "exact": false, "…": "（本文テキスト）" }
+  ],
+  "fidelity": { "images": "exact", "text": "approximate", "note": "…" }
+}
+```
+
+`url` は**エディタ自身が読み込むURLとバイト単位で同一**
+（`resolveElementSrc` を通しているため。`?v=cors-anon-v1` はCORS匿名読み込み用の
+キャッシュ分離で、エディタのcanvasも同じURLを叩く＝同じキャッシュに当たる）。
+
+#### `exact` と fidelity 契約
+
+| type | `exact` | 理由 |
+|---|---|---|
+| **image** | `true` | `url` が**元ファイルそのもの**。ジオメトリどおり置けば合成済みJPEGと一致する。レンダリング工程が無いので、間違えようがない |
+| **shape** | `true` | 図形は数値だけで定義されるのでレンダラ間で差が出ない（実データには**0件**） |
+| **text** | `false` | エディタはKonvaで文字を組む。DOM系レンダラ（Remotion / HTML）は字送りと折り返しがわずかに違う |
+
+`fidelity.text` は `"approximate"`（テキストあり）/ `"none"`（テキスト無し）。
+**実データではテキストを持つのはレンダー済み135件のうち56件だけ**なので、
+残りの約8割はこのAPIだけで**厳密に**再現できる。
+テキストも厳密にするのがフェーズ2（[今後](#今後)）。
+
+#### 🔴 非表示要素（`visible: false`）は返さない
+
+エディタで非表示にした要素は**合成済みJPEGにも写っていない**。
+返さないことで「**返ってきたものを全部描けば `url` と同じ絵になる**」という
+約束が成り立つ（これがこのペイロードの存在理由そのもの）。
+`index` は残った要素だけで0から振り直すので、欠番を解釈する必要はない。
+実データでは8要素が該当する。
+
+実装: [src/app/api/ref/designs/[id]/layers/route.ts](../src/app/api/ref/designs/%5Bid%5D/layers/route.ts) /
+[src/lib/ref/designs.ts](../src/lib/ref/designs.ts) の `getRefDesignLayers`
+
 ### `GET /api/ref/assets`
 
 公式素材ライブラリ（`public.default_images`）の一覧・検索・ID指定取得。**全経路が公開**。
@@ -515,6 +646,7 @@ curl -sI "https://whatif-ep.xyz/ref/asset/<uuid>?size=thumb" # 302 → サムネ
 |---|---|---|---|
 | `list_designs` | `search?`, `limit?`, `offset?`, `renderedOnly?`, `minWidth?`, `fields?` | `/api/ref/designs` と同じ一覧（既定はコンパクトレコード＋`count`/`total`） | オーナー範囲のみ |
 | `get_design` | `id`, `preview?` | 単一デザインを**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | **全アカウント** |
+| `get_design_layers` | `id` | デザインの**レイヤー構造**を返す（`/api/ref/designs/{id}/layers` と同じペイロード）。**パーツ別に動かすため**のツールで、静止画なら `get_design` の `url` を使う | **全アカウント** |
 | `list_assets` | `search?`, `role?`, `tag?`, `work?`, `limit?`, `offset?`, `minWidth?`, `fields?` | `/api/ref/assets` と同じ一覧（既定はコンパクトレコード＋`count`/`total`）。`tag` は大文字小文字を区別しない | 公開 |
 | `get_asset` | `id`, `preview?` | 単一素材を**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | 公開 |
 
@@ -546,6 +678,12 @@ JSON Schema 上は `anyOf: [string, array of string]`。
 `aspect` は等値フィルタに使えないことを明記している。
 `list_designs` / `get_design` の description にも
 **もう一方の kind が存在すること**（`list_assets` / `get_asset`）を1文だけ足してある。
+`get_design` には**`get_design_layers` が存在すること**も1節だけ足してある
+（「静止画なら `url`、パーツ別に動かすならレイヤー」という選択は、
+どちらのペイロードを見ても分からないため）。
+`get_design_layers` の description には
+**画像レイヤーは厳密・テキストは近似**であること、`index` が下から上の描画順であること、
+**非表示要素は既に除かれている**こと、静止画なら `get_design` の `url` を使うこと、を明記している。
 素材を探しているモデルが designs しか見つけられず、
 「full-res が無い」デザインを無理に使う、という選択ミスを防ぐため。
 
@@ -634,6 +772,66 @@ import { Img } from "remotion";
 `scripts/fetch-banner.sh` がservice-role鍵でPostgRESTを直叩きしていた旧来のやり方は**廃止**。
 画像参照は `/api/ref/designs` に一本化する（Video FactoryのBannerRenderer用fixtures JSONは
 別用途として従来どおり。[docs/LAB.md](./LAB.md) の Video Factory 節を参照）。
+
+#### Remotion からレイヤーを別々に動かす
+
+`/api/ref/designs/{id}/layers` を使うと、**合成済み画像をパンする代わりに
+パーツ別に動かせる**。以下がそのままコピペで動く最小の入口
+（`design` は[ペイロード](#get-apirefdesignsidlayers)そのまま。
+fetch は Remotion 側の `calculateMetadata` か `delayRender` で行い、
+このコンポーネントには渡すだけにするのが素直）。
+
+```tsx
+import { AbsoluteFill, Img } from "remotion";
+
+export const DesignLayers: React.FC<{ design: RefDesignLayers }> = ({ design }) => (
+  <AbsoluteFill style={{ backgroundColor: design.backgroundColor }}>
+    <div style={{ position: "relative", width: design.width!, height: design.height! }}>
+      {design.layers.map((l) => {
+        const style: React.CSSProperties = {
+          position: "absolute",
+          left: l.x,
+          top: l.y,
+          transform: `rotate(${l.rotation}deg)`,
+          transformOrigin: "top left",
+          opacity: l.opacity,
+        };
+        // 動きを付けるのはここ。例: 背景(index 0)だけゆっくり寄せる
+        //   if (l.index === 0) style.left = l.x + interpolate(useCurrentFrame(), [0, 240], [0, -60]);
+        return l.type === "image" ? (
+          <Img key={l.index} src={l.url!}
+               style={{ ...style, width: l.width!, height: l.height! }} />
+        ) : (
+          <div key={l.index} style={{
+            ...style,
+            color: l.fillEnabled === false ? "transparent" : l.fill,
+            WebkitTextStroke: l.strokeEnabled ? `${l.strokeWidth}px ${l.stroke}` : undefined,
+            fontFamily: l.fontFamily,
+            fontSize: l.fontSize,
+            fontWeight: l.fontWeight,
+            letterSpacing: l.letterSpacing,
+            lineHeight: l.lineHeight ?? 1,
+            textAlign: (l.align ?? "left") as "left",
+            whiteSpace: "pre",
+          }}>{l.text}</div>
+        );
+      })}
+    </div>
+  </AbsoluteFill>
+);
+```
+
+- `layers` は**そのままの順で描く**（配列順 = `index` = 下から上）。非表示要素は
+  APIが既に除いてあるので、フィルタは要らない
+- **フォントは `@remotion/google-fonts` から読む**。エディタが読み込むのは Google Fonts の
+  10ファミリ（`Noto Sans JP` / `Noto Serif JP` / `Bebas Neue` / `WDXL Lubrifont JP N` /
+  `DotGothic16` / `Anton SC` / `Bytesized` / `Josefin Sans` / `Six Caps` /
+  `Special Gothic Expanded One`）＋ `Arial`
+  （正本は [src/components/editor/lib/fonts.ts](../src/components/editor/lib/fonts.ts)）。
+  `fontFamily` は `"\"Bebas Neue\", sans-serif"` のようにCSS指定の形で入っている
+- **テキストは `exact: false`**（字送り・折り返しがKonvaと一致しない）。
+  ぴったり合わせたい場合はフェーズ2の透過PNGを待つか、その部分だけ
+  `get_design` の `url` を重ねる
 
 ### MCP
 
@@ -748,6 +946,43 @@ i2v（image-to-video）の素材ソースとして使った際に受けた指摘
 Acceptヘッダ検査・CORS `*` と `Mcp-Session-Id` の expose・`refUrl` と `url` の使い分け。
 
 ## 今後
+
+### デザインレイヤー（`/layers`）の残フェーズ
+
+**フェーズ1（実装済・2026-09-04）**: [`GET /api/ref/designs/{id}/layers`](#get-apirefdesignsidlayers) ＋
+MCP `get_design_layers`。画像レイヤーは厳密・テキストは近似。
+🔴 **オーナーが「この方向が有用か」を試している段階なので、意図的に最小**にしてある。
+使いながら手を入れる前提。
+
+- **フェーズ2 — テキスト／グラフィック層の透過PNGを保存時に生成する**。
+  エディタの保存時に、既存の thumb / full と並べて
+  **テキスト部分だけの透過PNG**を書き出せば、合成が**厳密**になる
+  （画像レイヤーは元ファイルなので既に厳密、残る近似はテキストだけ）。
+  - 対象は狭い。**テキストを持つのはレンダー済み135件のうち56件だけ**
+  - 既存のレンダラ [bannerPreviewRenderer.ts](../src/components/editor/utils/bannerPreviewRenderer.ts)
+    は**フォントが読み込まれている場所（ブラウザ）で既に動いている**ので、
+    新しい実行環境を用意する必要はない
+  - ただし**既存デザインは保存し直さないと生成されない**。全件に行き渡らせるには
+    下の「バッチ再レンダリング」が前提になる（同じ制約・同じ1プロジェクト）
+- **フェーズ3 — 要素ごとの透過PNG**。1要素=1PNGまで分解する。
+  **要素単位の制御が実際に欲しいと分かってから**着手する
+  （フェーズ2で足りるなら不要。先に作ると保存時コストとストレージだけ増える）
+- 🔴 **ドキュメント構造の公開範囲（要再検討）**。
+  `/layers` は id を持つ相手に**テキスト本文と元アセットキー**
+  （＝**元アップロードのフル解像度そのもの**）を渡す。これは合成済み画像より**多い**。
+  現状は**列挙がオーナー範囲**（`listRefDesigns`）で、APIから id を発見する経路が無いことを
+  根拠に**そのまま公開**している（オーナーの明示判断）。
+  ただしこれは**再検討が必要な項目として記録しておく**。選択肢は3つ:
+  1. 構造だけ ref オーナーに限定する（画像の id 公開は維持）
+  2. 現状のまま開けておく
+  3. デザイン単位の opt-in にする（下の「非公開フラグ」と同じ列で扱える）
+
+  🔴 **[/admin/video-factory](../src/app/api/video-factory/banners/route.ts) は同じ
+  `elements` を admin 認証の後ろに置いている**。つまり同一データに対して
+  2つの経路が**意図的に食い違っている**状態で、どちらかに寄せるかは上の判断と同時に決める。
+
+### その他
+
 
 - 動的リサイズ・クロップ（#6。上記「未対応（判断待ち）」を参照）。
   実装されるまでは `?w=` / `?ar=` 等を **400で弾く**のが現在の挙動

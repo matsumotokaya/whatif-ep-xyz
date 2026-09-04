@@ -311,11 +311,14 @@ URL の形（`/ref/...` は恒久リンクで、その時点の実体（デザ�
 https://whatif-ep.xyz/ref/{id}         # デザインの full-res（/ref/{id}.jpg・?size=thumb も可）
 https://whatif-ep.xyz/ref/asset/{id}   # 公式素材のフルサイズ（同上）
 GET  /api/ref/designs                  # 一覧・検索・id指定取得（読み取り専用・CORS 全開放。範囲は後述）
+GET  /api/ref/designs/{id}/layers      # デザインのレイヤー構造（合成前の要素・描画順・ジオメトリ）
 GET  /api/ref/assets                   # 同上（素材ライブラリ。こちらは全経路が公開）
 POST /api/mcp                          # MCP エンドポイント（Streamable HTTP・stateless・認証なし）
 ```
 
-MCP のツールは `list_designs` / `get_design` / `list_assets` / `get_asset` の4つ。get 系に
+MCP のツールは `list_designs` / `get_design` / `get_design_layers` / `list_assets` /
+`get_asset` の5つ（`get_design_layers` はデザインを合成済み画像ではなく
+**レイヤー構造**で返し、パーツ別アニメーションを可能にする）。get 系に
 `preview: true` を渡すとサムネイルが MCP image content として添付されるので、
 アシスタントは**使う前に画像を見て**選べる。Claude Code からの接続:
 

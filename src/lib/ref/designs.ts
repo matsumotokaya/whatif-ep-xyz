@@ -1,13 +1,15 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveAsset } from "@/lib/asset";
+import { resolveAsset, resolveElementSrc } from "@/lib/asset";
+import type { CanvasElement } from "@/components/editor/types/template";
 import {
   clampLimit,
   clampOffset,
   formatAspectRatio,
   getSiteUrl,
   isUuid,
+  normalizeId,
   normalizeMinWidth,
   orderByRequestedIds as orderRecordsByRequestedIds,
   projectRefRecord,
@@ -578,4 +580,251 @@ export async function getRefDesignsByIds(
 export async function getRefDesign(id: string): Promise<RefDesign | null> {
   const { designs } = await getRefDesignsByIds([id]);
   return designs[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// DESIGN LAYERS (phase 1 of 3)
+//
+// `url` hands a consumer ONE FLATTENED JPEG, which is all a still image needs
+// but leaves an animation with nothing to animate: a Remotion composition can
+// only pan and scale the whole picture. These functions expose the saved
+// DOCUMENT STRUCTURE instead — the elements, in draw order, with their
+// geometry — so a background, a character cutout and a caption can move
+// independently.
+//
+// WHY THIS IS CHEAP TO GET RIGHT FOR IMAGES: an image element's `src` is an
+// asset key pointing at the ORIGINAL uploaded file (a transparent-PNG cutout
+// from `default-images/`, or a user's background from `user-images/`), already
+// world-readable on R2. Handing over that URL plus the stored geometry does not
+// approximate the layer, it IS the layer — no re-rendering step exists to get
+// wrong. Only text is approximate, because the editor lays it out with Konva
+// and a DOM/Remotion renderer measures glyphs differently. `exact` says which
+// is which per layer, and `fidelity` says it once for the whole design.
+//
+// 🔴 ACCESS SCOPE: unscoped by id, exactly like getRefDesignsByIds — the uuid
+// is the capability. Note what that now unlocks: this is DOCUMENT STRUCTURE,
+// i.e. the text strings and the source asset keys, and a source key is the
+// ORIGINAL UPLOAD AT FULL RESOLUTION rather than the flattened render. That is
+// strictly MORE than an id used to unlock. The owner has explicitly decided not
+// to gate it yet, and it is accepted for now because ENUMERATION STAYS
+// OWNER-SCOPED (listRefDesigns), so a stranger has no way to discover an id
+// through this API. Revisiting it is a recorded task — see the "Access scope
+// for document structure" item under 今後 in docs/REF_LIBRARY.md, which also
+// notes that /api/video-factory/banners gates the same `elements` column
+// behind admin auth, so the two paths now disagree deliberately.
+// ---------------------------------------------------------------------------
+
+/** One element of a saved design, ready to be placed by an external renderer. */
+export interface RefDesignLayer {
+  index: number; // 0 = bottom, ascending = drawn on top
+  type: "image" | "text" | "shape";
+  // Geometry, in canvas pixels, top-left origin — as stored.
+  x: number;
+  y: number;
+  width: number | null; // null for text (Konva measures it)
+  height: number | null;
+  rotation: number; // degrees, 0 when unset
+  opacity: number; // 1 when unset
+  // Exactly reproducible by placing this layer as described?
+  exact: boolean;
+  // type: "image"
+  url?: string; // resolved public URL of the source file
+  // type: "text"
+  text?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+  align?: string;
+  // Paint, shared by text and shape layers: both store the same five fields,
+  // and a shape without them could not be drawn at all.
+  fill?: string;
+  fillEnabled?: boolean;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeEnabled?: boolean;
+  // type: "shape"
+  shapeType?: string;
+}
+
+export interface RefDesignLayers {
+  id: string;
+  name: string;
+  width: number | null; // canvas size
+  height: number | null;
+  backgroundColor: string; // the design's canvas_color
+  layers: RefDesignLayer[];
+  // Machine-readable statement of what reproduces exactly.
+  fidelity: {
+    images: "exact";
+    text: "approximate" | "none"; // "none" when the design has no text
+    note: string;
+  };
+}
+
+// Columns this path selects from public.banners. Deliberately a SEPARATE query
+// from REF_DESIGN_COLUMNS rather than a widening of it: `elements` is the
+// largest column on the table and the listing returns up to 200 rows, so
+// carrying it there to serve one lookup would make every listing pay for it.
+const REF_DESIGN_LAYER_COLUMNS = "id, name, template, canvas_color, elements";
+
+// Shape of those columns. `template` repeats RefDesignRow's two dimensions and
+// nothing else, since the canvas colour is read from its own column.
+export interface RefDesignLayersRow {
+  id: string;
+  name: string | null;
+  template: { width?: number | null; height?: number | null } | null;
+  canvas_color: string | null;
+  elements: unknown[] | null;
+}
+
+const FIDELITY_NOTE_WITH_TEXT =
+  "Image layers are the original source files, so placing each one at the geometry given here reproduces the flattened render exactly. " +
+  "Text layers are laid out by the editor's canvas engine (Konva), so a DOM-based renderer such as Remotion will differ slightly in letter spacing and wrapping — phase 2 will supply a pre-rendered transparent PNG for text.";
+
+const FIDELITY_NOTE_IMAGES_ONLY =
+  "Image layers are the original source files, so placing each one at the geometry given here reproduces the flattened render exactly. " +
+  "This design has no text, so nothing in it is approximate.";
+
+// The editor's own default when a document carries no canvas colour. Every row
+// in public.banners currently has one, so this is a guard, not a code path.
+const DEFAULT_CANVAS_COLOR = "#ffffff";
+
+/**
+ * Pure. Maps one stored element to a layer.
+ *
+ * `element` is typed as CanvasElement for readability, but it arrives from an
+ * UNVALIDATED jsonb column, so every field is read defensively even where the
+ * type declares it required — a row written by an older editor build may be
+ * missing anything.
+ */
+export function mapElementToRefLayer(
+  element: CanvasElement,
+  index: number
+): RefDesignLayer {
+  const base = {
+    index,
+    x: toFiniteNumber(element.x) ?? 0,
+    y: toFiniteNumber(element.y) ?? 0,
+    rotation: toFiniteNumber(element.rotation) ?? 0,
+    opacity: toFiniteNumber(element.opacity) ?? 1,
+  };
+
+  if (element.type === "text") {
+    return {
+      ...base,
+      type: "text",
+      // Konva measures a text box from its content, so the document stores no
+      // size for it. Reporting a guess here is what `exact: false` exists to
+      // avoid.
+      width: null,
+      height: null,
+      exact: false,
+      text: element.text ?? "",
+      fontFamily: element.fontFamily,
+      fontSize: toFiniteNumber(element.fontSize) ?? undefined,
+      fontWeight: toFiniteNumber(element.fontWeight) ?? undefined,
+      letterSpacing: toFiniteNumber(element.letterSpacing) ?? undefined,
+      lineHeight: toFiniteNumber(element.lineHeight) ?? undefined,
+      align: element.align,
+      fill: element.fill,
+      fillEnabled: element.fillEnabled,
+      stroke: element.stroke,
+      strokeWidth: toFiniteNumber(element.strokeWidth) ?? undefined,
+      strokeEnabled: element.strokeEnabled,
+    };
+  }
+
+  if (element.type === "shape") {
+    return {
+      ...base,
+      type: "shape",
+      width: toFiniteNumber(element.width),
+      height: toFiniteNumber(element.height),
+      exact: true,
+      shapeType: element.shapeType,
+      fill: element.fill,
+      fillEnabled: element.fillEnabled,
+      stroke: element.stroke,
+      strokeWidth: toFiniteNumber(element.strokeWidth) ?? undefined,
+      strokeEnabled: element.strokeEnabled,
+    };
+  }
+
+  return {
+    ...base,
+    type: "image",
+    width: toFiniteNumber(element.width),
+    height: toFiniteNumber(element.height),
+    exact: true,
+    // resolveElementSrc, byte for byte what the editor's ImageRenderer loads,
+    // so a layer URL and the canvas both hit the same cached R2 object.
+    url: resolveElementSrc(element.src),
+  };
+}
+
+/**
+ * Pure row -> RefDesignLayers mapping, kept free of Supabase so it can be unit
+ * tested directly (same factoring as mapRowToRefDesign).
+ *
+ * 🔴 ELEMENTS WITH `visible: false` ARE OMITTED. They are not in the flattened
+ * render either, so a consumer that draws everything it is handed lands on the
+ * same picture as `url` — which is the whole promise of this payload. `index`
+ * is therefore renumbered over what survives, leaving no gaps to interpret.
+ */
+export function mapRowToRefDesignLayers(
+  row: RefDesignLayersRow
+): RefDesignLayers {
+  const stored = Array.isArray(row.elements)
+    ? (row.elements as CanvasElement[])
+    : [];
+
+  const layers = stored
+    .filter((element) => Boolean(element) && element.visible !== false)
+    .map((element, index) => mapElementToRefLayer(element, index));
+
+  const hasText = layers.some((layer) => layer.type === "text");
+
+  return {
+    id: row.id,
+    name: row.name ?? "",
+    width: toFiniteNumber(row.template?.width),
+    height: toFiniteNumber(row.template?.height),
+    backgroundColor: row.canvas_color ?? DEFAULT_CANVAS_COLOR,
+    layers,
+    fidelity: {
+      images: "exact",
+      text: hasText ? "approximate" : "none",
+      note: hasText ? FIDELITY_NOTE_WITH_TEXT : FIDELITY_NOTE_IMAGES_ONLY,
+    },
+  };
+}
+
+/**
+ * UNSCOPED by id, like getRefDesignsByIds — see the access-scope note in this
+ * section's header for what that exposes and why it is accepted for now.
+ *
+ * Returns null for an unknown id and for anything that is not a uuid (which can
+ * never match a row id and must not reach the query).
+ */
+export async function getRefDesignLayers(
+  id: string
+): Promise<RefDesignLayers | null> {
+  const lookupId = normalizeId(id);
+  if (!isUuid(lookupId)) return null;
+
+  const supabase = requireAdminClient();
+  const { data, error } = await supabase
+    .from("banners")
+    .select(REF_DESIGN_LAYER_COLUMNS)
+    .eq("id", lookupId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load ref design layers: ${error.message}`);
+  }
+  if (!data) return null;
+
+  return mapRowToRefDesignLayers(data as unknown as RefDesignLayersRow);
 }
