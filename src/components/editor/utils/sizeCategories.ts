@@ -59,6 +59,28 @@ export const createDynamicSizeCategory = (width: number, height: number): SizeCa
   height,
 });
 
+// Shape check for a URL segment, safe to call from a server component: true
+// for a fixed category key or a well-formed custom `size-{w}x{h}` key. It
+// deliberately does NOT check that any item of that size exists — that is
+// data-dependent and stays with resolveSizeCategory on the client. Route
+// segments under /imagine and /mydesign use this to reject a path outright
+// instead of rendering an unrelated list for it.
+export const isSizeKeyShape = (sizeKey: string | undefined): boolean => {
+  if (!sizeKey) return false;
+  if (SIZE_CATEGORIES.some((category) => category.key === sizeKey)) return true;
+  if (!sizeKey.startsWith(CUSTOM_SIZE_KEY_PREFIX)) return false;
+
+  const [widthPart, heightPart] = sizeKey.slice(CUSTOM_SIZE_KEY_PREFIX.length).split('x');
+  const width = Number(widthPart);
+  const height = Number(heightPart);
+  return (
+    /^\d+$/.test(widthPart ?? '') &&
+    /^\d+$/.test(heightPart ?? '') &&
+    width > 0 &&
+    height > 0
+  );
+};
+
 export const resolveSizeCategory = <T extends { width?: number; height?: number }>(
   sizeKey: string | undefined,
   items: T[] = [],
