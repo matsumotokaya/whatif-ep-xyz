@@ -6,9 +6,9 @@ const description =
   "Use a saved IMAGINE design as a stable image URL — hand it to a video AI, a CLI or an MCP-capable assistant instead of downloading and re-uploading files.";
 
 export const metadata: Metadata = {
-  title: "IMAGINE MCP",
+  title: "About IMAGINE MCP",
   description,
-  alternates: { canonical: "/imagine/mcp" },
+  alternates: { canonical: "/imagine/about-mcp" },
 };
 
 export default function ImagineMcpPage() {

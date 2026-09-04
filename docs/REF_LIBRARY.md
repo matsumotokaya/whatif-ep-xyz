@@ -619,7 +619,7 @@ i2v（image-to-video）の素材ソースとして使った際に受けた指摘
 | 3 | `thumb` が63%を占めるのに絞り込めない | `renderedOnly` / `minWidth` を追加（HTTP・`list_designs` 両方） |
 | 4 | 総数が返らず、打ち切りか否か判別できない | `total`（exact count）と `offset` を追加。`count` は「このレスポンスの件数」と明記 |
 | 5 | 名前の構造がフィールドになっていない | `episode` / `variant` / `aspect` を追加（すべてnullable・ベストエフォート）。パーサは `parseRefDesignName` として `designs.ts` に純関数で置き、実データの名前でユニットテスト |
-| 7 | `/imagine/mcp` がエンドポイントに見え、POSTすると本文なしの405が返る | ドキュメントページへの**非GET/HEADリクエストを `/api/mcp` へ308リダイレクト**（[middleware.ts](../middleware.ts)。308はメソッドと本文を保つのでMCPクライアントはそのまま接続できる）。ページ本文にも「ここはドキュメントで、登録先は `/api/mcp`」と5言語で明記。URL自体は共有済みのため変更しない |
+| 7 | `/imagine/mcp` がエンドポイントに見え、POSTすると本文なしの405が返る | ページを **`/imagine/about-mcp`** にリネームし、フッターのラベルも「MCPについて」等に変更（AIにリンクを渡すと、それ自体をエンドポイントと誤認するため）。[middleware.ts](../middleware.ts) で、旧 `/imagine/mcp` のGET/HEADは新URLへ308、**両URLへの非GET/HEADは `/api/mcp` へ308**（308はメソッドと本文を保つのでMCPクライアントはそのまま接続できる）。ページ本文にも「ここはドキュメントで、登録先は `/api/mcp`」と5言語で明記 |
 | 8 | `get_design` の説明文が他人のidを試す誘因になりうる | 「ユーザーが明示的に渡したid」を条件として明記し、推測・列挙・総当たりの禁止を追加。`list_designs` の「全ユーザーのディレクトリではない」文は好評だったのでそのまま維持 |
 
 **未対応（判断待ち）**:

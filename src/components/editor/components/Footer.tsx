@@ -84,7 +84,7 @@ export function Footer() {
                             <Link to="/imagine" className="text-gray-400 hover:text-white text-sm transition-colors">
                                 {t('footer.company')}
                             </Link>
-                            <Link to="/imagine/mcp" className="text-gray-400 hover:text-white text-sm transition-colors">
+                            <Link to="/imagine/about-mcp" className="text-gray-400 hover:text-white text-sm transition-colors">
                                 {t('footer.mcp')}
                             </Link>
                             <Link to="/imagine/contact" className="text-gray-400 hover:text-white text-sm transition-colors">

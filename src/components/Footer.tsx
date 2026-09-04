@@ -33,7 +33,7 @@ const COPY: Record<Language, {
     tagline: "An AI-driven art project.",
     aboutUs: "About Us",
     imagine: "IMAGINE",
-    mcp: "MCP",
+    mcp: "About MCP",
     contact: "Contact",
     privacyPolicy: "Privacy Policy",
     termsOfService: "Terms of Service",
@@ -45,7 +45,7 @@ const COPY: Record<Language, {
     tagline: "AIを活用したアートプロジェクト。",
     aboutUs: "About Us",
     imagine: "IMAGINE",
-    mcp: "MCP",
+    mcp: "MCPについて",
     contact: "お問い合わせ",
     privacyPolicy: "プライバシーポリシー",
     termsOfService: "利用規約",
@@ -57,7 +57,7 @@ const COPY: Record<Language, {
     tagline: "由 AI 驱动的艺术项目。",
     aboutUs: "关于我们",
     imagine: "IMAGINE",
-    mcp: "MCP",
+    mcp: "关于 MCP",
     contact: "联系我们",
     privacyPolicy: "隐私政策",
     termsOfService: "服务条款",
@@ -69,7 +69,7 @@ const COPY: Record<Language, {
     tagline: "由 AI 驅動的藝術專案。",
     aboutUs: "關於我們",
     imagine: "IMAGINE",
-    mcp: "MCP",
+    mcp: "關於 MCP",
     contact: "聯絡我們",
     privacyPolicy: "隱私政策",
     termsOfService: "服務條款",
@@ -81,7 +81,7 @@ const COPY: Record<Language, {
     tagline: "AI 기반 아트 프로젝트.",
     aboutUs: "회사 소개",
     imagine: "IMAGINE",
-    mcp: "MCP",
+    mcp: "MCP 소개",
     contact: "문의하기",
     privacyPolicy: "개인정보 처리방침",
     termsOfService: "이용약관",
@@ -168,7 +168,7 @@ export function Footer() {
               <Link href="/imagine" className="text-sm text-muted transition-colors hover:text-foreground">
                 {t.imagine}
               </Link>
-              <Link href="/imagine/mcp" className="text-sm text-muted transition-colors hover:text-foreground">
+              <Link href="/imagine/about-mcp" className="text-sm text-muted transition-colors hover:text-foreground">
                 {t.mcp}
               </Link>
               <Link href="/imagine/contact" className="text-sm text-muted transition-colors hover:text-foreground">
