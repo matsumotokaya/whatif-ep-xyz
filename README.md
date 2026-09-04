@@ -4,7 +4,7 @@ WHATIF EP - Digital Art Gallery
 
 **Production URL:** https://whatif-ep.xyz
 
----では一旦 このリポジトリ作成するので要件要求まとめてもらえますか そして最初のターゲットは
+---
 
 ## Current Status
 
