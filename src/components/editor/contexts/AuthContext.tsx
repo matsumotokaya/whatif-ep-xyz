@@ -10,10 +10,12 @@
 // camelCase shape the ported editor code expects.
 //
 // The editor only consumes: user, session, profile{email, fullName,
-// avatarUrl, role, subscriptionTier}, loading, signOut.
+// avatarUrl, role, subscriptionTier}, loading, signOut, plus the
+// hasPremiumAccess feature flag (see src/lib/access/entitlement.ts).
 
 import { useMemo } from 'react';
 import { useAuth as useGalleryAuth } from '@/context/AuthContext';
+import { hasPremiumFeatureAccess } from '@/lib/access/entitlement';
 
 export interface UserProfile {
   id: string;
@@ -57,5 +59,18 @@ export const useAuth = () => {
     return null;
   }, [profile, user]);
 
-  return { user, session, profile: mappedProfile, loading, profileLoading, signOut };
+  // Feature access (premium templates / premium image library), not billing
+  // state. Admins pass; the optimistic pre-profile fallback above resolves to
+  // false until the real profile row lands, which is what profileLoading is
+  // for. Do NOT use this to render billing copy or badges.
+  const hasPremiumAccess = useMemo(
+    () =>
+      hasPremiumFeatureAccess({
+        role: mappedProfile?.role ?? null,
+        tier: mappedProfile?.subscriptionTier ?? null,
+      }),
+    [mappedProfile],
+  );
+
+  return { user, session, profile: mappedProfile, loading, profileLoading, hasPremiumAccess, signOut };
 };

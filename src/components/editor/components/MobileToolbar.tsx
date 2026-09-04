@@ -50,7 +50,7 @@ export const MobileToolbar = ({
   onDrawerOpenChange,
 }: MobileToolbarProps) => {
   const { t } = useTranslation('editor');
-  const { profile, loading, profileLoading } = useAuth();
+  const { loading, profileLoading, hasPremiumAccess } = useAuth();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -60,13 +60,15 @@ export const MobileToolbar = ({
     return () => onDrawerOpenChange?.(false);
   }, [activeDrawer, onDrawerOpenChange]);
 
-  const isPremium = !!profile && profile.subscriptionTier !== 'free';
+  // Feature access, not billing state: admins pass too
+  // (see src/lib/access/entitlement.ts).
+  const isPremium = hasPremiumAccess;
 
   const handleImageLibraryClick = () => {
     // profileLoading matters as much as the session: until the profile row lands
     // a premium member reads as 'free' (see contexts/AuthContext.tsx).
     if (loading || profileLoading) return;
-    if (!profile || profile.subscriptionTier === 'free') {
+    if (!hasPremiumAccess) {
       setShowUpgradeModal(true);
     } else {
       setShowImageLibrary(true);

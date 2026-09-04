@@ -43,7 +43,7 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useTranslation(['banner']);
-  const { user, profile, profileLoading } = useAuth();
+  const { user, profileLoading, hasPremiumAccess } = useAuth();
 
   return useCallback(
     async (template: TemplateRecord) => {
@@ -71,7 +71,9 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
         if (profileLoading) {
           return;
         }
-        if (!profile || profile.subscriptionTier === 'free') {
+        // Feature access, not billing state: admins pass too
+        // (see src/lib/access/entitlement.ts).
+        if (!hasPremiumAccess) {
           onUpgradeRequired();
           return;
         }
@@ -112,6 +114,6 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
         onCreatingChange?.(null);
       }
     },
-    [navigate, queryClient, t, user, profile, profileLoading, onUpgradeRequired, onLoginRequired, onGuestConflict, onCreatingChange],
+    [navigate, queryClient, t, user, profileLoading, hasPremiumAccess, onUpgradeRequired, onLoginRequired, onGuestConflict, onCreatingChange],
   );
 }
