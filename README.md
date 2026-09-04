@@ -4,7 +4,7 @@ WHATIF EP - Digital Art Gallery
 
 **Production URL:** https://whatif-ep.xyz
 
----
+---では一旦 このリポジトリ作成するので要件要求まとめてもらえますか そして最初のターゲットは
 
 ## Current Status
 
@@ -22,6 +22,7 @@ WHATIF EP - Digital Art Gallery
 3. [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) — 現行アーキテクチャの横断地図
 4. [docs/WALLPAPER_PIPELINE_PLAN.md](docs/WALLPAPER_PIPELINE_PLAN.md) — 壁紙運用・量産・収益動線の残タスク
 5. [docs/UX_BILLING_FIX_LIST.md](docs/UX_BILLING_FIX_LIST.md) — 本番確認で見つかったUX・決済の修正一覧
+6. [docs/REF_LIBRARY.md](docs/REF_LIBRARY.md) — Ref Library（IMAGINE の画像を外部ツールからURLで参照する仕組み・HTTP API / MCP）
 
 データモデルは `episode` から `work` / `work_variant` 中心へ移行済み（canonical works は IMAGINE Content Factory から同期）。
 
@@ -83,7 +84,11 @@ src/
 │   ├── auth/                         # login / legacy-login / callback
 │   ├── admin/                        # content-factory / cover-lab / storage-cleanup
 │   ├── the-club/                     # The Club area (intro / library / [slug])
-│   ├── api/                          # works & episode downloads, wallpaper zip/checkout, stripe webhook
+│   ├── api/                          # works & episode downloads, wallpaper zip/checkout, stripe webhook, Ref Library, MCP
+│   │   ├── ref/                      # Ref Library HTTP API: designs/ + assets/ (read-only, CORS *; designs listing is owner-scoped)
+│   │   └── mcp/                      # MCP endpoint (Streamable HTTP, no auth): list/get designs & assets
+│   ├── ref/                          # Ref Library permalinks → 302 to R2: [id]/ (design full-res) + asset/[id]/
+│   ├── imagine/about-mcp/            # Ref Library / MCP docs page (5 languages, linked from both footers)
 │   ├── sitemap.ts                    # Dynamic sitemap (all published works)
 │   └── robots.ts
 ├── components/
@@ -107,6 +112,7 @@ src/
     ├── works.ts / work-images.ts / work-saves.ts   # works data access (source of truth)
     ├── wallpaper.ts / wallpaper-manual.ts / wallpaper-purchases.ts
     ├── club/ · admin/ · supabase/ · stripe.ts
+    ├── ref/                                       # Ref Library: designs.ts / assets.ts (scope lives per kind) + common.ts (pure helpers only)
     ├── episodes.ts / images.ts / r2.ts             # legacy episode helpers
     └── types.ts
 src/data/
@@ -281,6 +287,74 @@ npm run backfill:gallery-thumbs -- --apply
 - ファイル名: `README_EN.txt` / `README_JA.txt` / `README_ZH-CN.txt` / `README_ZH-TW.txt` / `README_KO.txt`
 - 実装: `src/lib/wallpaper-manual.ts`（文言の正本）を `src/app/api/works/[series]/[code]/wallpaper/download/route.ts` が読み、zip 生成時に全言語ぶん書き出す。
 - **暫定仕様**: 現状はサイト側の言語判定を行わず、全言語を常に同梱している。将来的に「選択言語のみ同梱」へ変更する可能性あり。
+
+---
+
+## Ref Library（IMAGINE の画像を外部ツールからURLで参照する）
+
+IMAGINE で作った画像を、外部のツール（MCPクライアント・CLI・Remotion・動画生成AI）から
+**ダウンロードせずURLだけで参照できる**ようにする仕組み。画像実体はすでに R2
+（`assets.whatif-ep.xyz`）へ公開・CORS開放で置かれているので、DBの行から公開URLを解決して
+返すだけでよく、**エクスポートも再アップロードも不要**になる。
+正本は **[docs/REF_LIBRARY.md](docs/REF_LIBRARY.md)**。
+
+### 参照できる2種類（kind）
+
+| kind | 実体 | 中身 | ユーザーが id を取る場所 |
+|---|---|---|---|
+| **designs** | `public.banners` | IMAGINE で保存したデザイン（オーナー範囲で345件） | `/mydesign` の各カード。8文字のチップでデザインID、リンクボタンで ref URL をコピー（full-res が無いカードはリンクボタンが無効） |
+| **assets** | `public.default_images` | サイト公式のキュレーション素材ライブラリ（全130件・`character_cutout` 81 / `general` 49） | エディタの画像ライブラリピッカー（公式素材タブ）の各セルにあるコピーボタン（`/ref/asset/{id}` をそのままコピー） |
+
+URL の形（`/ref/...` は恒久リンクで、その時点の実体（デザインなら最新レンダリング）へ302リダイレクトする）:
+
+```
+https://whatif-ep.xyz/ref/{id}         # デザインの full-res（/ref/{id}.jpg・?size=thumb も可）
+https://whatif-ep.xyz/ref/asset/{id}   # 公式素材のフルサイズ（同上）
+GET  /api/ref/designs                  # 一覧・検索・id指定取得（読み取り専用・CORS 全開放。範囲は後述）
+GET  /api/ref/assets                   # 同上（素材ライブラリ。こちらは全経路が公開）
+POST /api/mcp                          # MCP エンドポイント（Streamable HTTP・stateless・認証なし）
+```
+
+MCP のツールは `list_designs` / `get_design` / `list_assets` / `get_asset` の4つ。get 系に
+`preview: true` を渡すとサムネイルが MCP image content として添付されるので、
+アシスタントは**使う前に画像を見て**選べる。Claude Code からの接続:
+
+```bash
+claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
+```
+
+ユーザー向けの説明ページは **`/imagine/about-mcp`**（5言語。Gallery と IMAGINE 両方の
+フッターからリンク）。
+
+### 🔴 `url` は full-res だけを指し、`width`/`height` はその実寸
+
+- `url` = full-res レンダリングのみ。無ければ `null`（`/ref/{id}` も404にし、**サムネイルへ黙ってフォールバックしない**）
+- `width` / `height` = **`url` が指す画像の実寸そのもの**。`url` が `null` なら両方 `null`
+- デザインのドキュメント寸法は `docWidth` / `docHeight` として別に返す（レンダリングの有無に関わらず入る）
+- assets は全130件がフルサイズ画像と実寸を持つので、この規則が例外なく成立する
+
+以前は full-res が無いデザインで `url` がサムネイルにフォールバックしつつ、`width`/`height` は
+ドキュメント寸法（例: 1080×1350）を申告し続けていた。結果として利用側は実体400px程度の
+サムネイルを「1080×1350の画像」だと信じて掴み、**1本ごとに課金される動画生成API**へ
+そのまま投入できてしまった。申告と実体が食い違うと、利用側は課金後まで気づけない。
+
+### 🔴 designs は「列挙」と「id指定」でスコープが違う（非対称は仕様）
+
+- **id 指定（`/ref/{id}` / `?id=` / `get_design`）にアカウント制限はない**。uuid を知っていること自体を
+  アクセス権として扱う（R2オブジェクトもキーを知れば読める obscurity ベースなので、id がそれより秘密である必要はない）
+- **一覧・検索はオーナー範囲のみ**（`REF_OWNER_USER_IDS`。未設定なら `profiles.role = 'admin'` にフォールバック）。
+  全アカウントに開くと1リクエストで全ユーザーの id を収穫でき、上のモデルが根本から崩れる
+- したがって「一覧に出ない」≠「参照できない」。逆に、一度配ったURLを**後から無効化する手段は現状ない**
+- assets（公式素材ライブラリ）は行にオーナーが存在しないため、**列挙も id 指定も完全公開**（service role ではなく anon クライアントで RLS に従って読む）
+
+full-res のカバレッジ、`fields` によるレスポンス縮小、`count` と `total` の違い、404本文などの
+詳細はすべて [docs/REF_LIBRARY.md](docs/REF_LIBRARY.md) を参照する。
+
+### 未対応 / 判断待ち
+
+- **アップロード素材**（`public.user_images`・144行）: API 未提供。他人の私有アップロードに「id＝アクセス権」モデルを適用するかの判断が先
+- **テンプレート**（`public.templates`・299行）: **full-res の列が存在せずサムネイルしか持たない**ため、公開する前にレンダリング経路が必要
+- **動的リサイズ・クロップ**（`?w=1920` / `?ar=16:9`）: i2v は入力画像のアスペクト比がそのまま出力比になるため必要だが、実装には R2 の前に Cloudflare Images か Worker を挟むことになり**費用が発生する**（このサイトは Vercel の画像最適化が無料枠を超えて402を返した経緯があり、現在は無効化している）。**オーナーの判断待ち**
 
 ---
 

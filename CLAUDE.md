@@ -31,6 +31,8 @@ Stripe、Vercel、Supabaseを扱う前に同文書を確認する。
 - 画像URLを組み立てるときは**必ず `src/lib/asset-url.ts` の `resolveAssetUrl(provider, key, {version})` を経由**する。`images.ts` / `work-images.ts` / `wallpaper.ts` / `club/catalog.ts` も全てこれを呼ぶ。直書きすると provider 対応漏れの温床になるため禁止。
 - provider は `supabase` / `r2-legacy`（`pub-…r2.dev`）/ `r2-assets`（`assets.whatif-ep.xyz`）＋ full-URL passthrough。
 - Vercel Image Optimization は**サイト全体で無効**（`next.config.ts` `images.unoptimized=true`）。全画像は R2 から直配信（egress 無料）。
+- 保存デザイン/公式素材を外部（MCPクライアント・CLI・Remotion・動画生成AI）からURL参照させる **Ref Library** の正本は [docs/REF_LIBRARY.md](docs/REF_LIBRARY.md)（`/api/ref/*`・`/ref/*`・`/api/mcp`）。
+- 🔴 designs は**一覧・検索がオーナー範囲・id指定は意図的に全公開**（id自体がアクセス権）。この非対称は仕様であり、`src/lib/ref/common.ts` にスコープを決めるものを置かない。
 
 ## Project Structure
 README の「Project Structure」が正本（`works/[series]/[code]` 構成、`/about`、`/the-club`、admin `/episodes/...`）。

@@ -1,6 +1,6 @@
 # WHATIF Architecture Overview
 
-最終更新: 2026-07-21
+最終更新: 2026-09-04
 想定読者: 新規参画エンジニア / 現行構成を思い出したい人
 
 ## TL;DR
@@ -34,7 +34,8 @@
 - Account / Auth: `/account`, `/auth/*`
 - The Club: `/the-club`, `/auth/legacy-login`
 - API routes: Stripe webhook, wallpaper checkout/download, work download, account actions,
-  Ref Library (`/api/ref/designs`, `/ref/{id}`, `/api/mcp`)
+  Ref Library (`/api/ref/designs`, `/api/ref/assets`, `/ref/{id}`, `/ref/asset/{id}`, `/api/mcp`)
+- Ref Library docs page: `/imagine/about-mcp`（5言語。旧URLからは308でここへ）
 
 ## Runtime Topology
 
@@ -58,6 +59,23 @@ Resend への送信経路は**アプリコード経由**と**Supabase Auth経由
 - **Supabase Auth経由**（GoTrue が SMTP 経由で送る。SMTPサーバーとして `smtp.resend.com` を指しているだけ）: サインアップ確認・パスワードリセット等の認証メール。アプリ側は `supabase.auth.signUp()` 等を呼ぶのみで、送信者名・件名・本文・SMTP認証情報はすべて**Supabaseダッシュボード**（`Authentication → Emails → SMTP Settings` / `→ Templates`）で管理。**この repo のコード・env varには一切現れない。**
 
 カスタムSMTP未設定だとSupabaseのビルトインメール送信は「プロジェクトのチームメンバー宛にしか届かない」制限があるため、認証メールが届かないトラブルの調査ではまずこのダッシュボード設定を確認する。
+
+### Ref Library（外部からの画像参照）
+
+サイトの画像を、MCPクライアント・CLI・Remotion・動画生成AIから**URLだけで**参照させる読み取り専用の層。
+
+- モジュールは kind ごとに1つ: `src/lib/ref/designs.ts`（`public.banners` = ユーザーの保存デザイン・service role）と
+  `src/lib/ref/assets.ts`（`public.default_images` = 公式素材ライブラリ・anon クライアントでRLSに従う）。
+  🔴 `src/lib/ref/common.ts` には kind 非依存の純粋関数だけを置き、**スコープを決めるもの
+  （どの行を見せるか・どのSupabaseクライアントを使うか）は置かない**
+- ルート: `src/app/api/ref/{designs,assets}/`（HTTP API・CORS `*`）、`src/app/ref/[id]/` と
+  `src/app/ref/asset/[id]/`（恒久リンク→R2へ302）、`src/app/api/mcp/`（MCP・stateless・認証なし）、
+  `src/app/imagine/about-mcp/`（ユーザー向け説明ページ）
+- 🔴 designs はスコープが非対称で、**id 指定は全アカウント / 一覧・検索はオーナー範囲のみ**
+  （`REF_OWNER_USER_IDS`、未設定なら admin にフォールバック）。id 自体をアクセス権として扱う設計で、
+  実装漏れではない。assets はオーナーが存在しないデータなので**列挙も id 指定も公開**
+- 🔴 `url` は full-res だけを指し、`width`/`height` は `url` が指す画像の実寸のみを申告する
+  （寸法の誤申告は、課金される動画生成の入力にサムネイルを掴ませる）
 
 ## Source Of Truth
 

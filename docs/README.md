@@ -1,13 +1,13 @@
 # WHATIF Docs Map
 
-最終更新: 2026-07-08
+最終更新: 2026-09-04
 
 このディレクトリは **Current / Archive** の2層だけで運用する。
 移行プロジェクトは完了済みなので、再開時に cutover 文書を読む前提はもう置かない。
 
 ## Current
 
-毎回まず読むのはこの5つだけ:
+毎回まず読むのはこの6つだけ:
 
 0. 🔴 [BILLING_REBUILD_PLAN.md](./BILLING_REBUILD_PLAN.md)
    - **進行中の最優先プロジェクト**。決済・会員権限の再構築計画とフェーズ進捗。
@@ -20,6 +20,9 @@
    - 壁紙運用・量産・収益動線まわりの残タスク
 4. [UX_BILLING_FIX_LIST.md](./UX_BILLING_FIX_LIST.md)
    - 本番確認で見つかったUX・決済の修正一覧と受け入れ条件
+5. [REF_LIBRARY.md](./REF_LIBRARY.md)
+   - **Ref Library**（IMAGINE の画像を外部のMCP/CLI/Remotion/動画生成AIからURLで参照する仕組み）の正本。
+     HTTP API・`/ref/{id}`・`/api/mcp`・スコープ設計（designs は一覧のみオーナー範囲）
 
 補足:
 
@@ -27,8 +30,6 @@
 - 実行物は `scripts/` と `supabase/` を正本とし、docs は説明だけに留める
 - バナープレビューのrevision化と後続のdurable job / server renderer計画は
   [ADR 0001](./adr/0001-revisioned-banner-previews.md) を正本とする
-- 保存済みデザインをMCP/CLI/Remotion/動画生成AIからURLで参照する Ref Library は
-  [REF_LIBRARY.md](./REF_LIBRARY.md) を正本とする
 
 ## Archive
 

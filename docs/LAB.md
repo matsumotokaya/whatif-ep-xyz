@@ -34,7 +34,7 @@
 
 `default_images` を解決済みの公開R2 URLに変換して返す読み取り専用API
 （[src/app/api/lab/assets/route.ts](../src/app/api/lab/assets/route.ts)、CORS開放・5分キャッシュ）。
-これでラボ・Remotionから**全121件（今後増える分も）を無制限に参照できる**。
+これでラボ・Remotionから**全130件（2026-09-04時点。今後増える分も）を無制限に参照できる**。
 
 | パラメータ | 例 | 意味 |
 |---|---|---|
@@ -63,6 +63,10 @@ node scripts/fetch-assets.mjs --role character_cutout --limit 50
 **自分が保存したIMAGINEデザイン**（`default_images` ではなく `banners`）を参照する場合は、
 事前ダウンロードせず [docs/REF_LIBRARY.md](./REF_LIBRARY.md) の `/api/ref/designs` を使う。
 DLせずURLだけで参照でき、再現性が要る場合はバージョン付きの`url`を固定すればよい。
+
+公式素材（`default_images`）も Ref Library から `/api/ref/assets`・`/ref/asset/{id}` でURL参照できるが、
+`fetch-assets.mjs` は上記 `/api/lab/assets` のレスポンス形をそのまま消費しているため、
+**ラボ/Remotion の事前ダウンロード導線は従来どおり `/api/lab/assets` を使う**（両者は住み分ける）。
 
 ## Video Factory（動画の生産ライン）
 
