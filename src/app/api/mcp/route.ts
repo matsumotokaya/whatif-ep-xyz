@@ -49,6 +49,14 @@ import {
 // leave them out by default and the description says how to build them —
 // repeating the same uuid across four long URLs per record is what made a
 // limit=200 listing cost roughly 46k tokens.
+//
+// EVERY PAYLOAD IS SERIALISED COMPACTLY (no `null, 2` argument). An MCP client
+// pays for the tool result as context, and pretty-printing charged it for two
+// spaces of indentation per line plus a newline per field: the same limit=200
+// listing measured 81,007 bytes over MCP against 54,554 for the identical data
+// over HTTP, so roughly a third of the client's token cost was whitespace it
+// never reads. Indentation is for humans reading a terminal, and nothing here
+// is read that way.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,6 +86,13 @@ const ASSET_URL_DOC =
   "`refUrl` never needs requesting: it is always https://whatif-ep.xyz/ref/asset/{id}. " +
   "Use `refUrl` when the reference is stored or reused later and `url` when the exact image must not change.";
 
+// `fields` accepts BOTH a comma-separated string and an array of names. An LLM
+// client naturally passes an array for a multi-valued argument, and the
+// string-only schema answered that with a flat schema error
+// ("expected string, received array at fields"), costing a round trip to learn
+// a syntax rule that carries no meaning. Both forms parse to the same list.
+const FIELDS_SCHEMA = z.union([z.string(), z.array(z.string())]).optional();
+
 function createServer(): McpServer {
   const server = new McpServer({ name: "whatif-ref", version: "1.0.0" });
 
@@ -91,7 +106,7 @@ function createServer(): McpServer {
         "This listing is deliberately limited to the owner's accounts and is not a directory of every user's designs; " +
         "to reach a design saved by anyone else, call get_design with its id. " +
         "Records are compact by default (id, name, width, height, docWidth, docHeight, aspect, urlKind, url, stale) to keep the response small; " +
-        "ask for more with `fields`. " +
+        "use `fields` to choose a different set — it selects exactly what you name, so it can shrink a record as well as widen it. " +
         "`count` is how many records this response contains and `total` is how many designs match the filters — count < total means `limit` truncated the result, so page with `offset`. " +
         "Prefer filtering server-side with `renderedOnly` / `minWidth` over fetching everything and discarding most of it. " +
         URL_DOC,
@@ -129,12 +144,11 @@ function createServer(): McpServer {
           .describe(
             "Return only designs whose rendered `width` is at least this many pixels. Implies renderedOnly, since an unrendered design has no width."
           ),
-        fields: z
-          .string()
-          .optional()
-          .describe(
-            "Comma-separated extra fields to add to the compact record, e.g. \"thumbnailUrl,updatedAt\". Use \"all\" for the full record. Unknown names are ignored. refUrl and editUrl are derivable from id and rarely worth requesting."
-          ),
+        fields: FIELDS_SCHEMA.describe(
+          "Which fields each record should carry. SELECTS rather than adds: the response contains EXACTLY the fields named, plus `id`, so this is how you make a listing cheaper — on 200 designs, `[\"id\",\"name\",\"aspect\",\"url\"]` costs about two thirds of the default record and `[\"id\",\"name\"]` under a third. " +
+            "Omit it for the compact record (id, name, aspect, width, height, docWidth, docHeight, url, urlKind, stale); use \"all\" for the full one. " +
+            "Accepts an array ([\"id\",\"name\"]) or a comma-separated string (\"id,name\"). Unknown names are ignored, so naming nothing recognisable returns ids alone. refUrl and editUrl are derivable from id and rarely worth requesting."
+        ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -150,18 +164,14 @@ function createServer(): McpServer {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(
-              {
-                count: designs.length,
-                total,
-                designs: projectRefDesigns(
-                  designs,
-                  resolveRefDesignFields(fields)
-                ),
-              },
-              null,
-              2
-            ),
+            text: JSON.stringify({
+              count: designs.length,
+              total,
+              designs: projectRefDesigns(
+                designs,
+                resolveRefDesignFields(fields)
+              ),
+            }),
           },
         ],
       };
@@ -210,7 +220,7 @@ function createServer(): McpServer {
       const content: Array<
         | { type: "text"; text: string }
         | { type: "image"; data: string; mimeType: string }
-      > = [{ type: "text", text: JSON.stringify(design, null, 2) }];
+      > = [{ type: "text", text: JSON.stringify(design) }];
 
       if (preview && design.thumbnailUrl) {
         const inline = await fetchInlineImage(design.thumbnailUrl);
@@ -230,7 +240,8 @@ function createServer(): McpServer {
         "This is the other referenceable kind alongside saved designs (list_designs); a design is a composed, rendered document, an asset is a source image. " +
         "Every asset here has a full-size image with exact recorded dimensions, so results are directly usable as image references — nothing needs rendering first and no resolution has to be guessed. " +
         "The whole library is public: unlike list_designs this listing is not restricted to any account, because it contains no user's private work. " +
-        "Newest first. Records are compact by default (id, name, role, tags, workNumber, aspect, width, height, url) to keep the response small; ask for more with `fields`. " +
+        "Newest first. Records are compact by default (id, name, role, tags, workNumber, aspect, width, height, url) to keep the response small; " +
+        "use `fields` to choose a different set — it selects exactly what you name, so it can shrink a record as well as widen it. " +
         "`count` is how many records this response contains and `total` is how many assets match the filters — count < total means `limit` truncated the result, so page with `offset`. " +
         "Prefer filtering server-side with `role` / `work` / `tag` / `minWidth` over fetching everything and discarding most of it. " +
         ASSET_URL_DOC,
@@ -251,7 +262,7 @@ function createServer(): McpServer {
           .string()
           .optional()
           .describe(
-            "Return only assets tagged with this exact tag, e.g. \"Character\". Matches one tag, case-sensitively."
+            "Return only assets tagged with this tag, e.g. \"Character\". Matches one tag, ignoring case — the stored tags are inconsistently capitalised, so case-sensitive matching would miss rows."
           ),
         work: z
           .number()
@@ -283,12 +294,11 @@ function createServer(): McpServer {
           .describe(
             "Return only assets at least this many pixels wide. The library spans roughly 480px to 4096px, so use this when the image feeds something that needs real resolution."
           ),
-        fields: z
-          .string()
-          .optional()
-          .describe(
-            "Comma-separated extra fields to add to the compact record, e.g. \"thumbnailUrl,fileSize\". Use \"all\" for the full record. Unknown names are ignored. refUrl is derivable from id and rarely worth requesting."
-          ),
+        fields: FIELDS_SCHEMA.describe(
+          "Which fields each record should carry. SELECTS rather than adds: the response contains EXACTLY the fields named, plus `id`, so this is how you make a listing cheaper. " +
+            "Omit it for the compact record (id, name, role, tags, workNumber, aspect, width, height, url); use \"all\" for the full one. " +
+            "Accepts an array ([\"id\",\"name\"]) or a comma-separated string (\"id,name\"). Unknown names are ignored, so naming nothing recognisable returns ids alone. refUrl is derivable from id and rarely worth requesting."
+        ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -306,15 +316,11 @@ function createServer(): McpServer {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(
-              {
-                count: assets.length,
-                total,
-                assets: projectRefAssets(assets, resolveRefAssetFields(fields)),
-              },
-              null,
-              2
-            ),
+            text: JSON.stringify({
+              count: assets.length,
+              total,
+              assets: projectRefAssets(assets, resolveRefAssetFields(fields)),
+            }),
           },
         ],
       };
@@ -362,7 +368,7 @@ function createServer(): McpServer {
       const content: Array<
         | { type: "text"; text: string }
         | { type: "image"; data: string; mimeType: string }
-      > = [{ type: "text", text: JSON.stringify(asset, null, 2) }];
+      > = [{ type: "text", text: JSON.stringify(asset) }];
 
       if (preview && asset.thumbnailUrl) {
         const inline = await fetchInlineImage(asset.thumbnailUrl);

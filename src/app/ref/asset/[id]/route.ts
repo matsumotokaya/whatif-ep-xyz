@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRefAsset, stripImageExtension } from "@/lib/ref/assets";
+import { resolveRefImageQuery } from "@/lib/ref/common";
 
 // Stable public alias for one official library asset's image
 // (public.default_images), the counterpart of /ref/{id} for saved designs.
@@ -8,6 +9,12 @@ import { getRefAsset, stripImageExtension } from "@/lib/ref/assets";
 //   GET /ref/asset/{id}.jpg        -> same (the extension is cosmetic, for
 //                                     consumers that sniff the URL suffix)
 //   GET /ref/asset/{id}?size=thumb -> 302 to the small preview
+//   GET /ref/asset/{id}?w=1920     -> 400, exactly as on /ref/{id}: the stored
+//                                     image is served as-is, so a transformation
+//                                     this route cannot perform is an error
+//                                     rather than an unmodified image. The
+//                                     rejected list is REF_TRANSFORM_PARAMS in
+//                                     src/lib/ref/common.ts.
 //
 // ROUTING. `asset` is a static segment, so Next matches /ref/asset/{id} here
 // and never against the sibling dynamic /ref/[id] — a literal segment always
@@ -47,6 +54,16 @@ export async function GET(
   const { id: rawId } = await params;
   const id = stripImageExtension(rawId);
 
+  // Checked before the lookup: a request asking for something this route cannot
+  // do is wrong whether or not the asset exists.
+  const query = resolveRefImageQuery(request.nextUrl.searchParams);
+  if (query.error !== null) {
+    return NextResponse.json(
+      { error: query.error },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
   let asset;
   try {
     asset = await getRefAsset(id);
@@ -65,7 +82,7 @@ export async function GET(
     );
   }
 
-  const wantsThumb = request.nextUrl.searchParams.get("size") === "thumb";
+  const wantsThumb = query.size === "thumb";
   const target = wantsThumb ? asset.thumbnailUrl : asset.url;
 
   if (!target) {

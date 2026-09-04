@@ -3,7 +3,8 @@ import "server-only";
 // Shared primitives for the Ref Library resolvers (designs.ts, assets.ts).
 //
 // Only KIND-AGNOSTIC, PURE pieces live here: site origin, id hygiene, window
-// clamping, aspect ratio, and the `fields` projection machinery. Anything that
+// clamping, aspect ratio, the `fields` projection machinery, and the query
+// guard both /ref image aliases share. Anything that
 // encodes a kind's security posture — which rows a listing may see, which
 // Supabase credential the queries run under — deliberately stays in the
 // per-kind module, so no one can widen a scope by editing a file that looks
@@ -140,32 +141,162 @@ export function orderByRequestedIds<T extends { id: string }>(
   return { items: ordered, missing };
 }
 
-// Pure. Resolves a caller's `fields` request into the field list to project.
-// Empty/absent -> the compact list shape; "all" -> every field; otherwise the
-// list shape PLUS whatever recognised names were asked for. Unknown names are
-// ignored rather than rejected, so a client written against a later version of
-// this API still gets a useful response. The returned order is always the
-// canonical one, never the caller's.
+// The one field a projection can never drop. A record without its id cannot be
+// looked up again, re-requested with other fields, or turned into a /ref/ URL,
+// so it is projected whether or not the caller named it.
+const ALWAYS_PROJECTED_FIELD = "id";
+
+// Pure. Splits a caller's `fields` request into normalised, lower-cased names.
+// BOTH shapes an API client naturally reaches for are accepted: the
+// comma-separated string a query string can carry ("id,name"), and the array an
+// LLM/MCP client tends to send for a multi-valued argument (["id","name"]),
+// which used to be rejected outright with a schema error. An array entry may
+// itself be comma-separated, since a client mixing the two forms is likelier
+// than one that means a literal comma inside a field name.
+export function parseRefFieldNames(
+  raw: string | readonly string[] | null | undefined
+): string[] {
+  const parts = typeof raw === "string" ? [raw] : (raw ?? []);
+  const names: string[] = [];
+
+  for (const part of parts) {
+    for (const name of part.split(",")) {
+      const normalized = name.trim().toLowerCase();
+      if (normalized.length > 0) names.push(normalized);
+    }
+  }
+
+  return names;
+}
+
+// Pure. Resolves a caller's `fields` request into the field list to project:
+//
+//   absent/empty -> no request was made, so the caller's own default shape
+//                   (`listFields`: the compact record for a listing, the full
+//                   record where the wrapper passes that instead)
+//   "all"        -> every field
+//   named fields -> EXACTLY those fields, plus `id`
+//
+// That last line is a deliberate breaking change. `fields` used to ADD to the
+// compact shape, so nothing could shrink a record: a consumer asking for
+// "id,name,aspect,url" was still charged for docWidth, docHeight, urlKind and
+// stale on every one of 200 records — ~17.5k tokens where ~6k was wanted, and
+// no parameter existed to avoid it. `fields` now SELECTS rather than adds,
+// which is the only way a caller can make a listing cheaper.
+//
+// Unknown names are ignored rather than rejected, so a client written against a
+// later version of this API still gets a useful response. A request whose names
+// are all unrecognised therefore projects `id` alone — honest (none of what it
+// asked for exists here) and still never an error. The returned order is always
+// the canonical one, never the caller's.
 export function resolveRefFields<F extends string>(
-  raw: string | null | undefined,
+  raw: string | readonly string[] | null | undefined,
   allFields: readonly F[],
   listFields: readonly F[]
 ): readonly F[] {
-  const requested = (raw ?? "")
-    .split(",")
-    .map((field) => field.trim().toLowerCase())
-    .filter((field) => field.length > 0);
+  const requested = parseRefFieldNames(raw);
 
   if (requested.length === 0) return listFields;
   if (requested.includes("all")) return allFields;
 
-  const wanted = new Set<F>(listFields);
+  const wanted = new Set<F>();
+  const idField = allFields.find((field) => field === ALWAYS_PROJECTED_FIELD);
+  if (idField) wanted.add(idField);
+
   for (const name of requested) {
     const match = allFields.find((field) => field.toLowerCase() === name);
     if (match) wanted.add(match);
   }
 
   return allFields.filter((field) => wanted.has(field));
+}
+
+// Query parameters that PROMISE AN IMAGE TRANSFORMATION, shared by both /ref
+// image aliases (/ref/{id} and /ref/asset/{id}).
+//
+// This is an HONESTY GUARD, NOT A WHITELIST OF FEATURES. These endpoints serve
+// the STORED image as-is: there is no resize or crop stage in front of R2, so
+// every name listed here is something they cannot do, and a request carrying
+// one is rejected rather than answered with the untouched image. A consumer
+// that sent `?w=1920`, got a 302 and believed the resize had worked fed a
+// 1200x630 render into a paid, per-call video generator, and only found out
+// after paying for the render. Dynamic resizing stays deferred pending a cost
+// decision (see docs/REF_LIBRARY.md), so until it exists these requests must
+// fail loudly.
+//
+// Deliberately narrow: only names that promise a transformation. UNRELATED
+// PARAMETERS MUST KEEP WORKING — cache-busters (`cb`, `v`), analytics
+// (`utm_*`), whatever a crawler or a chat client appends to a pasted link —
+// because these URLs are copied around by hand, and rejecting a harmless extra
+// parameter would break ordinary links that never asked for anything.
+export const REF_TRANSFORM_PARAMS = [
+  "w",
+  "h",
+  "width",
+  "height",
+  "ar",
+  "aspect",
+  "fit",
+  "crop",
+  "dpr",
+  "q",
+  "quality",
+  "format",
+  "fm",
+  "resize",
+] as const;
+
+const REF_TRANSFORM_PARAM_SET: ReadonlySet<string> = new Set(
+  REF_TRANSFORM_PARAMS
+);
+
+/** Which stored image a /ref alias should serve. */
+export type RefSize = "thumb" | "full";
+
+const SERVES_AS_IS_MESSAGE =
+  "This endpoint serves the stored image as-is. The only supported parameter is `size=thumb|full` (omit it for the full image). " +
+  "Resizing and cropping are not supported, so resize on your own side. The `width`/`height` fields returned by /api/ref/designs, /api/ref/assets and the MCP tools tell you the source size.";
+
+export type RefImageQuery =
+  | { size: RefSize; error: null }
+  | { size: null; error: string };
+
+// Pure. Validates one /ref alias request's query string and reports which
+// stored image to serve, or the message to answer 400 with.
+//
+// `size` accepts "thumb" and "full" and NOTHING ELSE. It used to mean thumb for
+// the exact string "thumb" and, silently, full for every other value, so a
+// typo ("small", "thumbnail") was answered with a full-resolution image the
+// caller had not asked for. Parameter names and the `size` value are folded to
+// lower case, so `?W=1920` and `?size=THUMB` behave like their canonical forms.
+export function resolveRefImageQuery(params: URLSearchParams): RefImageQuery {
+  const transforms: string[] = [];
+  for (const key of params.keys()) {
+    const name = key.trim().toLowerCase();
+    if (REF_TRANSFORM_PARAM_SET.has(name) && !transforms.includes(name)) {
+      transforms.push(name);
+    }
+  }
+
+  if (transforms.length > 0) {
+    const plural = transforms.length > 1 ? "s" : "";
+    return {
+      size: null,
+      error: `Unsupported image transformation parameter${plural}: ${transforms.join(", ")}. ${SERVES_AS_IS_MESSAGE}`,
+    };
+  }
+
+  const raw = params.get("size");
+  if (raw === null) return { size: "full", error: null };
+
+  const size = raw.trim().toLowerCase();
+  if (size.length === 0 || size === "full") return { size: "full", error: null };
+  if (size === "thumb") return { size: "thumb", error: null };
+
+  return {
+    size: null,
+    error: `Unsupported \`size\` value "${raw}". ${SERVES_AS_IS_MESSAGE}`,
+  };
 }
 
 // Pure. Narrows one record down to the requested fields, in the order given.

@@ -26,13 +26,14 @@ import {
 //   GET /api/ref/assets
 //     ?search=0313                     (name ilike)
 //     ?role=character_cutout|general   (asset_role)
-//     ?tag=Character                   (tags array contains)
+//     ?tag=character                   (tags array contains, case-insensitive)
 //     ?work=313                        (work_number)
 //     ?minWidth=2000                   only assets at least this wide
 //     ?limit=50             (1..200)   window size
 //     ?offset=0                        window start
-//     ?fields=refUrl,thumbnailUrl      add fields to the compact record, or
-//                                      `fields=all` for the full one
+//     ?fields=id,name,url              return EXACTLY these fields, plus `id`
+//                                      (omit for the compact record;
+//                                      `fields=all` for the full one)
 //
 // IMAGES. Every asset in this library has a full-size image at `url` and a
 // recorded pixel size, so `width`/`height` describe the image at `url` exactly
@@ -45,6 +46,13 @@ import {
 // PAGING. `count` is the number of records in THIS response; `total` is how
 // many assets match the filters, ignoring limit/offset. count < total means the
 // window truncated the result.
+//
+// `fields` SELECTS rather than adds, exactly as on /api/ref/designs: naming
+// fields returns exactly those, plus `id`. `fields=all` is the full record.
+//
+// `tag` MATCHES CASE-INSENSITIVELY, because the stored tags are not consistent
+// (33 rows "Character", one "character"). See listRefAssets in
+// src/lib/ref/assets.ts.
 //
 // NOT /api/lab/assets. That route reads the same table but keeps its own,
 // established response shape, which the lab prototypes and the Remotion
@@ -82,8 +90,12 @@ export async function GET(request: NextRequest) {
         count: assets.length,
         total: assets.length,
         // An explicit id lookup is the caller naming exactly what it wants, so
-        // it gets the full record like MCP get_asset does.
-        assets: projectRefAssets(assets, REF_ASSET_FIELDS),
+        // it DEFAULTS to the full record like MCP get_asset does; `fields`
+        // still narrows it if asked, rather than being silently ignored.
+        assets: projectRefAssets(
+          assets,
+          resolveRefAssetFields(params.get("fields"), REF_ASSET_FIELDS)
+        ),
         ...(missing.length > 0 ? { missing } : {}),
       });
     }

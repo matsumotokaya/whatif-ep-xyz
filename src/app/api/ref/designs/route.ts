@@ -27,8 +27,9 @@ import {
 //     ?renderedOnly=true               only designs with a full-res render
 //     ?minWidth=2000                   only designs at least this wide (implies
 //                                      renderedOnly)
-//     ?fields=refUrl,thumbnailUrl      add fields to the compact record, or
-//                                      `fields=all` for the full one
+//     ?fields=id,name,aspect,url       return EXACTLY these fields, plus `id`
+//                                      (omit for the compact record;
+//                                      `fields=all` for the full one)
 //     Listing and search, RESTRICTED to the ref owners (REF_OWNER_USER_IDS,
 //     falling back to profiles.role = 'admin'). Enumeration stays scoped so no
 //     one can harvest every user's design ids — see src/lib/ref/designs.ts for
@@ -46,9 +47,14 @@ import {
 // LIST RESPONSE SIZE. A listing returns a compact record by default —
 // id, name, width, height, docWidth, docHeight, aspect, urlKind, url, stale —
 // because at limit=200 the full record cost an LLM client ~46k tokens, mostly
-// the same uuid repeated across four long URLs. The dropped fields come back
-// via `fields`. Two of them never need asking for, they are pure functions of
-// the id:
+// the same uuid repeated across four long URLs.
+//
+// `fields` SELECTS, it does not add: naming fields returns exactly those (plus
+// `id`, which nothing can drop), so a caller can make a listing CHEAPER than
+// the default as well as wider. It used to only widen, which left a consumer
+// asking for "id,name,aspect,url" still paying for the other six fields on
+// every record. Two fields never need asking for at all, they are pure
+// functions of the id:
 //
 //   refUrl  = https://whatif-ep.xyz/ref/{id}
 //   editUrl = https://whatif-ep.xyz/edit/{id}
@@ -96,8 +102,13 @@ export async function GET(request: NextRequest) {
         count: designs.length,
         total: designs.length,
         // An explicit id lookup is the caller naming exactly what it wants, so
-        // it gets the full record like MCP get_design does.
-        designs: projectRefDesigns(designs, REF_DESIGN_FIELDS),
+        // it DEFAULTS to the full record like MCP get_design does. `fields`
+        // still narrows it if asked: silently ignoring a parameter is the
+        // failure mode this API is trying to stop having.
+        designs: projectRefDesigns(
+          designs,
+          resolveRefDesignFields(params.get("fields"), REF_DESIGN_FIELDS)
+        ),
         ...(missing.length > 0 ? { missing } : {}),
       });
     }

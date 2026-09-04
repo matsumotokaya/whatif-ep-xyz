@@ -315,16 +315,57 @@ describe("field projection", () => {
     expect(projected).not.toHaveProperty("previewStatus");
   });
 
-  it("adds requested fields to the compact shape without dropping any", () => {
-    const fields = resolveRefDesignFields("refUrl,thumbnailUrl");
-    const projected = projectRefDesign(mapRowToRefDesign(row()), fields);
+  it("returns exactly the named fields, not the compact shape plus them", () => {
+    // The point of the breaking change: a caller naming four fields must stop
+    // paying for the other six.
+    expect(resolveRefDesignFields("id,name,aspect,url")).toEqual([
+      "id",
+      "name",
+      "aspect",
+      "url",
+    ]);
 
-    for (const field of REF_DESIGN_LIST_FIELDS) {
-      expect(projected).toHaveProperty(field);
-    }
+    const projected = projectRefDesign(
+      mapRowToRefDesign(row()),
+      resolveRefDesignFields("refUrl,thumbnailUrl")
+    );
+
+    expect(Object.keys(projected)).toEqual(["id", "thumbnailUrl", "refUrl"]);
     expect(projected.refUrl).toBe(`https://whatif-ep.xyz/ref/${ID}`);
     expect(projected.thumbnailUrl).toContain("/thumb/rev1.jpg");
     expect(projected).not.toHaveProperty("editUrl");
+    // Dropped, even though the compact record carries them.
+    expect(projected).not.toHaveProperty("url");
+    expect(projected).not.toHaveProperty("docWidth");
+  });
+
+  it("keeps `id` even when the caller does not name it", () => {
+    // A record without its id cannot be looked up again, re-requested with
+    // other fields, or turned into a /ref/ URL.
+    expect(resolveRefDesignFields("name")).toEqual(["id", "name"]);
+    expect(
+      Object.keys(
+        projectRefDesign(
+          mapRowToRefDesign(row()),
+          resolveRefDesignFields("url")
+        )
+      )
+    ).toEqual(["id", "url"]);
+  });
+
+  it("reads an array of names exactly like the comma-separated string", () => {
+    // An MCP client passes an array for a multi-valued argument; that used to
+    // fail with a schema error before it ever reached this resolver.
+    expect(resolveRefDesignFields(["id", "name"])).toEqual(
+      resolveRefDesignFields("id,name")
+    );
+    expect(resolveRefDesignFields(["id,name", " aspect "])).toEqual([
+      "id",
+      "name",
+      "aspect",
+    ]);
+    expect(resolveRefDesignFields([])).toEqual(REF_DESIGN_LIST_FIELDS);
+    expect(resolveRefDesignFields(["all"])).toEqual(REF_DESIGN_FIELDS);
   });
 
   it("keys projected records in the canonical field order", () => {
@@ -358,9 +399,9 @@ describe("field projection", () => {
     expect(resolveRefDesignFields("nope, ,refUrl,also-not-a-field")).toEqual(
       resolveRefDesignFields("refUrl")
     );
-    expect(resolveRefDesignFields("totally-made-up")).toEqual(
-      REF_DESIGN_LIST_FIELDS
-    );
+    // Nothing recognisable was asked for, so the honest answer is ids alone —
+    // still a response, never an error.
+    expect(resolveRefDesignFields("totally-made-up")).toEqual(["id"]);
   });
 
   it("matches requested field names case-insensitively", () => {

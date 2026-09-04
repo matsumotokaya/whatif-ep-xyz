@@ -137,11 +137,14 @@ export const REF_DESIGN_FIELDS = [
 
 export type RefDesignField = (typeof REF_DESIGN_FIELDS)[number];
 
-// Default shape of a LIST record. Listings are the expensive response — at
-// limit=200 the old full record cost ~46k tokens for an LLM client, most of it
-// four URLs per design that all embed the same uuid — so the derivable and the
-// rarely-read fields are left out and can be asked back with `fields`.
+// Default shape of a LIST record, used when the caller names no `fields`.
+// Listings are the expensive response — at limit=200 the old full record cost
+// ~46k tokens for an LLM client, most of it four URLs per design that all embed
+// the same uuid — so the derivable and the rarely-read fields are left out.
 // `refUrl` and `editUrl` in particular are pure functions of `id`.
+//
+// A caller that wants something else names it: `fields` returns exactly the
+// fields listed (plus `id`), so this shape is a default, not a floor.
 //
 // Declared in REF_DESIGN_FIELDS order (it is a subsequence of it, asserted in
 // designs.test.ts) so that projected records key the same way whether or not
@@ -162,14 +165,20 @@ export const REF_DESIGN_LIST_FIELDS = [
 export type ProjectedRefDesign = Partial<RefDesign>;
 
 // Pure. Resolves a caller's `fields` request into the field list to project.
-// Empty/absent -> the compact list shape; "all" -> every field; otherwise the
-// list shape PLUS whatever recognised names were asked for. Unknown names are
+// Absent -> the compact list shape; "all" -> every field; otherwise EXACTLY the
+// recognised names asked for, plus `id`. `fields` selects rather than adds, so
+// a caller can shrink a listing and not only widen it. Unknown names are
 // ignored rather than rejected, so a client written against a later version of
-// this API still gets a useful response.
+// this API still gets a useful response. Accepts the comma-separated string an
+// HTTP query carries and the array an MCP client tends to send.
 export function resolveRefDesignFields(
-  raw: string | null | undefined
+  raw: string | readonly string[] | null | undefined,
+  // What "no `fields` at all" means for the caller. A listing defaults to the
+  // compact record; the id-lookup path passes REF_DESIGN_FIELDS, because a
+  // caller naming exact ids has said what it wants and gets the full record.
+  defaultFields: readonly RefDesignField[] = REF_DESIGN_LIST_FIELDS
 ): readonly RefDesignField[] {
-  return resolveRefFields(raw, REF_DESIGN_FIELDS, REF_DESIGN_LIST_FIELDS);
+  return resolveRefFields(raw, REF_DESIGN_FIELDS, defaultFields);
 }
 
 // Pure. Narrows one design down to the requested fields, in canonical order.

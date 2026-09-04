@@ -181,16 +181,47 @@ describe("field projection", () => {
     expect(projected).not.toHaveProperty("seriesSlug");
   });
 
-  it("adds requested fields to the compact shape without dropping any", () => {
-    const fields = resolveRefAssetFields("refUrl,thumbnailUrl");
-    const projected = projectRefAsset(mapRowToRefAsset(row()), fields);
+  it("returns exactly the named fields, not the compact shape plus them", () => {
+    expect(resolveRefAssetFields("id,name,url")).toEqual([
+      "id",
+      "name",
+      "url",
+    ]);
 
-    for (const field of REF_ASSET_LIST_FIELDS) {
-      expect(projected).toHaveProperty(field);
-    }
+    const projected = projectRefAsset(
+      mapRowToRefAsset(row()),
+      resolveRefAssetFields("refUrl,thumbnailUrl")
+    );
+
+    expect(Object.keys(projected)).toEqual(["id", "thumbnailUrl", "refUrl"]);
     expect(projected.refUrl).toBe(`https://whatif-ep.xyz/ref/asset/${ID}`);
     expect(projected.thumbnailUrl).toContain("/thumbnails/");
     expect(projected).not.toHaveProperty("fileSize");
+    // Dropped, even though the compact record carries them.
+    expect(projected).not.toHaveProperty("url");
+    expect(projected).not.toHaveProperty("tags");
+  });
+
+  it("keeps `id` even when the caller does not name it", () => {
+    expect(resolveRefAssetFields("name")).toEqual(["id", "name"]);
+    expect(
+      Object.keys(
+        projectRefAsset(mapRowToRefAsset(row()), resolveRefAssetFields("url"))
+      )
+    ).toEqual(["id", "url"]);
+  });
+
+  it("reads an array of names exactly like the comma-separated string", () => {
+    expect(resolveRefAssetFields(["id", "name"])).toEqual(
+      resolveRefAssetFields("id,name")
+    );
+    expect(resolveRefAssetFields(["id,name", " role "])).toEqual([
+      "id",
+      "name",
+      "role",
+    ]);
+    expect(resolveRefAssetFields([])).toEqual(REF_ASSET_LIST_FIELDS);
+    expect(resolveRefAssetFields(["all"])).toEqual(REF_ASSET_FIELDS);
   });
 
   it("keys projected records in the canonical field order", () => {
@@ -222,9 +253,8 @@ describe("field projection", () => {
     expect(resolveRefAssetFields("nope, ,refUrl,also-not-a-field")).toEqual(
       resolveRefAssetFields("refUrl")
     );
-    expect(resolveRefAssetFields("totally-made-up")).toEqual(
-      REF_ASSET_LIST_FIELDS
-    );
+    // Nothing recognisable was asked for, so the honest answer is ids alone.
+    expect(resolveRefAssetFields("totally-made-up")).toEqual(["id"]);
   });
 
   it("matches requested field names case-insensitively", () => {

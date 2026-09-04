@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveRefImageQuery } from "@/lib/ref/common";
 import { getRefDesign, stripImageExtension } from "@/lib/ref/designs";
 
 // Stable public alias for one saved IMAGINE design's rendered image.
@@ -7,6 +8,10 @@ import { getRefDesign, stripImageExtension } from "@/lib/ref/designs";
 //   GET /ref/{id}.jpg      -> same (the extension is cosmetic, for consumers
 //                             that sniff the URL suffix)
 //   GET /ref/{id}?size=thumb -> 302 to the small list thumbnail
+//   GET /ref/{id}?w=1920   -> 400. This route serves the stored image as-is;
+//                             see REF_TRANSFORM_PARAMS in src/lib/ref/common.ts
+//                             for why an unsupported transformation is an error
+//                             instead of a silently unmodified image.
 //
 // R2 keys are immutable and revisioned, so the underlying URL changes whenever
 // the design is re-rendered. This route is the reference that does not: it can
@@ -49,6 +54,17 @@ export async function GET(
   const { id: rawId } = await params;
   const id = stripImageExtension(rawId);
 
+  // Before the lookup: a request asking for something this route cannot do is
+  // wrong whether or not the design exists, and answering 400 without a DB read
+  // is the cheaper of two truthful answers.
+  const query = resolveRefImageQuery(request.nextUrl.searchParams);
+  if (query.error !== null) {
+    return NextResponse.json(
+      { error: query.error },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
   let design;
   try {
     design = await getRefDesign(id);
@@ -67,7 +83,7 @@ export async function GET(
     );
   }
 
-  const wantsThumb = request.nextUrl.searchParams.get("size") === "thumb";
+  const wantsThumb = query.size === "thumb";
   const target = wantsThumb ? design.thumbnailUrl : design.url;
 
   if (!target) {

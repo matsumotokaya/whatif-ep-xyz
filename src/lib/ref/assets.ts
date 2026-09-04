@@ -50,6 +50,11 @@ const DEFAULT_IMAGES_BUCKET = "default-images";
 // PostgREST's 416 for a range that starts past the last row.
 const RANGE_NOT_SATISFIABLE = "PGRST103";
 
+// Upper bound for the one query that has to be filtered in JS (see `tag` in
+// listRefAssets). Matches Supabase's default PostgREST max-rows, so asking for
+// more would not return more anyway; the library itself is ~130 rows.
+const MAX_SCAN_ROWS = 1000;
+
 // `/ref/asset/{id}.jpg` behaves like `/ref/asset/{id}`; shared with the design
 // alias and re-exported so the route imports it from the kind it serves.
 export { stripImageExtension };
@@ -103,10 +108,12 @@ export const REF_ASSET_FIELDS = [
 
 export type RefAssetField = (typeof REF_ASSET_FIELDS)[number];
 
-// Default shape of a LIST record: what it takes to pick an asset (identity,
-// what it is, and a usable image URL with its true size). The rest is opt-in
-// via `fields`, for the same reason as designs — a listing is the expensive
-// response and `refUrl` is a pure function of `id`.
+// Default shape of a LIST record, used when the caller names no `fields`: what
+// it takes to pick an asset (identity, what it is, and a usable image URL with
+// its true size). The rest is opt-in via `fields`, for the same reason as
+// designs — a listing is the expensive response and `refUrl` is a pure function
+// of `id`. A caller that wants a different set names it, and gets exactly that
+// (plus `id`), so this shape is a default rather than a floor.
 //
 // Declared in REF_ASSET_FIELDS order (it is a subsequence of it, asserted in
 // assets.test.ts) so that projected records key the same way whether or not
@@ -126,12 +133,18 @@ export const REF_ASSET_LIST_FIELDS = [
 export type ProjectedRefAsset = Partial<RefAsset>;
 
 // Pure. Resolves a caller's `fields` request into the field list to project:
-// absent -> the compact list shape, "all" -> every field, otherwise the list
-// shape plus any recognised names. Unknown names are ignored, not rejected.
+// absent -> the compact list shape, "all" -> every field, otherwise EXACTLY the
+// recognised names asked for, plus `id`. `fields` selects rather than adds, so
+// a caller can shrink a listing and not only widen it. Unknown names are
+// ignored, not rejected. Accepts the comma-separated string an HTTP query
+// carries and the array an MCP client tends to send.
 export function resolveRefAssetFields(
-  raw: string | null | undefined
+  raw: string | readonly string[] | null | undefined,
+  // What "no `fields` at all" means for the caller: the compact record for a
+  // listing, REF_ASSET_FIELDS where the id-lookup path passes it.
+  defaultFields: readonly RefAssetField[] = REF_ASSET_LIST_FIELDS
 ): readonly RefAssetField[] {
-  return resolveRefFields(raw, REF_ASSET_FIELDS, REF_ASSET_LIST_FIELDS);
+  return resolveRefFields(raw, REF_ASSET_FIELDS, defaultFields);
 }
 
 // Pure. Narrows one asset down to the requested fields, in canonical order.
@@ -223,7 +236,7 @@ export interface ListRefAssetsOptions {
   search?: string;
   /** `asset_role`, e.g. "character_cutout" or "general". */
   role?: string;
-  /** One tag; matches assets whose `tags` array contains it. */
+  /** One tag; matches assets whose `tags` array contains it, ignoring case. */
   tag?: string;
   /** `work_number`, the episode number a cutout belongs to. */
   work?: number;
@@ -259,13 +272,15 @@ export async function listRefAssets(
   const limit = clampLimit(options.limit);
   const offset = clampOffset(options.offset);
   const minWidth = normalizeMinWidth(options.minWidth);
+  const tag = options.tag?.trim().toLowerCase() || null;
 
-  // Every filter is decided in Postgres. minWidth included: `width` is a real
-  // integer column here, so `gte` compares numbers and belongs in the query —
-  // unlike the design side, where the dimension lives inside a jsonb blob that
-  // PostgREST would compare as TEXT ("900" >= "2000") and quietly return the
-  // wrong rows. `created_at` has ties, so id breaks them: without a total
-  // order, offset paging would drop and repeat rows across pages.
+  // Every filter but `tag` is decided in Postgres. minWidth included: `width`
+  // is a real integer column here, so `gte` compares numbers and belongs in the
+  // query — unlike the design side, where the dimension lives inside a jsonb
+  // blob that PostgREST would compare as TEXT ("900" >= "2000") and quietly
+  // return the wrong rows. `tag` is the one exception, for the case-folding
+  // reason spelled out below. `created_at` has ties, so id breaks them: without
+  // a total order, offset paging would drop and repeat rows across pages.
   const buildQuery = (selectOptions?: { count?: "exact"; head?: boolean }) => {
     let query = supabase
       .from("default_images")
@@ -273,7 +288,7 @@ export async function listRefAssets(
 
     if (options.search) query = query.ilike("name", `%${options.search}%`);
     if (options.role) query = query.eq("asset_role", options.role);
-    if (options.tag) query = query.contains("tags", [options.tag]);
+    // `tag` is deliberately absent here — see the JS filter below.
     if (typeof options.work === "number" && Number.isFinite(options.work)) {
       query = query.eq("work_number", Math.trunc(options.work));
     }
@@ -283,6 +298,37 @@ export async function listRefAssets(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
   };
+
+  // `tags` is a text[] and PostgREST's `contains` compares its elements
+  // EXACTLY, with no way to fold case. THE DATA IS MIXED-CASE — as of
+  // 2026-09-04, 33 rows carry the tag "Character" and one carries "character" —
+  // so an exact match silently misses rows whichever spelling the caller sends,
+  // and this case-insensitive filter is what keeps a query from quietly
+  // returning an incomplete answer. (The one odd row should still be
+  // normalised; see docs/REF_LIBRARY.md.)
+  //
+  // Filtering in JS means the query fetches the rest of the match set first and
+  // applies limit/offset afterwards, exactly as the design side does for
+  // minWidth: `total` is then the real post-filter count and the window is
+  // exact, at the cost of one wide read. MAX_SCAN_ROWS bounds that read, and
+  // the whole library is ~130 rows, so it is cheap.
+  const listByTag = async (): Promise<ListRefAssetsResult> => {
+    const { data, error } = await buildQuery(undefined).limit(MAX_SCAN_ROWS);
+    if (error) {
+      throw new Error(`Failed to list ref assets: ${error.message}`);
+    }
+
+    const matched = mapRows(data).filter((asset) =>
+      asset.tags.some((value) => value.trim().toLowerCase() === tag)
+    );
+
+    return {
+      assets: matched.slice(offset, offset + limit),
+      total: matched.length,
+    };
+  };
+
+  if (tag !== null) return listByTag();
 
   const { data, error, count } = await buildQuery({ count: "exact" }).range(
     offset,

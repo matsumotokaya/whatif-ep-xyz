@@ -167,10 +167,12 @@ assets では**例外なく成立する**。`thumbnail_path` も全行にある�
 | `offset` | `200`（デフォルト0） | ウィンドウの開始位置 | オーナー範囲のみ |
 | `renderedOnly` | `true` | full-resレンダリングがあるものだけ | オーナー範囲のみ |
 | `minWidth` | `2000` | `width` がこの値以上のものだけ（**`renderedOnly` を含意**） | オーナー範囲のみ |
-| `fields` | `refUrl,thumbnailUrl` / `all` | コンパクトレコードに項目を**追加**する | オーナー範囲のみ |
+| `fields` | `id,name,aspect,url` / `all` | **指定した項目だけ**を返す（`id` は常に付く）。未指定なら一覧はコンパクトレコード、`id` 指定時はフルレコード | 両方 |
 | `id` | `a,b,c` | 指定したIDを**指定順どおり**に返す（最大200件） | **全アカウント** |
 
-`id` を付けた時点で他のパラメータは無視され、ID指定取得（全アカウント・フルレコード）になる。
+`id` を付けた時点で他のパラメータは無視され、ID指定取得（全アカウント・既定はフルレコード）になる。
+**例外は `fields`** で、`?id=...&fields=id,name` は指定どおりに絞る
+（黙って無視するのは、この API がやめようとしている失敗そのものだから）。
 
 `renderedOnly` は SQL 側で `fullres_key IS NOT NULL OR fullres_url IS NOT NULL`
 （PostgREST の `.or()`）として適用される。
@@ -265,25 +267,38 @@ refUrl  = https://whatif-ep.xyz/ref/{id}
 editUrl = https://whatif-ep.xyz/edit/{id}
 ```
 
-必要なら `fields` で戻せる。**追加**であって置き換えではない
-（コンパクトの10項目は常に入る）。
+🔴 **`fields` は「絞り込み」である（2026-09-04 に破壊的変更）。**
+以前は「コンパクトの10項目＋指定項目」という**追加**専用で、
+`fields=id,name,aspect,url` と指定しても `docWidth`/`docHeight`/`urlKind`/`stale` が付いてきた。
+つまり**レコードを小さくする手段が存在しなかった**（利用側の実測で200件17,536トークン）。
+現在は**指定した項目だけ**を返す。`id` は指定しなくても必ず入る
+（id の無いレコードは再取得も `/ref/{id}` URL の組み立てもできず、使い道が無いため）。
 
 | 指定 | 結果 |
 |---|---|
-| なし | コンパクトレコード |
-| `fields=refUrl,thumbnailUrl` | コンパクト＋その2項目 |
+| なし | コンパクトレコード（10項目） |
+| `fields=id,name,aspect,url` | **その4項目だけ** |
+| `fields=name` | `id,name`（`id` は常に付く） |
 | `fields=all` | フルレコード |
-| `fields=nope,refUrl` | 未知の項目名は**無視**（エラーにしない）。`refUrl` だけ追加 |
+| `fields=nope,name` | 未知の項目名は**無視**（エラーにしない）→ `id,name` |
+| `fields=nope` | 認識できる項目が1つも無いので `id` だけ。これもエラーにしない |
 
 項目名の大文字小文字は無視する。キーの並び順は指定順ではなく常に正準順。
+MCP では**配列でも渡せる**（`fields: ["id","name"]`。[MCP 節](#post-apimcp)参照）。
 
-実測（limit=200、オーナー345件・full-res 133件のデータ）:
+実測（limit=200・オーナー345件。**2026-09-04 時点のスナップショット**であり、
+デザインを保存するたびに動く。この数値そのものを契約として扱わないこと）:
 
 | 形 | バイト数 | 概算トークン |
 |---|---|---|
-| 既定（コンパクト） | 54,554 | 約 13,600 |
-| `fields=all` | 147,248 | 約 36,800 |
-| 変更前（フルレコードのみ） | 183,584 | 約 45,900 |
+| 既定（コンパクト） | 54,979 | 約 13,700 |
+| `fields=id,name,aspect,url` | 37,011 | 約 9,300 |
+| `fields=id,name` | 15,200 | 約 3,800 |
+| `fields=all` | 147,729 | 約 36,900 |
+| 変更前（フルレコードのみ・コンパクト化前） | 183,584 | 約 45,900 |
+
+`url` はR2の長いパス（約200文字）なので、`url` を含む限り1件あたりのコストは下限が決まる。
+探索フェーズで比率だけ見るなら `fields=id,name,aspect` が一番安い。
 
 ヘッダー: `Access-Control-Allow-Origin: *`、
 `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`
@@ -299,8 +314,41 @@ editUrl = https://whatif-ep.xyz/edit/{id}
 
 - `/ref/{id}` → 現在の **full-res** R2 URLへリダイレクト。🔴 **サムネイルへのフォールバックはしない**
 - `/ref/{id}.jpg` → 同上（拡張子は見た目上のヒントとして許容するだけで、実体の形式には影響しない）
-- `?size=thumb` → 常にthumbnailへリダイレクト（従来どおり）
+- `?size=thumb` → thumbnailへリダイレクト。`?size=full`（既定と同じ）も明示的に受ける。
+  🔴 **`thumb` / `full` 以外の値は 400**（`?size=small` のようなタイポで
+  黙ってfull-resを返していたのをやめた）
 - **どのアカウントのデザインでも**、id が正しければ解決する（id 自体がアクセス権）
+
+#### 🔴 変換系クエリは 400 で弾く（2026-09-04 追加）
+
+このエンドポイントは**保存済みの画像をそのまま返すだけ**で、リサイズ・クロップは
+一切行わない（[今後](#今後)の動的リサイズは費用判断待ちで未実装）。
+以前は `?w=1920` や `?ar=16:9` を**黙って無視して原寸へ302**していたため、
+利用側は「リサイズが効いた」と誤認し、**1本ごとに課金される動画生成API**に
+1200×630のまま投入して、課金後に気づくという事故が起きた。
+そのため実装されるまでは、変換を約束するクエリは**明示的に 400 を返す**。
+
+弾くパラメータ（`src/lib/ref/common.ts` の `REF_TRANSFORM_PARAMS` が正本。
+パラメータ名の大文字小文字は無視する）:
+
+```
+w, h, width, height, ar, aspect, fit, crop, dpr, q, quality, format, fm, resize
+```
+
+🔴 **これは「機能のホワイトリスト」ではなく「嘘をつかないためのガード」**。
+逆に**それ以外のパラメータは弾かない**（キャッシュバスター `cb` / `v`、
+アナリティクスの `utm_*` など）。これらのURLは人の手でコピーして貼られるので、
+無害な付加パラメータで 400 にすると普通のリンクが壊れる。
+
+400 の本文は「原寸のまま返すエンドポイントである」「唯一のパラメータは `size=thumb|full`」
+「リサイズは利用側で行うこと」「原寸は API の `width`/`height` で分かること」を明記する。
+CORS ヘッダーは 400 でも付ける（ブラウザから叩いた利用側が本文を読めるように）。
+
+```bash
+curl -s "https://whatif-ep.xyz/ref/<uuid>?w=1920"     # 400 + 上記の本文
+curl -s "https://whatif-ep.xyz/ref/<uuid>?size=bogus" # 400
+curl -sI "https://whatif-ep.xyz/ref/<uuid>?cb=123"    # 302（無関係なので通す）
+```
 
 404 になるケースと本文:
 
@@ -328,15 +376,16 @@ curl -sI "https://whatif-ep.xyz/ref/<uuid>?size=thumb" # 302 → thumbnail
 |---|---|---|
 | `search` | `0313` | 名前（ファイル名）の部分一致 |
 | `role` | `character_cutout` / `general` | `asset_role` の完全一致 |
-| `tag` | `Character` | `tags` 配列に含まれるもの（1タグ・大文字小文字は区別する） |
+| `tag` | `Character` / `character` | `tags` 配列に含まれるもの（1タグ・**大文字小文字を区別しない**） |
 | `work` | `313` | `work_number` の完全一致 |
 | `minWidth` | `2000` | `width` がこの値以上のものだけ |
 | `limit` | `50`（デフォルト50、最大200） | 返す件数（ウィンドウの幅） |
 | `offset` | `100`（デフォルト0） | ウィンドウの開始位置 |
-| `fields` | `refUrl,thumbnailUrl` / `all` | コンパクトレコードに項目を**追加**する |
+| `fields` | `id,name,url` / `all` | **指定した項目だけ**を返す（`id` は常に付く） |
 | `id` | `a,b,c` | 指定したIDを**指定順どおり**に返す（最大200件・フルレコード） |
 
-designs 側と挙動を揃えてある: `id` を付けた時点で他のパラメータは無視される。
+designs 側と挙動を揃えてある: `id` を付けた時点で他のパラメータは無視される
+（`fields` だけは例外で、指定すれば `id` 指定取得でも絞れる）。
 `count` / `total` / `missing` の意味も同じ。`offset` が総件数を超えた場合も同様に
 **200 + 空配列**（PostgREST の 416 = `PGRST103` を握って空ページに変換）。
 
@@ -344,6 +393,17 @@ designs 側と挙動を揃えてある: `id` を付けた時点で他のパラ�
 こちらの `width` は**普通の integer 列**なので数値比較が正しく効く。
 designs が JS でフィルタしているのは、寸法が `template` jsonb の中にあり
 PostgREST がテキスト比較してしまうからで、**その制約はこの表には無い**。
+
+🔴 **`tag` だけは JS 側でフィルタする（2026-09-04）**。`tags` は `text[]` で、
+PostgREST の `contains` は要素を**完全一致**で比べ、case を畳む手段が無い。
+そして**データ側が揺れている**（2026-09-04 時点で `Character` 33件・`character` 1件）ため、
+完全一致だとどちらの綴りで検索しても**片方を黙って取りこぼす**。
+そこで designs の `minWidth` と同じ形にしてある: 条件に合う行を先に全件
+（最大1000行・ライブラリは約130行）取得してから JS で case-insensitive に絞り、
+`total` と `limit`/`offset` はフィルタ後の集合に対して正しく適用する。
+実測: `tag=character` / `tag=Character` / `tag=CHARACTER` はいずれも `total=34`
+（変更前は 1 と 33 に割れていた）。
+**データ側の1件も直すべき**で、そのSQLは[今後](#今後)に置いてある。
 
 並び順は `created_at desc`、同着は `id desc` で決定的にしてある
 （無いと `offset` ページングで行の取りこぼし・重複が起きる）。
@@ -402,8 +462,9 @@ id, name, role, tags, workNumber, aspect, width, height, url
 refUrl = https://whatif-ep.xyz/ref/asset/{id}
 ```
 
-`fields` の規則も designs と同一（**追加**であって置き換えではない・`all` でフル・
-未知の項目名は無視・項目名の大文字小文字は無視・キーは常に正準順）。
+`fields` の規則も designs と同一（**指定した項目だけ**を返す＋`id` は常に付く・
+`all` でフルレコード・未知の項目名は無視・項目名の大文字小文字は無視・
+キーは常に正準順・MCP では配列も可）。
 
 ヘッダー: `Access-Control-Allow-Origin: *`、
 `Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`
@@ -424,7 +485,11 @@ lab のプロトタイプと Remotion ワークスペースの `scripts/fetch-as
 
 - `/ref/asset/{id}` → フルサイズ画像へ302リダイレクト
 - `/ref/asset/{id}.jpg` / `.png` → 同上（拡張子は見た目上のヒントとして許容するだけ）
-- `?size=thumb` → サムネイルへリダイレクト
+- `?size=thumb` → サムネイルへリダイレクト。`?size=full` も明示的に受け、
+  **それ以外の値は 400**
+- 🔴 **変換系クエリ（`?w=` / `?ar=` など）は 400**。designs の `/ref/{id}` と
+  完全に同じガードを共有する（弾くパラメータの一覧と理由は
+  [上記](#-変換系クエリは-400-で弾く2026-09-04-追加)を参照）
 - 全件公開なので、id が正しければ必ず解決する
 
 404 になるケースと本文:
@@ -448,10 +513,32 @@ curl -sI "https://whatif-ep.xyz/ref/asset/<uuid>?size=thumb" # 302 → サムネ
 
 | ツール | 引数 | 内容 | 範囲 |
 |---|---|---|---|
-| `list_designs` | `search?`, `limit?`, `offset?`, `renderedOnly?`, `minWidth?`, `fields?` | `/api/ref/designs` と同じ一覧（コンパクトレコード＋`count`/`total`） | オーナー範囲のみ |
+| `list_designs` | `search?`, `limit?`, `offset?`, `renderedOnly?`, `minWidth?`, `fields?` | `/api/ref/designs` と同じ一覧（既定はコンパクトレコード＋`count`/`total`） | オーナー範囲のみ |
 | `get_design` | `id`, `preview?` | 単一デザインを**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | **全アカウント** |
-| `list_assets` | `search?`, `role?`, `tag?`, `work?`, `limit?`, `offset?`, `minWidth?`, `fields?` | `/api/ref/assets` と同じ一覧（コンパクトレコード＋`count`/`total`） | 公開 |
+| `list_assets` | `search?`, `role?`, `tag?`, `work?`, `limit?`, `offset?`, `minWidth?`, `fields?` | `/api/ref/assets` と同じ一覧（既定はコンパクトレコード＋`count`/`total`）。`tag` は大文字小文字を区別しない | 公開 |
 | `get_asset` | `id`, `preview?` | 単一素材を**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | 公開 |
+
+🔴 **`fields` は文字列でも配列でも受ける**
+（`fields: "id,name"` / `fields: ["id","name"]`）。
+JSON Schema 上は `anyOf: [string, array of string]`。
+**LLM クライアントは複数値を配列で渡しがち**で、
+以前は `Invalid input: expected string, received array at fields` で弾いていた。
+構文を学ばせるための1往復に価値は無いので、両方受ける。
+意味は HTTP と完全に同じ（**指定した項目だけ**＋`id`・`all` でフル・未知の項目は無視）。
+
+🔴 **ペイロードは全ツールでコンパクトにJSON化する**（`JSON.stringify(value)`。
+`null, 2` のインデントを付けない）。MCP クライアントはツール結果を
+**コンテキストとして課金される**ので、インデントの空白がそのままトークン費用になる。
+実測（limit=200・2026-09-04時点のスナップショット）:
+
+| | ツール結果テキスト | JSON-RPC 応答全体 |
+|---|---|---|
+| 変更前（`null, 2`） | 72,995 バイト | 81,019 バイト |
+| 変更後（コンパクト） | 54,979 バイト | 60,598 バイト |
+
+変更後のツール結果テキストは、同じデータの HTTP 応答と**バイト単位で一致する**
+（同じJSONだから当然で、以前はMCP経由の方だけが約1.3万バイト分の空白を運んでいた）。
+`fields: ["id","name","aspect","url"]` を併用すると 37,011 バイトになる。
 
 `list_assets` / `get_asset` の description には、
 **全素材がフルサイズ画像と正確な実寸を持つので、そのまま画像リファレンスとして使える**こと、
@@ -570,7 +657,8 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
 >   返る `url` はフルサイズ・実寸付きなので、そのまま画像入力に渡せる
 
 > 「2000px以上ある公式素材を出して」
-> → `list_assets({ minWidth: 2000, role: "character_cutout" })`（現状29件）
+> → `list_assets({ minWidth: 2000, role: "character_cutout" })`
+>   （2026-09-04時点で29件。件数は `total` を見る）
 
 ## 画質と full-res の生成条件
 
@@ -580,8 +668,11 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
   だから `width` / `height` を `url` の実寸として申告できる
 - サムネイルはおおよそ400px幅だが**厳密ではない**（1080×1350 → 399×499）。
   生成器が複数あるため実寸は導出できず、APIも申告しない
-- 現在のカバレッジ（adminアカウント基準、2026-09-04時点）:
-  **345件中、full-res 133件・サムネイルのみ 211件・画像なし 1件**
+- カバレッジ（adminアカウント基準・**2026-09-04時点のスナップショット**）:
+  **345件中 full-res 135件**、残り約210件はサムネイルのみか画像なし。
+  🔴 この数はエディタで保存するたびに増えるので、**固定値として扱わない**
+  （`/api/ref/designs?renderedOnly=true&limit=1` の `total` が常に正しい）。
+  在庫不足そのものは[今後](#今後)の「バッチ再レンダリング」参照
 - full-resが未生成のデザインは `url: null` / `urlKind: null` / `width`・`height` ともに `null`。
   **サムネイルにフォールバックはしない**。エディタで開いて保存すれば生成される
 - `stale: true` は「ドキュメントが最後のレンダリング後に編集された」ことを示す
@@ -615,7 +706,7 @@ i2v（image-to-video）の素材ソースとして使った際に受けた指摘
 | # | 指摘 | 対応 |
 |---|---|---|
 | 1 | `width`/`height` が `url` の実体と一致しない（400pxを1080pxと申告） | `url` を **full-resのみ**に限定。`width`/`height` は `url` の実寸、無ければ `null`。`docWidth`/`docHeight` を新設。`urlKind` は `"full"` / `null` のみ。`/ref/{id}` も同じ規則（full-res無しは404） |
-| 2 | limit=200 の応答が約46,000トークン | 一覧を**コンパクトレコード**（10項目）に。`fields` で追加取得、`fields=all` でフル。`refUrl`/`editUrl` の組み立て方を description と本文に明記。実測 183,584→54,554バイト |
+| 2 | limit=200 の応答が約46,000トークン | 一覧を**コンパクトレコード**（10項目）に。`refUrl`/`editUrl` の組み立て方を description と本文に明記。実測 183,584→約54,900バイト。**この時点の `fields` は「追加」専用**で、下記「再検証への対応」の B で絞り込みに変えた |
 | 3 | `thumb` が63%を占めるのに絞り込めない | `renderedOnly` / `minWidth` を追加（HTTP・`list_designs` 両方） |
 | 4 | 総数が返らず、打ち切りか否か判別できない | `total`（exact count）と `offset` を追加。`count` は「このレスポンスの件数」と明記 |
 | 5 | 名前の構造がフィールドになっていない | `episode` / `variant` / `aspect` を追加（すべてnullable・ベストエフォート）。パーサは `parseRefDesignName` として `designs.ts` に純関数で置き、実データの名前でユニットテスト |
@@ -626,10 +717,31 @@ i2v（image-to-video）の素材ソースとして使った際に受けた指摘
 
 - **#6 動的リサイズ・クロップ**（`?w=1920` / `?ar=16:9`）。指摘の中で唯一 Unsplash に明確に劣る点。
   i2v は**元画像のアスペクト比がそのまま出力比になる**ため、16:9の動画には16:9の素材が要るが、
-  オーナーの200件中16:9は19件しかない。実装には R2 の前に Cloudflare Images か Workers を挟む必要が
+  レンダー済み135件中16:9は40件しかない（2026-09-04時点のスナップショット。
+  この節の初版は limit=200 の範囲で数えて「19件」と書いていた）。
+  実装には R2 の前に Cloudflare Images か Workers を挟む必要が
   あり**費用が発生する**。このサイトは過去に Vercel の画像最適化が無料枠を超えて402を返し、
   画像が表示されなくなった経緯がある（[README](../README.md)・`next.config.ts` の `unoptimized: true`）ため、
-  **オーナーの承認なしに進めない**。`aspect` フィルタは緩和にはなるが代替ではない
+  **オーナーの承認なしに進めない**。`aspect` フィルタは緩和にはなるが代替ではない。
+  🔴 **実装されるまでの暫定措置として、変換系クエリは 400 で弾く**ようにした
+  （下記「再検証への対応」A）。黙って原寸を返すと利用側が誤認したまま課金される
+
+### 再検証への対応（2026-09-04）
+
+同じ利用者がデプロイ後に再計測した結果（7項目中5つ解決・1つ部分対応・1つ未対応）に対して、
+残課題A〜Eのうち**実装で閉じられる5点をこの日に入れた**。
+
+| 残課題 | 指摘 | 対応 |
+|---|---|---|
+| A | `?w=` / `?ar=` が黙って無視され、原寸が200で返る | **400で弾く**。`REF_TRANSFORM_PARAMS`（`w,h,width,height,ar,aspect,fit,crop,dpr,q,quality,format,fm,resize`）を両方の `/ref` エイリアスで共有。無関係なクエリ（`cb`/`v`/`utm_*`）は通す。`size` は `thumb`/`full` のみ受け、他は400 |
+| B | `fields` が追加専用で、コンパクトの10項目を削れない | `fields` を**絞り込み**に変更（指定項目＋`id` のみ）。`fields=id,name,aspect,url` で 54,979→37,011バイト、`fields=id,name` で 15,200バイト |
+| C | `fields` が配列を受け付けない | `anyOf: [string, array of string]` に変更。`fields: ["id","name"]` が通る |
+| D | タグの大小文字が揺れていて片方を取りこぼす | `listRefAssets` の `tag` を **case-insensitive** に（JS側フィルタ）。`character` / `Character` どちらでも `total=34` |
+| — | （新規）MCPペイロードが pretty-print されていて空白に課金される | 全ツールで `JSON.stringify(value)` に。72,995→54,979バイト（ツール結果テキスト） |
+| E | designs の61%が未レンダーで、素材として選べるのは135件 | **未対応**（在庫の問題）。バッチ再レンダリングとして[今後](#今後)に記載 |
+
+**残るのは「データ側の1件」と「レンダリング在庫」の2つ**で、どちらも
+コード変更ではなく DB 書き込み / バッチ処理の判断が必要。[今後](#今後)を参照。
 
 **良かった点として維持したもの**: 認証なし・`stale`/`previewStatus`/`urlKind` を隠さない・
 `isError: true` ＋人間可読メッセージ・R2直リンクの `.jpg` 拡張子・`/ref/{id}.jpg` の別形・
@@ -637,7 +749,46 @@ Acceptヘッダ検査・CORS `*` と `Mcp-Session-Id` の expose・`refUrl` と 
 
 ## 今後
 
-- 動的リサイズ・クロップ（#6。上記「未対応（判断待ち）」を参照）
+- 動的リサイズ・クロップ（#6。上記「未対応（判断待ち）」を参照）。
+  実装されるまでは `?w=` / `?ar=` 等を **400で弾く**のが現在の挙動
+- 🔴 **タグの大文字小文字の揺れを1件だけ直す（DB書き込み・オーナー承認が必要）**。
+  `public.default_images` の1行だけがタグ `character` を持ち、他33行は `Character`。
+  API側は case-insensitive にしたので**検索は取りこぼさなくなった**が、
+  **データそのものは揺れたまま**で、タグ一覧をそのまま表示する画面や
+  将来の完全一致前提のコードで再発しうる。
+  DB書き込みなので**オーナーの明示承認なしに実行しない**（`AGENTS.md` の Access modes）。
+  実行するSQLは以下の1文。冪等（2回目以降は0行更新）で、
+  **`Character` と大文字小文字だけ違う行しか触らない**:
+
+  ```sql
+  UPDATE public.default_images
+  SET tags = (
+    SELECT array_agg(
+             CASE WHEN lower(tag) = 'character' THEN 'Character' ELSE tag END
+             ORDER BY ord
+           )
+    FROM unnest(tags) WITH ORDINALITY AS t(tag, ord)
+  )
+  WHERE EXISTS (
+    SELECT 1 FROM unnest(tags) AS tag
+    WHERE lower(tag) = 'character' AND tag <> 'Character'
+  );
+  ```
+
+  （現データでは `Character` と `character` を**両方**持つ行は無い
+  — 33 + 1 = case-insensitive の34件と一致する — ので重複タグは生じない。
+  2026-09-04 に上の `WHERE` を `SELECT` として実行して確認済み: 対象1行・
+  `["character"]` → `["Character"]`。実行前にこの形で対象行を確認するとよい）
+- 🔴 **full-res の在庫不足＝バッチ再レンダリング（それ自体が1プロジェクト）**。
+  2026-09-04時点でオーナー345件のうち**210件に full-res が無く、
+  素材として実際に選べるのは約135件**。`renderedOnly` / `minWidth` で
+  「見せかけの素材を掴む」危険は消えたが、**在庫が増えたわけではない**
+  （利用側にとっては 16:9 が40件しか無いことが実害）。
+  閉じるには全デザインを開いて保存し直す**バッチ再レンダリング**が必要だが、
+  既存のレンダラ [bannerPreviewRenderer.ts](../src/components/editor/utils/bannerPreviewRenderer.ts)
+  は `Image` / `canvas` を使う**ブラウザDOM前提**で、Nodeからは動かない。
+  ヘッドレスブラウザ（Playwright 等）でエディタを開くか、レンダラをサーバ側に
+  移植するかの選択になり、**小さな修正ではなく独立した1プロジェクト**として扱う
 - ~~公式素材ライブラリ（`public.default_images`）を参照対象に追加~~ →
   **2026-09-04 完了**（`/api/ref/assets`・`/ref/asset/{id}`・`list_assets`・`get_asset`）
 - テンプレート（`public.templates`。壁紙テンプレート等）を参照対象に追加。
