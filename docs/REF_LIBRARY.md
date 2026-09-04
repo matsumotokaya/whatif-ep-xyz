@@ -1,13 +1,20 @@
-# Ref Library — 保存済みデザインを外部から参照する
+# Ref Library — サイトの画像を外部から参照する
 
 最終更新: 2026-09-04
 
 ## 目的
 
-IMAGINE で保存したデザイン（`public.banners` の行）を、サイトの外から**URLだけで**
-参照できるようにする。対象は MCP クライアント（Claude Code 等）、CLI/curl、Remotion、
-画像URLを受け取る動画生成AI API。ファイルをダウンロードしてローカルパスを指す運用を廃止し、
+サイトが持つ画像を、外から**URLだけで**参照できるようにする。対象は MCP クライアント
+（Claude Code 等）、CLI/curl、Remotion、画像URLを受け取る動画生成AI API。
+ファイルをダウンロードしてローカルパスを指す運用を廃止し、
 常に最新のR2 URLを直接渡せるようにするのが狙い。
+
+🔴 **参照できる対象（kind）は2種類ある。** 片方だけを見て設計判断をしないこと。
+
+| kind | 実体 | 中身 | 公開範囲 |
+|---|---|---|---|
+| **designs** | `public.banners` | IMAGINE で保存したデザイン（ユーザーの私物・保存時にレンダリング） | **id指定=全アカウント / 列挙=オーナー範囲** |
+| **assets** | `public.default_images` | サイト公式のキュレーション素材ライブラリ（キャラクター切り抜き・一般アート） | **完全公開**（id指定も列挙もスコープ無し） |
 
 ## 設計判断
 
@@ -63,9 +70,37 @@ MiniMax の入力制約は256〜5760pxなので**API側も弾かず、生成後�
 必要になった時点で opt-out フラグを追加する（[今後](#今後)参照）。
 現状、一度配ったURLを**後から無効化する手段はない**。
 
+### assets（公式素材ライブラリ）には、なぜスコープが一切無いのか
+
+`default_images` は**サイト自身が公開しているキュレーション済みライブラリ**であり、
+行にオーナーが存在しない。designs の列挙をオーナー範囲に絞るのは
+「他人の私物の id を1リクエストで収穫させない」ためだが、assets にはそもそも
+私物が無いので、列挙しても漏れるものが無い。**ライブラリは閲覧されるために在る**ので、
+ここに後からオーナー絞り込みを足すのは、存在意義である利用側から隠すだけになる。
+
+このため assets 側は `listRefAssets` / `getRefAssetsByIds` の**両方がスコープ無し**で、
+designs 側のような非対称性を持たない（[assets.ts](../src/lib/ref/assets.ts) 冒頭に同じ説明がある）。
+
+**認証情報も anon クライアントを使う**（designs は service-role）。この表の SELECT は
+RLS で anon / authenticated に `true` で開いており、RLSを回避する必要がそもそも無い。
+**仕事を果たせる最弱の資格情報を使う**という原則に加え、将来 RLS で
+「未公開フラグ」等を足したときに、黙って迂回されず自動的に効くようにするため。
+
+🔴 **assets の `width` / `height` は信用できる**: designs は「レンダリング済みか」で
+実寸の申告可否が変わったが、assets は**全130行が `storage_path`（フルサイズ）と
+`width`/`height` を持っている**。したがって
+「`width`/`height` は `url` が指す画像の実寸そのもの」という designs で苦労して守った規則が、
+assets では**例外なく成立する**。`thumbnail_path` も全行にあるが、
+サムネイルの実寸は記録が無いので designs と同じく**申告しない**。
+
+なお `aspect` は約分した比だが、素材は手作業でクロップされているため
+`"1223:2063"` のような値になるのが普通で、`"4:5"` のように整った値にはまずならない。
+**形の目安であって、等値でフィルタする用途には使えない**（designs の `aspect` とは性格が違う）。
+
 ## 対象と範囲
 
-- v1の対象は **designs**（`public.banners`）のみ。テンプレートやアップロード素材は含まない
+### designs（`public.banners`）
+
 - **`id` を指定するアクセスにはアカウント制限がない**。`/ref/{id}` と
   `/api/ref/designs?id=...`、MCP `get_design` は、どのアカウントが保存したデザインでも
   id が正しければ解決する
@@ -78,14 +113,50 @@ MiniMax の入力制約は256〜5760pxなので**API側も弾かず、生成後�
 - したがって「一覧に出ない」≠「参照できない」。オーナー範囲外のデザインは一覧・検索には
   現れないが、id を知っていれば参照・ダウンロードできる
 
+### assets（`public.default_images`）
+
+- **一覧・検索・id指定のすべてが公開**。`REF_OWNER_USER_IDS` は一切関与しない
+- 130行すべてが**フルサイズ画像＋実寸＋サムネイル**を持つ。
+  `url: null` になる行は現状存在しない（designs の「full-res 未生成」に相当する状態が無い）
+- `asset_role` は `character_cutout`（81件・全件に `work_number` あり・34件にタグ）と
+  `general`（49件）。幅は 480〜4096px
+- 素材そのものはすでに `/api/lab/assets` で公開済み。Ref Library はそこに
+  **id指定取得・`count`/`total`・`fields`・恒久リンク**という参照用の意味付けを足したもの
+
+### 2つの kind の比較
+
+| | designs | assets |
+|---|---|---|
+| テーブル | `public.banners` | `public.default_images` |
+| 一覧の範囲 | オーナー範囲のみ | **全件（公開）** |
+| id指定の範囲 | 全アカウント | 全件（公開） |
+| Supabaseクライアント | service-role（RLS迂回） | **anon**（RLSに従う） |
+| `url` | full-res レンダリングのみ。無ければ `null` | フルサイズ画像。**全行に存在** |
+| `width`/`height` | `url` の実寸。`url` が無ければ `null` | `url` の実寸。**全行に記録あり** |
+| `aspect` | ドキュメント寸法の比（`"4:5"` 等の整った値） | 実寸の比（`"1223:2063"` 等・等値フィルタ不可） |
+| 恒久リンク | `/ref/{id}` | `/ref/asset/{id}` |
+| MCPツール | `list_designs` / `get_design` | `list_assets` / `get_asset` |
+| キャッシュ | `s-maxage=60` | `s-maxage=300` |
+| 更新頻度 | 保存のたび | まれ（キュレーション時のみ） |
+
+まだ含まないもの: テンプレート（`public.templates`）とアップロード素材（`user_images`）。
+[今後](#今後)を参照。
+
 ## API リファレンス
 
-| エンドポイント | 用途 | 範囲 |
-|---|---|---|
-| `GET /api/ref/designs?id=...` | ID指定取得（**フルレコード**） | **全アカウント** |
-| `GET /api/ref/designs`（一覧パラメータ） | 一覧・検索（**コンパクトレコード**） | オーナー範囲のみ |
-| `GET /ref/{id}` (`/ref/{id}.jpg` も可) | 現在のfull-resレンダリングへ302リダイレクト | **全アカウント** |
-| `POST /api/mcp` | MCP (Streamable HTTP) エンドポイント | ツールごと（下記） |
+| エンドポイント | kind | 用途 | 範囲 |
+|---|---|---|---|
+| `GET /api/ref/designs?id=...` | designs | ID指定取得（**フルレコード**） | **全アカウント** |
+| `GET /api/ref/designs`（一覧パラメータ） | designs | 一覧・検索（**コンパクトレコード**） | オーナー範囲のみ |
+| `GET /ref/{id}` (`/ref/{id}.jpg` も可) | designs | 現在のfull-resレンダリングへ302リダイレクト | **全アカウント** |
+| `GET /api/ref/assets?id=...` | assets | ID指定取得（**フルレコード**） | 公開 |
+| `GET /api/ref/assets`（一覧パラメータ） | assets | 一覧・検索（**コンパクトレコード**） | 公開 |
+| `GET /ref/asset/{id}` (`.jpg`/`.png` も可) | assets | フルサイズ画像へ302リダイレクト | 公開 |
+| `POST /api/mcp` | 両方 | MCP (Streamable HTTP) エンドポイント | ツールごと（下記） |
+
+`/ref/asset/...` は静的セグメントなので、Next.js のルーティング上
+**動的な `/ref/[id]` より優先**される（同じ深さでは静的が動的に勝つ）。
+したがって assets を足しても designs の `/ref/{id}` は一切影響を受けない。
 
 ### `GET /api/ref/designs`
 
@@ -249,6 +320,128 @@ curl -sI "https://whatif-ep.xyz/ref/<uuid>?size=thumb" # 302 → thumbnail
 
 実装: [src/app/ref/[id]/route.ts](../src/app/ref/%5Bid%5D/route.ts)
 
+### `GET /api/ref/assets`
+
+公式素材ライブラリ（`public.default_images`）の一覧・検索・ID指定取得。**全経路が公開**。
+
+| パラメータ | 例 | 意味 |
+|---|---|---|
+| `search` | `0313` | 名前（ファイル名）の部分一致 |
+| `role` | `character_cutout` / `general` | `asset_role` の完全一致 |
+| `tag` | `Character` | `tags` 配列に含まれるもの（1タグ・大文字小文字は区別する） |
+| `work` | `313` | `work_number` の完全一致 |
+| `minWidth` | `2000` | `width` がこの値以上のものだけ |
+| `limit` | `50`（デフォルト50、最大200） | 返す件数（ウィンドウの幅） |
+| `offset` | `100`（デフォルト0） | ウィンドウの開始位置 |
+| `fields` | `refUrl,thumbnailUrl` / `all` | コンパクトレコードに項目を**追加**する |
+| `id` | `a,b,c` | 指定したIDを**指定順どおり**に返す（最大200件・フルレコード） |
+
+designs 側と挙動を揃えてある: `id` を付けた時点で他のパラメータは無視される。
+`count` / `total` / `missing` の意味も同じ。`offset` が総件数を超えた場合も同様に
+**200 + 空配列**（PostgREST の 416 = `PGRST103` を握って空ページに変換）。
+
+🔴 **`minWidth` は designs と違い SQL 側で適用する**（`.gte("width", n)`）。
+こちらの `width` は**普通の integer 列**なので数値比較が正しく効く。
+designs が JS でフィルタしているのは、寸法が `template` jsonb の中にあり
+PostgREST がテキスト比較してしまうからで、**その制約はこの表には無い**。
+
+並び順は `created_at desc`、同着は `id desc` で決定的にしてある
+（無いと `offset` ページングで行の取りこぼし・重複が起きる）。
+
+```bash
+curl -s "https://whatif-ep.xyz/api/ref/assets?limit=3" | jq .
+curl -s "https://whatif-ep.xyz/api/ref/assets?role=character_cutout&minWidth=2000" | jq .
+curl -s "https://whatif-ep.xyz/api/ref/assets?work=313&fields=all" | jq .
+curl -s "https://whatif-ep.xyz/api/ref/assets?id=<uuid-a>,<uuid-b>" | jq .
+```
+
+#### `RefAsset`（フルレコード）
+
+`GET /api/ref/assets?id=...` と MCP `get_asset` が返す形。
+
+```ts
+type RefAsset = {
+  id: string;
+  name: string;              // ライブラリ上のファイル名
+  role: string;              // asset_role: "character_cutout" | "general"
+  tags: string[];
+  workNumber: number | null; // 作品(エピソード)番号。character_cutout は全件持つ
+  seriesSlug: string | null;
+  variantNumber: number | null;
+
+  aspect: string | null;     // 実寸の約分比。"1223:2063" のような値が普通
+  // 🔴 url が指す画像の実寸そのもの。全130行に記録がある
+  width: number | null;
+  height: number | null;
+
+  url: string | null;        // フルサイズ画像（公開R2）。全行に存在する
+  thumbnailUrl: string | null; // 小さいプレビュー（実寸は記録が無いので申告しない）
+
+  refUrl: string;            // 常に https://whatif-ep.xyz/ref/asset/{id}
+  fileSize: number | null;
+  createdAt: string;
+};
+```
+
+designs との違いは `docWidth`/`docHeight`・`urlKind`・`stale`・`previewStatus`・`editUrl`
+が**無い**こと。いずれも「レンダリングされた成果物」という designs 固有の概念で、
+素材ライブラリには対応するものが無い（素材は最初からフルサイズで存在する）。
+
+#### 一覧のコンパクトレコードと `fields`
+
+一覧（`id=` 指定でない呼び出し）は既定でコンパクトレコードを返す。
+
+```
+id, name, role, tags, workNumber, aspect, width, height, url
+```
+
+除外されるのは `seriesSlug` / `variantNumber` / `thumbnailUrl` / `refUrl` / `fileSize` / `createdAt`。
+理由は designs と同じで応答サイズ。`refUrl` は `id` から機械的に作れるので要求不要:
+
+```
+refUrl = https://whatif-ep.xyz/ref/asset/{id}
+```
+
+`fields` の規則も designs と同一（**追加**であって置き換えではない・`all` でフル・
+未知の項目名は無視・項目名の大文字小文字は無視・キーは常に正準順）。
+
+ヘッダー: `Access-Control-Allow-Origin: *`、
+`Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`
+（designs の60秒より長い。素材はキュレーション時にしか変わらないため）
+
+実装: [src/app/api/ref/assets/route.ts](../src/app/api/ref/assets/route.ts)
+（本体は [src/lib/ref/assets.ts](../src/lib/ref/assets.ts)）
+
+🔴 **`/api/lab/assets` は別物として残す**。同じテーブルを読むが、
+lab のプロトタイプと Remotion ワークスペースの `scripts/fetch-assets.mjs` が
+**あのレスポンス形をそのまま消費している**ため、形を変えると壊れる。
+`/api/lab/assets` = 既存の lab 用の形、`/api/ref/assets` = Ref Library の意味付け
+（id指定・`count`/`total`・`fields`・`refUrl`）、という住み分けで両立させる。
+
+### `GET /ref/asset/{id}`
+
+素材IDに対する**恒久リンク**。designs の `/ref/{id}` と対になるもの。
+
+- `/ref/asset/{id}` → フルサイズ画像へ302リダイレクト
+- `/ref/asset/{id}.jpg` / `.png` → 同上（拡張子は見た目上のヒントとして許容するだけ）
+- `?size=thumb` → サムネイルへリダイレクト
+- 全件公開なので、id が正しければ必ず解決する
+
+404 になるケースと本文:
+
+| 状況 | 本文 |
+|---|---|
+| 存在しないID・uuid形式でないID | `Asset not found. Check the id against GET /api/ref/assets, or list the library with the list_assets MCP tool.` |
+| フルサイズ画像が無い（現状のデータでは発生しない） | `This library asset has no full-size image. Add ?size=thumb to this URL to get the small preview instead (its exact pixel size is not recorded).` |
+| `?size=thumb` でサムネイルが無い（同上） | `This library asset has no thumbnail. Drop ?size=thumb from this URL to get the full-size image instead.` |
+
+```bash
+curl -sI "https://whatif-ep.xyz/ref/asset/<uuid>"            # 302 → フルサイズ
+curl -sI "https://whatif-ep.xyz/ref/asset/<uuid>?size=thumb" # 302 → サムネイル
+```
+
+実装: [src/app/ref/asset/[id]/route.ts](../src/app/ref/asset/%5Bid%5D/route.ts)
+
 ### `POST /api/mcp`
 
 認証なしの stateless MCP (Streamable HTTP) エンドポイント。
@@ -257,6 +450,17 @@ curl -sI "https://whatif-ep.xyz/ref/<uuid>?size=thumb" # 302 → thumbnail
 |---|---|---|---|
 | `list_designs` | `search?`, `limit?`, `offset?`, `renderedOnly?`, `minWidth?`, `fields?` | `/api/ref/designs` と同じ一覧（コンパクトレコード＋`count`/`total`） | オーナー範囲のみ |
 | `get_design` | `id`, `preview?` | 単一デザインを**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | **全アカウント** |
+| `list_assets` | `search?`, `role?`, `tag?`, `work?`, `limit?`, `offset?`, `minWidth?`, `fields?` | `/api/ref/assets` と同じ一覧（コンパクトレコード＋`count`/`total`） | 公開 |
+| `get_asset` | `id`, `preview?` | 単一素材を**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | 公開 |
+
+`list_assets` / `get_asset` の description には、
+**全素材がフルサイズ画像と正確な実寸を持つので、そのまま画像リファレンスとして使える**こと、
+`refUrl` が常に `https://whatif-ep.xyz/ref/asset/{id}` であること、
+`aspect` は等値フィルタに使えないことを明記している。
+`list_designs` / `get_design` の description にも
+**もう一方の kind が存在すること**（`list_assets` / `get_asset`）を1文だけ足してある。
+素材を探しているモデルが designs しか見つけられず、
+「full-res が無い」デザインを無理に使う、という選択ミスを防ぐため。
 
 ツールの `description` にもこの範囲を書いてある（モデルが `list_designs` を
 「全ユーザーのディレクトリ」と誤解しないように）。加えて description には、
@@ -361,6 +565,13 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
 > 「このデザインID `abc123...` のプレビュー画像を見せて」
 > → `get_design({ id: "abc123...", preview: true })` を呼び、thumbnailが画像として返る
 
+> 「エピソード313のキャラクター切り抜きを使いたい」
+> → `list_assets({ role: "character_cutout", work: 313 })` を呼ぶ。
+>   返る `url` はフルサイズ・実寸付きなので、そのまま画像入力に渡せる
+
+> 「2000px以上ある公式素材を出して」
+> → `list_assets({ minWidth: 2000, role: "character_cutout" })`（現状29件）
+
 ## 画質と full-res の生成条件
 
 - full-resは**エディタで保存し、プレビュー生成が走った時**にのみ生成される
@@ -384,8 +595,16 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
   フォールバックし、それで一覧・検索は足りる。`id` 指定のアクセス可否には一切関与しないので、
   ユーザーが自分のデザインを参照するために設定は不要。
   一覧に出したいアカウントを厳密に決めたい場合（admin が増えたときなど）にだけ明示設定する
+- **`REF_OWNER_USER_IDS` は assets には無関係**。素材ライブラリは全件公開なので、
+  この変数を設定しても外しても `/api/ref/assets` の見え方は変わらない
 - **キャッシュ**: `/api/ref/designs` は60秒（`s-maxage=60`）。デザイン更新の反映が
-  最大60秒遅れうる点は許容している
+  最大60秒遅れうる点は許容している。`/api/ref/assets` は300秒（`s-maxage=300`）で、
+  素材の追加が最大5分遅れて見える
+- **コードの置き場**: kind ごとに1モジュール
+  （[designs.ts](../src/lib/ref/designs.ts) / [assets.ts](../src/lib/ref/assets.ts)）、
+  共通の純粋関数だけを [common.ts](../src/lib/ref/common.ts) に置く。
+  🔴 **スコープを決めるもの（どの行を見せるか・どのSupabaseクライアントを使うか）は
+  common.ts に置かない**。共通ファイルの編集でスコープが広がる構造を作らないため
 
 ## フィードバック対応（2026-09-04）
 
@@ -419,6 +638,8 @@ Acceptヘッダ検査・CORS `*` と `Mcp-Session-Id` の expose・`refUrl` と 
 ## 今後
 
 - 動的リサイズ・クロップ（#6。上記「未対応（判断待ち）」を参照）
+- ~~公式素材ライブラリ（`public.default_images`）を参照対象に追加~~ →
+  **2026-09-04 完了**（`/api/ref/assets`・`/ref/asset/{id}`・`list_assets`・`get_asset`）
 - テンプレート（`public.templates`。壁紙テンプレート等）を参照対象に追加。
   **注意: `templates` には full-res の列が無く、299行すべてサムネイルしか持っていない**
   （`thumbnail_key` のみ。`banners` の `fullres_key` に相当する列が存在しない）。

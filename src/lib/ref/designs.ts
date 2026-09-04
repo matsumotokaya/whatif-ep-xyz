@@ -2,11 +2,31 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveAsset } from "@/lib/asset";
+import {
+  clampLimit,
+  clampOffset,
+  formatAspectRatio,
+  getSiteUrl,
+  isUuid,
+  normalizeMinWidth,
+  orderByRequestedIds as orderRecordsByRequestedIds,
+  projectRefRecord,
+  resolveRefFields,
+  selectLookupIds,
+  stripImageExtension,
+  toFiniteNumber,
+} from "./common";
 
 // Ref Library: exposes saved IMAGINE designs (public.banners) as public image
 // references so external tools — MCP clients, curl/CLI, Remotion,
 // video-generation APIs — can point at a rendered design by URL instead of
 // re-exporting and re-uploading files by hand.
+//
+// This module covers ONE of the Ref Library's two referenceable kinds. The
+// other — the site's official, curated image library (public.default_images) —
+// lives in ./assets.ts, which is public data end to end and therefore has no
+// owner scoping at all. Kind-agnostic pure helpers are shared through
+// ./common.ts; nothing that decides a kind's scope belongs there.
 //
 // TRUST MODEL: the design uuid is the capability. Anyone who knows an id may
 // resolve it, whoever owns the design, exactly like the R2 objects behind it —
@@ -48,33 +68,14 @@ import { resolveAsset } from "@/lib/asset";
 // own dimensions whether or not anything has been rendered. Never let `url`
 // point at a thumbnail again.
 
-const DEFAULT_SITE_URL = "https://whatif-ep.xyz";
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
-
 // Upper bound for the one query that has to be filtered in JS (see minWidth in
 // listRefDesigns). Matches Supabase's default PostgREST max-rows, so asking for
 // more would not return more anyway.
 const MAX_SCAN_ROWS = 1000;
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export function isUuid(value: string): boolean {
-  return UUID_PATTERN.test(value);
-}
-
-// `/ref/{id}.jpg` must behave like `/ref/{id}`: some consumers (social
-// scrapers, video pipelines, image loaders) decide how to treat a URL from its
-// file extension, so the alias accepts a cosmetic image suffix.
-export function stripImageExtension(value: string): string {
-  return value.replace(/\.(jpe?g|png)$/i, "");
-}
-
-function getSiteUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_URL;
-  return raw.replace(/\/+$/, "");
-}
+// Kind-agnostic helpers now live in ./common (shared with assets.ts) and are
+// re-exported here so existing importers of this module keep working.
+export { formatAspectRatio, isUuid, selectLookupIds, stripImageExtension };
 
 export type RefDesignVariant = "Feed" | "Landscape" | "Portrait" | "Cover";
 
@@ -168,23 +169,7 @@ export type ProjectedRefDesign = Partial<RefDesign>;
 export function resolveRefDesignFields(
   raw: string | null | undefined
 ): readonly RefDesignField[] {
-  const requested = (raw ?? "")
-    .split(",")
-    .map((field) => field.trim().toLowerCase())
-    .filter((field) => field.length > 0);
-
-  if (requested.length === 0) return REF_DESIGN_LIST_FIELDS;
-  if (requested.includes("all")) return REF_DESIGN_FIELDS;
-
-  const wanted = new Set<RefDesignField>(REF_DESIGN_LIST_FIELDS);
-  for (const name of requested) {
-    const match = REF_DESIGN_FIELDS.find(
-      (field) => field.toLowerCase() === name
-    );
-    if (match) wanted.add(match);
-  }
-
-  return REF_DESIGN_FIELDS.filter((field) => wanted.has(field));
+  return resolveRefFields(raw, REF_DESIGN_FIELDS, REF_DESIGN_LIST_FIELDS);
 }
 
 // Pure. Narrows one design down to the requested fields, in canonical order.
@@ -192,11 +177,7 @@ export function projectRefDesign(
   design: RefDesign,
   fields: readonly RefDesignField[]
 ): ProjectedRefDesign {
-  const projected: Record<string, unknown> = {};
-  for (const field of fields) {
-    projected[field] = design[field];
-  }
-  return projected as ProjectedRefDesign;
+  return projectRefRecord(design, fields);
 }
 
 export function projectRefDesigns(
@@ -239,11 +220,6 @@ const normalizePreviewStatus = (
   value && PREVIEW_STATUSES.has(value)
     ? (value as RefDesign["previewStatus"])
     : null;
-
-const toFiniteNumber = (value: unknown): number | null => {
-  const parsed = typeof value === "string" ? Number(value) : value;
-  return typeof parsed === "number" && Number.isFinite(parsed) ? parsed : null;
-};
 
 const VARIANTS: readonly RefDesignVariant[] = [
   "Feed",
@@ -289,30 +265,6 @@ export function parseRefDesignName(
       ? (VARIANT_BY_LOWERCASE.get(variantMatch[1].toLowerCase()) ?? null)
       : null,
   };
-}
-
-const greatestCommonDivisor = (a: number, b: number): number =>
-  b === 0 ? a : greatestCommonDivisor(b, a % b);
-
-/**
- * Pure. Formats a reduced aspect ratio ("4:5", "16:9", "9:16", "1:1") from a
- * pair of dimensions. Fed the DOCUMENT dimensions so the ratio is known even
- * for a design that has never been rendered.
- */
-export function formatAspectRatio(
-  width: number | null,
-  height: number | null
-): string | null {
-  if (width === null || height === null) return null;
-
-  const w = Math.round(width);
-  const h = Math.round(height);
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
-    return null;
-  }
-
-  const divisor = greatestCommonDivisor(w, h);
-  return `${w / divisor}:${h / divisor}`;
 }
 
 // Banner asset columns hold either a relative R2 key (current) or a legacy
@@ -472,26 +424,6 @@ export interface RefDesignsByIdsResult {
   missing: string[];
 }
 
-const clampLimit = (limit: number | undefined): number => {
-  if (typeof limit !== "number" || !Number.isFinite(limit)) return DEFAULT_LIMIT;
-  return Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
-};
-
-const clampOffset = (offset: number | undefined): number => {
-  if (typeof offset !== "number" || !Number.isFinite(offset)) return 0;
-  return Math.max(Math.trunc(offset), 0);
-};
-
-const normalizeMinWidth = (minWidth: number | undefined): number | null => {
-  if (typeof minWidth !== "number" || !Number.isFinite(minWidth)) return null;
-  const value = Math.trunc(minWidth);
-  return value > 0 ? value : null;
-};
-
-// Postgres stores uuids canonically lower-cased, so a caller's mixed-case id
-// must be folded before it is compared against a returned row id.
-const normalizeId = (value: string): string => value.trim().toLowerCase();
-
 /**
  * OWNER-SCOPED. The enumeration path: browse and search the ref owners'
  * designs only. Anything outside REF_OWNER_USER_IDS (or, unset, the admin
@@ -590,49 +522,16 @@ export async function listRefDesigns(
   };
 }
 
-// Pure. Narrows a caller's raw id list down to what is worth sending to
-// Postgres: non-uuid entries can never match a banner id (and must not reach an
-// `in` filter), duplicates would waste a slot, and MAX_LIMIT bounds how much one
-// request may resolve. Everything dropped here resurfaces as `missing`.
-export function selectLookupIds(ids: string[]): string[] {
-  const seen = new Set<string>();
-  const lookupIds: string[] = [];
-
-  for (const raw of ids) {
-    const id = normalizeId(raw);
-    if (!isUuid(id) || seen.has(id)) continue;
-    seen.add(id);
-    lookupIds.push(id);
-    if (lookupIds.length >= MAX_LIMIT) break;
-  }
-
-  return lookupIds;
-}
-
-// Pure. Puts the fetched designs back into the order the caller asked for and
-// reports every distinct requested id that did not resolve — unknown, not a
-// uuid, or past MAX_LIMIT — so `designs.length + missing.length` accounts for
-// each one exactly once.
+// Pure. Names the shared ordering helper's result after this kind: designs come
+// back in the caller's requested order, and every distinct requested id that did
+// not resolve — unknown, not a uuid, or past MAX_LIMIT — lands in `missing`, so
+// `designs.length + missing.length` accounts for each one exactly once.
 export function orderByRequestedIds(
   designs: RefDesign[],
   requestedIds: string[]
 ): RefDesignsByIdsResult {
-  const byId = new Map(designs.map((design) => [normalizeId(design.id), design]));
-  const seen = new Set<string>();
-  const ordered: RefDesign[] = [];
-  const missing: string[] = [];
-
-  for (const raw of requestedIds) {
-    const id = normalizeId(raw);
-    if (id.length === 0 || seen.has(id)) continue;
-    seen.add(id);
-
-    const design = byId.get(id);
-    if (design) ordered.push(design);
-    else missing.push(id);
-  }
-
-  return { designs: ordered, missing };
+  const { items, missing } = orderRecordsByRequestedIds(designs, requestedIds);
+  return { designs: items, missing };
 }
 
 /**

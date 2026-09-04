@@ -48,6 +48,12 @@ const COPY: Record<Language, {
   urlBaseMeaning: string;
   urlJpgMeaning: string;
   urlThumbMeaning: string;
+  referenceTypesTitle: string;
+  referenceTypesIntro: string;
+  designsLabel: string;
+  designsBody: string;
+  libraryLabel: string;
+  libraryBody: string;
   accessTitle: string;
   accessBody: string;
   accessNote: string;
@@ -92,6 +98,14 @@ const COPY: Record<Language, {
     urlBaseMeaning: 'Redirects to the current full-size rendered image.',
     urlJpgMeaning: 'Behaves identically, for services that require a file extension.',
     urlThumbMeaning: 'Returns the small thumbnail instead of the full-size render.',
+    referenceTypesTitle: 'Two kinds of reference URLs',
+    referenceTypesIntro: 'The same kind of URL points to two different sources:',
+    designsLabel: 'Your designs',
+    designsBody:
+      "What you make in the editor, listed on My Designs. Each one has a full-size image and a thumbnail, so an assistant can look at the thumbnail and use the full-size image as the reference. A design that has never been rendered at full size has no reference URL yet — open it in the editor and save it once to create one.",
+    libraryLabel: 'The official library',
+    libraryBody:
+      "The site's curated artwork: character cutouts and general art. Every asset has a full-size image, and its URL is copied from the image picker inside the editor, with the same link button. Its URL form is https://whatif-ep.xyz/ref/asset/{asset-id}.",
     accessTitle: 'Who can open your reference URL',
     accessBody:
       'The design ID is the key. Anyone holding the URL can view and download that image without logging in, and can pass the URL on to someone else.',
@@ -141,6 +155,14 @@ const COPY: Record<Language, {
     urlBaseMeaning: '現在のフルサイズのレンダリング画像へリダイレクトします。',
     urlJpgMeaning: '動作は同じです。拡張子が必要なサービス向けの形式です。',
     urlThumbMeaning: 'フルサイズではなく、小さいサムネイル画像を返します。',
+    referenceTypesTitle: '参照URLの2つの種類',
+    referenceTypesIntro: '同じ形式のURLが、2種類の異なる画像を指しています。',
+    designsLabel: 'あなたのデザイン',
+    designsBody:
+      'エディタで作成し、「あなたのデザイン」に一覧表示されるものです。それぞれフルサイズの画像とサムネイルを持っており、アシスタントはサムネイルを見て、参照にはフルサイズの画像を使えます。一度もフルサイズでレンダリングされていないデザインにはまだ参照URLがありません。エディタで開いて一度保存すると作成されます。',
+    libraryLabel: '公式ライブラリ',
+    libraryBody:
+      'サイトが用意しているキュレーション済みのアートワーク（キャラクター切り抜きや一般アート）です。すべての素材にフルサイズの画像があり、そのURLはエディタ内の画像ピッカーから、同じリンクボタンでコピーできます。URLの形式は https://whatif-ep.xyz/ref/asset/{asset-id} です。',
     accessTitle: '参照URLを開ける人',
     accessBody:
       'デザインIDがそのまま鍵になります。URLを知っている人は誰でも、ログインせずにその画像を表示・ダウンロードでき、URLを他の人に渡すこともできます。',
@@ -187,6 +209,14 @@ const COPY: Record<Language, {
     urlBaseMeaning: '重定向到当前的完整尺寸渲染图片。',
     urlJpgMeaning: '行为完全相同，适用于要求带文件扩展名的服务。',
     urlThumbMeaning: '返回较小的缩略图，而不是完整尺寸的渲染图片。',
+    referenceTypesTitle: '两种可引用的图片',
+    referenceTypesIntro: '同一种形式的 URL 指向两种不同的来源：',
+    designsLabel: '你的设计',
+    designsBody:
+      '在编辑器中创作、并列在「我的设计」中的作品。每个设计都有一张完整尺寸的图片和一张缩略图，助手可以先看缩略图，再使用完整尺寸的图片作为参考。从未以完整尺寸渲染过的设计还没有引用 URL——在编辑器中打开并保存一次即可生成。',
+    libraryLabel: '官方素材库',
+    libraryBody:
+      '网站精选的美术素材，包括角色立绘和通用插画。每个素材都有完整尺寸的图片，其 URL 可以在编辑器内的图片选择器中，用同一个链接按钮复制。URL 形式为 https://whatif-ep.xyz/ref/asset/{asset-id}。',
     accessTitle: '谁能打开你的引用 URL',
     accessBody:
       '设计 ID 本身就是钥匙。任何拿到这个 URL 的人都可以在未登录的情况下查看并下载该图片，也可以把 URL 转发给别人。',
@@ -232,6 +262,14 @@ const COPY: Record<Language, {
     urlBaseMeaning: '導向目前完整尺寸的算圖圖片。',
     urlJpgMeaning: '行為完全相同，適用於需要副檔名的服務。',
     urlThumbMeaning: '回傳較小的縮圖，而不是完整尺寸的圖片。',
+    referenceTypesTitle: '兩種可參照的圖片',
+    referenceTypesIntro: '同一種形式的 URL 指向兩種不同的來源：',
+    designsLabel: '你的設計',
+    designsBody:
+      '在編輯器中創作、並列在「我的設計」中的作品。每個設計都有一張完整尺寸的圖片和一張縮圖，助手可以先看縮圖，再使用完整尺寸的圖片作為參照。從未以完整尺寸算圖過的設計還沒有參照 URL——在編輯器中開啟並儲存一次即可產生。',
+    libraryLabel: '官方素材庫',
+    libraryBody:
+      '網站精選的美術素材，包括角色立繪與一般插畫。每個素材都有完整尺寸的圖片，其 URL 可以在編輯器內的圖片選擇器中，用同一個連結按鈕複製。URL 形式為 https://whatif-ep.xyz/ref/asset/{asset-id}。',
     accessTitle: '誰能開啟你的參照 URL',
     accessBody:
       '設計 ID 本身就是鑰匙。任何拿到這個 URL 的人都可以在未登入的狀態下檢視並下載該圖片，也可以把 URL 轉給其他人。',
@@ -280,6 +318,14 @@ const COPY: Record<Language, {
     urlBaseMeaning: '현재 원본 크기의 렌더링 이미지로 리디렉션합니다.',
     urlJpgMeaning: '동작은 같습니다. 파일 확장자가 필요한 서비스를 위한 형태입니다.',
     urlThumbMeaning: '원본 크기 대신 작은 썸네일 이미지를 반환합니다.',
+    referenceTypesTitle: '참조 URL의 두 가지 종류',
+    referenceTypesIntro: '같은 형태의 URL이 서로 다른 두 가지 대상을 가리킵니다.',
+    designsLabel: '내 디자인',
+    designsBody:
+      '에디터에서 만들어 내 디자인 목록에 표시되는 것입니다. 각 디자인에는 원본 크기 이미지와 썸네일이 있어, 어시스턴트가 썸네일을 보고 참조에는 원본 크기 이미지를 사용할 수 있습니다. 원본 크기로 렌더링된 적이 없는 디자인은 아직 참조 URL이 없습니다. 에디터에서 열어 한 번 저장하면 생성됩니다.',
+    libraryLabel: '공식 라이브러리',
+    libraryBody:
+      '사이트가 엄선한 아트워크(캐릭터 컷아웃과 일반 아트)입니다. 모든 에셋에는 원본 크기 이미지가 있으며, 그 URL은 에디터 안의 이미지 피커에서 같은 링크 버튼으로 복사할 수 있습니다. URL 형태는 https://whatif-ep.xyz/ref/asset/{asset-id}입니다.',
     accessTitle: '참조 URL을 열 수 있는 사람',
     accessBody:
       '디자인 ID가 곧 열쇠입니다. URL을 가진 사람은 누구나 로그인하지 않고도 그 이미지를 보고 내려받을 수 있으며, URL을 다른 사람에게 전달할 수도 있습니다.',
@@ -448,6 +494,23 @@ export default function McpGuideClient() {
                 <dd className="mt-1 text-sm leading-6 text-muted">{form.meaning}</dd>
               </div>
             ))}
+          </dl>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted">
+            {t.referenceTypesTitle}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-muted">{t.referenceTypesIntro}</p>
+          <dl className="mt-4 divide-y divide-border">
+            <div className="py-4 first:pt-0 last:pb-0">
+              <dt className="text-sm font-medium text-foreground">{t.designsLabel}</dt>
+              <dd className="mt-1 text-sm leading-6 text-muted">{t.designsBody}</dd>
+            </div>
+            <div className="py-4 first:pt-0 last:pb-0">
+              <dt className="text-sm font-medium text-foreground">{t.libraryLabel}</dt>
+              <dd className="mt-1 text-sm leading-6 text-muted">{t.libraryBody}</dd>
+            </div>
           </dl>
         </section>
 

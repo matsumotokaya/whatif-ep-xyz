@@ -7,10 +7,23 @@ import {
   projectRefDesigns,
   resolveRefDesignFields,
 } from "@/lib/ref/designs";
+import {
+  getRefAsset,
+  listRefAssets,
+  projectRefAssets,
+  resolveRefAssetFields,
+} from "@/lib/ref/assets";
 
 // MCP endpoint for the Ref Library: lets any MCP client (Claude, an agent
-// framework, a video pipeline) discover the site owner's saved IMAGINE designs
-// and grab a public image URL for any design whose id it knows.
+// framework, a video pipeline) discover the site's referenceable images and
+// grab a public URL for any of them.
+//
+// Two kinds are exposed. DESIGNS (list_designs / get_design) are saved IMAGINE
+// documents, owned by users and rendered on save. ASSETS (list_assets /
+// get_asset) are the site's official, curated image library — character cutouts
+// and general art — which is public data with a recorded pixel size on every
+// row. An agent choosing a source needs to know both exist, so each pair's
+// description points at the other.
 //
 // Streamable HTTP in stateless mode: a fresh McpServer + transport per request,
 // no session store, JSON responses instead of SSE streams. That is what a
@@ -18,10 +31,13 @@ import {
 // land on different instances.
 //
 // The tools are read-only and unauthenticated because the data they return is
-// already public (world-readable R2 objects, plus /api/ref/designs). Their
-// scopes differ on purpose: get_design resolves any design by id (the uuid is
-// the capability) while list_designs only enumerates the owner's showcase, so
-// no client can harvest every user's ids. See src/lib/ref/designs.ts.
+// already public (world-readable R2 objects, plus /api/ref/designs and
+// /api/ref/assets). Their scopes differ on purpose: get_design resolves any
+// design by id (the uuid is the capability) while list_designs only enumerates
+// the owner's showcase, so no client can harvest every user's ids. The asset
+// tools are unscoped on both paths, because a curated library published by the
+// site holds nobody's private work. See src/lib/ref/designs.ts and
+// src/lib/ref/assets.ts.
 //
 // The tool descriptions are the only documentation an LLM client ever reads, so
 // they carry two things the JSON alone cannot say. First, `url` is the
@@ -54,6 +70,14 @@ const URL_DOC =
   "`refUrl` and `editUrl` never need requesting: they are always https://whatif-ep.xyz/ref/{id} and https://whatif-ep.xyz/edit/{id}. " +
   "Use `refUrl` when the reference is stored or reused later (it redirects to whatever the current render is) and `url` when the exact image must not change.";
 
+const ASSET_URL_DOC =
+  "`url` is the full-size image: a direct, world-readable image URL (Cloudflare R2, permissive CORS) that can be passed straight to any tool that accepts an image reference. " +
+  "EVERY asset in this library has one, and `width`/`height` are recorded per asset and describe the image at `url` exactly — so these are directly usable as image references, with no rendering step and no guessing about resolution. " +
+  "`aspect` is their reduced ratio, but these are hand-cropped source images, so most read like \"1223:2063\" rather than a tidy \"4:5\" — judge shape from `width`/`height`, do not filter on an exact `aspect` string. " +
+  "`thumbnailUrl` is a small preview whose exact pixel size is not recorded and is not reported, so never treat it as a full-size source. " +
+  "`refUrl` never needs requesting: it is always https://whatif-ep.xyz/ref/asset/{id}. " +
+  "Use `refUrl` when the reference is stored or reused later and `url` when the exact image must not change.";
+
 function createServer(): McpServer {
   const server = new McpServer({ name: "whatif-ref", version: "1.0.0" });
 
@@ -63,6 +87,7 @@ function createServer(): McpServer {
       title: "List WHATIF designs",
       description:
         "List only the site owner's showcase IMAGINE designs, newest first, as public image references. " +
+        "Designs are one of two referenceable kinds here; the other is the site's official, curated asset library — call list_assets for that. " +
         "This listing is deliberately limited to the owner's accounts and is not a directory of every user's designs; " +
         "to reach a design saved by anyone else, call get_design with its id. " +
         "Records are compact by default (id, name, width, height, docWidth, docHeight, aspect, urlKind, url, stale) to keep the response small; " +
@@ -149,6 +174,7 @@ function createServer(): McpServer {
       title: "Get one WHATIF design",
       description:
         "Fetch the full record for one saved IMAGINE design, by an id the user has explicitly provided (or one returned by list_designs), as a public image reference. " +
+        "For an id that came from the official asset library instead, use get_asset. " +
         "Such an id is not limited to what list_designs returns — it resolves whichever account saved that design — so ids must not be guessed, enumerated, incremented or tried at random; " +
         "resolve only an id you were actually given. " +
         URL_DOC,
@@ -188,6 +214,158 @@ function createServer(): McpServer {
 
       if (preview && design.thumbnailUrl) {
         const inline = await fetchInlineImage(design.thumbnailUrl);
+        if (inline) content.push(inline);
+      }
+
+      return { content };
+    }
+  );
+
+  server.registerTool(
+    "list_assets",
+    {
+      title: "List WHATIF library assets",
+      description:
+        "List the site's OFFICIAL, CURATED ASSET LIBRARY — the clean source images the site itself publishes: character cutouts (transparent PNG cutouts of a work's character, each tied to a work_number) and general art. " +
+        "This is the other referenceable kind alongside saved designs (list_designs); a design is a composed, rendered document, an asset is a source image. " +
+        "Every asset here has a full-size image with exact recorded dimensions, so results are directly usable as image references — nothing needs rendering first and no resolution has to be guessed. " +
+        "The whole library is public: unlike list_designs this listing is not restricted to any account, because it contains no user's private work. " +
+        "Newest first. Records are compact by default (id, name, role, tags, workNumber, aspect, width, height, url) to keep the response small; ask for more with `fields`. " +
+        "`count` is how many records this response contains and `total` is how many assets match the filters — count < total means `limit` truncated the result, so page with `offset`. " +
+        "Prefer filtering server-side with `role` / `work` / `tag` / `minWidth` over fetching everything and discarding most of it. " +
+        ASSET_URL_DOC,
+      inputSchema: {
+        search: z
+          .string()
+          .optional()
+          .describe(
+            "Case-insensitive substring match on the asset's file name, e.g. \"0313\"."
+          ),
+        role: z
+          .string()
+          .optional()
+          .describe(
+            "Filter by asset role: \"character_cutout\" (a work's character, cut out) or \"general\" (everything else)."
+          ),
+        tag: z
+          .string()
+          .optional()
+          .describe(
+            "Return only assets tagged with this exact tag, e.g. \"Character\". Matches one tag, case-sensitively."
+          ),
+        work: z
+          .number()
+          .int()
+          .optional()
+          .describe(
+            "Return only assets belonging to this work (episode) number, e.g. 313. Character cutouts always carry one."
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Size of the returned window (default 50, max 200)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Number of matching assets to skip before the window (default 0). Use with `total` to page."
+          ),
+        minWidth: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            "Return only assets at least this many pixels wide. The library spans roughly 480px to 4096px, so use this when the image feeds something that needs real resolution."
+          ),
+        fields: z
+          .string()
+          .optional()
+          .describe(
+            "Comma-separated extra fields to add to the compact record, e.g. \"thumbnailUrl,fileSize\". Use \"all\" for the full record. Unknown names are ignored. refUrl is derivable from id and rarely worth requesting."
+          ),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ search, role, tag, work, limit, offset, minWidth, fields }) => {
+      const { assets, total } = await listRefAssets({
+        search,
+        role,
+        tag,
+        work,
+        limit,
+        offset,
+        minWidth,
+      });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                count: assets.length,
+                total,
+                assets: projectRefAssets(assets, resolveRefAssetFields(fields)),
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "get_asset",
+    {
+      title: "Get one WHATIF library asset",
+      description:
+        "Fetch the full record for one asset from the site's official, curated asset library, by an id returned by list_assets or given by the user. " +
+        "For a saved IMAGINE design id, use get_design instead — the two kinds have separate ids and separate tools. " +
+        "The asset carries a full-size image with exact recorded dimensions, so it is directly usable as an image reference. " +
+        ASSET_URL_DOC,
+      inputSchema: {
+        id: z
+          .string()
+          .describe(
+            "The asset's uuid, exactly as list_assets returned it or as the user gave it. Never invent or guess one."
+          ),
+        preview: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, also attach the thumbnail as inline image content so the asset can be looked at, not just linked."
+          ),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ id, preview }) => {
+      const asset = await getRefAsset(id);
+      if (!asset) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `No library asset found for id "${id}".`,
+            },
+          ],
+        };
+      }
+
+      const content: Array<
+        | { type: "text"; text: string }
+        | { type: "image"; data: string; mimeType: string }
+      > = [{ type: "text", text: JSON.stringify(asset, null, 2) }];
+
+      if (preview && asset.thumbnailUrl) {
+        const inline = await fetchInlineImage(asset.thumbnailUrl);
         if (inline) content.push(inline);
       }
 

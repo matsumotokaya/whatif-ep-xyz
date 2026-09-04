@@ -85,6 +85,8 @@
     "uploadFailed": "アップロードに失敗しました",
     "deleteConfirm": "「{{name}}」を削除しますか？",
     "deleteFailed": "画像の削除に失敗しました",
-    "adminDbNotice": "画像の追加・削除はデータベース（Supabase Dashboard）から直接行ってください。ここに表示されている画像名でレコードを特定できます。"
+    "adminDbNotice": "画像の追加・削除はデータベース（Supabase Dashboard）から直接行ってください。ここに表示されている画像名でレコードを特定できます。",
+    "copyRefUrl": "画像URLをコピー",
+    "copied": "コピーしました"
   }
 }

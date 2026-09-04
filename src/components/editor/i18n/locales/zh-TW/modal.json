@@ -85,6 +85,8 @@
     "uploadFailed": "上傳失敗",
     "deleteConfirm": "確定刪除「{{name}}」嗎？",
     "deleteFailed": "圖片刪除失敗",
-    "adminDbNotice": "圖片的新增和刪除請直接在資料庫（Supabase Dashboard）中管理。可透過此處顯示的圖片名稱識別記錄。"
+    "adminDbNotice": "圖片的新增和刪除請直接在資料庫（Supabase Dashboard）中管理。可透過此處顯示的圖片名稱識別記錄。",
+    "copyRefUrl": "複製圖片 URL",
+    "copied": "已複製"
   }
 }

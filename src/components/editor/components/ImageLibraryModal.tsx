@@ -49,8 +49,17 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
   const [totalCount, setTotalCount] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const urlCacheRef = useRef<Map<string, string>>(new Map());
+  const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the pending "copied" feedback reset on unmount.
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimeoutRef.current) clearTimeout(copyFeedbackTimeoutRef.current);
+    };
+  }, []);
 
   // Check if current user is admin
   useEffect(() => {
@@ -357,6 +366,24 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
     }
   };
 
+  // Copies the stable public reference URL for a library asset, e.g. for
+  // handing it to an external MCP-capable assistant. Default-tab only: the
+  // /ref/asset/{id} route serves the curated library, not user uploads.
+  const handleCopyRefUrl = async (image: DefaultImageWithUrl, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://whatif-ep.xyz';
+    try {
+      await navigator.clipboard.writeText(`${siteUrl}/ref/asset/${image.id}`);
+      setCopiedId(image.id);
+      if (copyFeedbackTimeoutRef.current) clearTimeout(copyFeedbackTimeoutRef.current);
+      copyFeedbackTimeoutRef.current = setTimeout(() => setCopiedId(null), 1500);
+    } catch (error) {
+      console.error('Failed to copy reference URL:', error);
+    }
+  };
+
   if (!isOpen) return null;
 
   const images = activeTab === 'default' ? defaultImages : userImages;
@@ -516,6 +543,23 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
                         )}
                       </div>
                     </button>
+
+                    {isDefaultTab && (
+                      <button
+                        onClick={(e) => handleCopyRefUrl(image as DefaultImageWithUrl, e)}
+                        className={`absolute top-1 left-1 z-10 p-1 rounded-md transition-colors ${
+                          copiedId === image.id
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-black/60 text-white hover:bg-black/80'
+                        }`}
+                        title={copiedId === image.id ? t('modal:imageLibrary.copied') : t('modal:imageLibrary.copyRefUrl')}
+                        aria-label={copiedId === image.id ? t('modal:imageLibrary.copied') : t('modal:imageLibrary.copyRefUrl')}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">
+                          {copiedId === image.id ? 'check' : 'link'}
+                        </span>
+                      </button>
+                    )}
 
                     {canDelete && (
                       <button
