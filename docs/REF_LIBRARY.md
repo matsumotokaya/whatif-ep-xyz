@@ -872,7 +872,7 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
   **345件中 full-res 135件**、残り約210件はサムネイルのみか画像なし。
   🔴 この数はエディタで保存するたびに増えるので、**固定値として扱わない**
   （`/api/ref/designs?renderedOnly=true&limit=1` の `total` が常に正しい）。
-  在庫不足そのものは[今後](#今後)の「バッチ再レンダリング」参照
+  未生成のものは**そのデザインを開いて一覧へ戻れば自動生成される**（[今後](#今後)参照）
 - full-resが未生成のデザインは `url: null` / `urlKind: null` / `width`・`height` ともに `null`。
   **サムネイルにフォールバックはしない**。エディタで開いて保存すれば生成される
 - `stale: true` は「ドキュメントが最後のレンダリング後に編集された」ことを示す
@@ -940,7 +940,7 @@ i2v（image-to-video）の素材ソースとして使った際に受けた指摘
 | C | `fields` が配列を受け付けない | `anyOf: [string, array of string]` に変更。`fields: ["id","name"]` が通る |
 | D | タグの大小文字が揺れていて片方を取りこぼす | `listRefAssets` の `tag` を **case-insensitive** に（JS側フィルタ）。`character` / `Character` どちらでも `total=34` |
 | — | （新規）MCPペイロードが pretty-print されていて空白に課金される | 全ツールで `JSON.stringify(value)` に。72,995→54,979バイト（ツール結果テキスト） |
-| E | designs の61%が未レンダーで、素材として選べるのは135件 | **未対応**（在庫の問題）。バッチ再レンダリングとして[今後](#今後)に記載 |
+| E | designs の61%が未レンダーで、素材として選べるのは135件 | **課題として閉じた**。full-res はデザインを開いて戻れば自動生成されるので、使いたいものを開けば足りる。`/layers` は full-res 非依存なので動画制作には元から影響しない（[今後](#今後)参照） |
 
 **残るのは「データ側の1件」と「レンダリング在庫」の2つ**で、どちらも
 コード変更ではなく DB 書き込み / バッチ処理の判断が必要。[今後](#今後)を参照。
@@ -950,6 +950,12 @@ i2v（image-to-video）の素材ソースとして使った際に受けた指摘
 Acceptヘッダ検査・CORS `*` と `Mcp-Session-Id` の expose・`refUrl` と `url` の使い分け。
 
 ## 今後
+
+> **2026-09-04 時点で判断が必要なのは「ドキュメント構造の公開範囲」の1件だけ。**
+> レイヤー参照はフェーズ1で完成（2・3は実施しない）、動的リサイズは利用者が取り下げ、
+> タグの揺れは解消済み、full-res の在庫は「開けば生成される」ので追わない。
+> 以下の「その他」の残りは**任意の拡張案**であり、未解決の課題ではない。
+
 
 ### デザインレイヤー（`/layers`）の残フェーズ
 
@@ -1003,44 +1009,18 @@ MCP `get_design_layers`。画像レイヤーは厳密・テキストは近似。
 
 - ~~動的リサイズ・クロップ（#6）~~ → **取り下げ済み・実装しない**。
   変換系クエリを 400 で弾くのが最終仕様（上記「#6 …取り下げ」を参照）
-- 🔴 **タグの大文字小文字の揺れを1件だけ直す（DB書き込み・オーナー承認が必要）**。
-  `public.default_images` の1行だけがタグ `character` を持ち、他33行は `Character`。
-  API側は case-insensitive にしたので**検索は取りこぼさなくなった**が、
-  **データそのものは揺れたまま**で、タグ一覧をそのまま表示する画面や
-  将来の完全一致前提のコードで再発しうる。
-  DB書き込みなので**オーナーの明示承認なしに実行しない**（`AGENTS.md` の Access modes）。
-  実行するSQLは以下の1文。冪等（2回目以降は0行更新）で、
-  **`Character` と大文字小文字だけ違う行しか触らない**:
-
-  ```sql
-  UPDATE public.default_images
-  SET tags = (
-    SELECT array_agg(
-             CASE WHEN lower(tag) = 'character' THEN 'Character' ELSE tag END
-             ORDER BY ord
-           )
-    FROM unnest(tags) WITH ORDINALITY AS t(tag, ord)
-  )
-  WHERE EXISTS (
-    SELECT 1 FROM unnest(tags) AS tag
-    WHERE lower(tag) = 'character' AND tag <> 'Character'
-  );
-  ```
-
-  （現データでは `Character` と `character` を**両方**持つ行は無い
-  — 33 + 1 = case-insensitive の34件と一致する — ので重複タグは生じない。
-  2026-09-04 に上の `WHERE` を `SELECT` として実行して確認済み: 対象1行・
-  `["character"]` → `["Character"]`。実行前にこの形で対象行を確認するとよい）
-- 🔴 **full-res の在庫不足＝バッチ再レンダリング（それ自体が1プロジェクト）**。
-  2026-09-04時点でオーナー345件のうち**210件に full-res が無く、
-  素材として実際に選べるのは約135件**。`renderedOnly` / `minWidth` で
-  「見せかけの素材を掴む」危険は消えたが、**在庫が増えたわけではない**
-  （利用側にとっては 16:9 が40件しか無いことが実害）。
-  閉じるには全デザインを開いて保存し直す**バッチ再レンダリング**が必要だが、
-  既存のレンダラ [bannerPreviewRenderer.ts](../src/components/editor/utils/bannerPreviewRenderer.ts)
-  は `Image` / `canvas` を使う**ブラウザDOM前提**で、Nodeからは動かない。
-  ヘッドレスブラウザ（Playwright 等）でエディタを開くか、レンダラをサーバ側に
-  移植するかの選択になり、**小さな修正ではなく独立した1プロジェクト**として扱う
+- ~~**タグの大文字小文字の揺れ（`public.default_images` の1行）**~~ → **解消済み（2026-09-04）**。
+  オーナーが正規化SQLを実行し、`Character` 34件・大小混在0件を確認した
+  （実行前は `Character` 33 / `character` 1）。API側の case-insensitive 照合は
+  そのまま残す（今後同じ揺れが入っても検索が取りこぼさないため）。
+- ~~**full-res の在庫不足＝バッチ再レンダリング**~~ → **課題として閉じる（2026-09-04 オーナー判断）**。
+  full-res は**デザインを開いて一覧へ戻るだけで自動生成される**
+  （エディタ離脱時の `flushQueuedSave(true)` が、full-res が無いバナーを検知して
+  生成・アップロードする — [BannerEditor.tsx](../src/components/editor/pages/BannerEditor.tsx)）。
+  つまり**使いたいデザインを一度開けば、その人の手元でボタンが有効になる**。
+  一括処理のためにヘッドレスブラウザやレンダラ移植を用意する必要はない。
+  加えて `/layers` は full-res に依存しないので、動画制作の経路には元から影響が無い
+  （上記の ℹ️ 参照）。**全345件を先回りで焼く動機が無いため、この項目は追わない。**
 - ~~公式素材ライブラリ（`public.default_images`）を参照対象に追加~~ →
   **2026-09-04 完了**（`/api/ref/assets`・`/ref/asset/{id}`・`list_assets`・`get_asset`）
 - テンプレート（`public.templates`。壁紙テンプレート等）を参照対象に追加。
