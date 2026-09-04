@@ -43,7 +43,7 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useTranslation(['banner']);
-  const { user, profile } = useAuth();
+  const { user, profile, profileLoading } = useAuth();
 
   return useCallback(
     async (template: TemplateRecord) => {
@@ -62,6 +62,13 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
       if (isPremiumTemplate(resolvedTemplate)) {
         if (!user) {
           (onLoginRequired ?? onUpgradeRequired)();
+          return;
+        }
+        // The profile row is fetched separately from the session, and until it
+        // lands a premium member reads as 'free' (see contexts/AuthContext.tsx).
+        // Deciding now would show the upgrade modal to a paying member, so wait
+        // for the next click instead.
+        if (profileLoading) {
           return;
         }
         if (!profile || profile.subscriptionTier === 'free') {
@@ -105,6 +112,6 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
         onCreatingChange?.(null);
       }
     },
-    [navigate, queryClient, t, user, profile, onUpgradeRequired, onLoginRequired, onGuestConflict, onCreatingChange],
+    [navigate, queryClient, t, user, profile, profileLoading, onUpgradeRequired, onLoginRequired, onGuestConflict, onCreatingChange],
   );
 }

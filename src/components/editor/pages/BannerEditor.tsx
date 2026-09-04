@@ -67,7 +67,7 @@ export const BannerEditor = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { profile, user, loading: authLoading } = useAuth();
+  const { profile, user, loading: authLoading, profileLoading } = useAuth();
   const { t } = useTranslation(['common', 'message', 'banner']);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
@@ -549,8 +549,11 @@ export const BannerEditor = () => {
     }
     // Wait for AuthContext to resolve before opening. Firing while auth is still
     // loading would treat a logged-in (premium) user as a guest, wrongly hitting
-    // the premium guard / guest branch in useOpenTemplate.
-    if (authLoading) {
+    // the premium guard / guest branch in useOpenTemplate. The profile row is
+    // fetched separately from the session, so wait for that too: until it lands
+    // a premium member reads as 'free' (see editor/contexts/AuthContext.tsx) and
+    // this ref is already latched, leaving them stuck behind the upgrade modal.
+    if (authLoading || profileLoading) {
       return;
     }
     directOpenHandledRef.current = true;
@@ -559,7 +562,7 @@ export const BannerEditor = () => {
       name: '',
       canvasColor: '#FFFFFF',
     });
-  }, [directOpenTemplateId, guestState, authLoading, openTemplateFromQuery]);
+  }, [directOpenTemplateId, guestState, authLoading, profileLoading, openTemplateFromQuery]);
 
   // Initialize local state from React Query data ONLY when banner changes
   useEffect(() => {
@@ -573,13 +576,13 @@ export const BannerEditor = () => {
       return;
     }
 
-    const templatePlanType = banner.template?.planType || 'free';
-    if (templatePlanType === 'premium') {
-      if (!profile || profile.subscriptionTier === 'free') {
-        setShowUpgradeModal(true);
-        return;
-      }
-    }
+    // NOTE: do NOT gate this on banner.template.planType. A saved banner is the
+    // user's own work (RLS only returns rows they own), and premium is an
+    // entitlement to *pick* premium templates and library assets, not a lock on
+    // designs already created with them. Gating here locked people out of their
+    // own designs the moment a subscription lapsed. The premium guard belongs to
+    // the creation paths only: useOpenTemplate (new design from a premium
+    // template) and the image library buttons in Sidebar/MobileToolbar.
 
     // Only load from DB when opening a different banner
     if (banner.id !== currentBannerId) {
@@ -678,7 +681,7 @@ export const BannerEditor = () => {
     }
     // If same banner, keep local state (don't overwrite with DB)
     // Note: elements is NOT in dependency array to avoid loops
-  }, [banner, banner?.id, banner?.template, currentBannerId, editorReturnTo, id, isGuest, isLoading, navigate, profile, resetHistory, user?.id]);
+  }, [banner, banner?.id, banner?.template, currentBannerId, editorReturnTo, id, isGuest, isLoading, navigate, resetHistory, user?.id]);
 
   const generatePreviewAssets = useCallback(async (): Promise<{
     thumbnailDataURL: string | undefined;

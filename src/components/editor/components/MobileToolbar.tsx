@@ -50,7 +50,7 @@ export const MobileToolbar = ({
   onDrawerOpenChange,
 }: MobileToolbarProps) => {
   const { t } = useTranslation('editor');
-  const { profile, loading } = useAuth();
+  const { profile, loading, profileLoading } = useAuth();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -63,7 +63,9 @@ export const MobileToolbar = ({
   const isPremium = !!profile && profile.subscriptionTier !== 'free';
 
   const handleImageLibraryClick = () => {
-    if (loading) return;
+    // profileLoading matters as much as the session: until the profile row lands
+    // a premium member reads as 'free' (see contexts/AuthContext.tsx).
+    if (loading || profileLoading) return;
     if (!profile || profile.subscriptionTier === 'free') {
       setShowUpgradeModal(true);
     } else {
