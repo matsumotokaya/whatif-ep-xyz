@@ -28,6 +28,7 @@
   "delete": "삭제",
   "copyId": "ID 복사",
   "copyRefUrl": "참조 URL 복사",
+  "copyRefUrlUnavailable": "원본 크기 이미지가 아직 없습니다. 열어서 저장하면 생성됩니다",
   "copied": "복사됨",
   "confirmDelete": "이 배너를 삭제하시겠습니까?",
   "editName": "이름 편집",

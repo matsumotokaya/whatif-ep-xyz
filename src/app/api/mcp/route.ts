@@ -1,7 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { getRefDesign, listRefDesigns } from "@/lib/ref/designs";
+import {
+  getRefDesign,
+  listRefDesigns,
+  projectRefDesigns,
+  resolveRefDesignFields,
+} from "@/lib/ref/designs";
 
 // MCP endpoint for the Ref Library: lets any MCP client (Claude, an agent
 // framework, a video pipeline) discover the site owner's saved IMAGINE designs
@@ -17,6 +22,17 @@ import { getRefDesign, listRefDesigns } from "@/lib/ref/designs";
 // scopes differ on purpose: get_design resolves any design by id (the uuid is
 // the capability) while list_designs only enumerates the owner's showcase, so
 // no client can harvest every user's ids. See src/lib/ref/designs.ts.
+//
+// The tool descriptions are the only documentation an LLM client ever reads, so
+// they carry two things the JSON alone cannot say. First, `url` is the
+// full-resolution render or null — never the thumbnail — and `width`/`height`
+// describe it exactly; the old thumbnail fallback let a client feed a ~400px
+// image to a paid video generator while believing it was 1080x1350. Second,
+// `refUrl` (https://whatif-ep.xyz/ref/{id}) and `editUrl`
+// (https://whatif-ep.xyz/edit/{id}) are pure functions of the id, so listings
+// leave them out by default and the description says how to build them —
+// repeating the same uuid across four long URLs per record is what made a
+// limit=200 listing cost roughly 46k tokens.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +46,13 @@ const CORS_HEADERS = {
 };
 
 const URL_DOC =
-  "`url` is a direct, world-readable image URL (Cloudflare R2, permissive CORS) that can be passed straight to any tool that accepts an image reference. " +
-  "`refUrl` is the stable alias for the same design: it redirects to whatever the current render is, so prefer it when the reference is stored or reused later. " +
-  "`editUrl` opens the design in the IMAGINE editor. A design with `url: null` has never been rendered; `stale: true` means the render is behind the saved document.";
+  "`url` is the FULL-RESOLUTION render only: a direct, world-readable image URL (Cloudflare R2, permissive CORS) that can be passed straight to any tool that accepts an image reference. " +
+  "`width`/`height` describe the image at `url` exactly. A design that has never been rendered at full size has `url: null`, `urlKind: null` and `width`/`height` null — it is not a usable image reference, so do not substitute the thumbnail for it. " +
+  "`docWidth`/`docHeight` are the design document's own dimensions and are always present, and `aspect` (e.g. \"4:5\", \"16:9\") is their reduced ratio. " +
+  "`thumbnailUrl` is a small preview, roughly 400px wide — the exact pixel size is not guaranteed and is not reported, so never treat it as a full-size source. " +
+  "`stale: true` means the render is behind the saved document. " +
+  "`refUrl` and `editUrl` never need requesting: they are always https://whatif-ep.xyz/ref/{id} and https://whatif-ep.xyz/edit/{id}. " +
+  "Use `refUrl` when the reference is stored or reused later (it redirects to whatever the current render is) and `url` when the exact image must not change.";
 
 function createServer(): McpServer {
   const server = new McpServer({ name: "whatif-ref", version: "1.0.0" });
@@ -45,6 +65,10 @@ function createServer(): McpServer {
         "List only the site owner's showcase IMAGINE designs, newest first, as public image references. " +
         "This listing is deliberately limited to the owner's accounts and is not a directory of every user's designs; " +
         "to reach a design saved by anyone else, call get_design with its id. " +
+        "Records are compact by default (id, name, width, height, docWidth, docHeight, aspect, urlKind, url, stale) to keep the response small; " +
+        "ask for more with `fields`. " +
+        "`count` is how many records this response contains and `total` is how many designs match the filters — count < total means `limit` truncated the result, so page with `offset`. " +
+        "Prefer filtering server-side with `renderedOnly` / `minWidth` over fetching everything and discarding most of it. " +
         URL_DOC,
       inputSchema: {
         search: z
@@ -57,17 +81,62 @@ function createServer(): McpServer {
           .min(1)
           .max(200)
           .optional()
-          .describe("Maximum number of designs to return (default 50)."),
+          .describe("Size of the returned window (default 50, max 200)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Number of matching designs to skip before the window (default 0). Use with `total` to page."
+          ),
+        renderedOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, return only designs that have a full-resolution render (non-null `url`). Most designs only ever got a thumbnail, so this is the filter to use when the result must be a usable full-size image."
+          ),
+        minWidth: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            "Return only designs whose rendered `width` is at least this many pixels. Implies renderedOnly, since an unrendered design has no width."
+          ),
+        fields: z
+          .string()
+          .optional()
+          .describe(
+            "Comma-separated extra fields to add to the compact record, e.g. \"thumbnailUrl,updatedAt\". Use \"all\" for the full record. Unknown names are ignored. refUrl and editUrl are derivable from id and rarely worth requesting."
+          ),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async ({ search, limit }) => {
-      const designs = await listRefDesigns({ search, limit });
+    async ({ search, limit, offset, renderedOnly, minWidth, fields }) => {
+      const { designs, total } = await listRefDesigns({
+        search,
+        limit,
+        offset,
+        renderedOnly,
+        minWidth,
+      });
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({ count: designs.length, designs }, null, 2),
+            text: JSON.stringify(
+              {
+                count: designs.length,
+                total,
+                designs: projectRefDesigns(
+                  designs,
+                  resolveRefDesignFields(fields)
+                ),
+              },
+              null,
+              2
+            ),
           },
         ],
       };
@@ -79,15 +148,15 @@ function createServer(): McpServer {
     {
       title: "Get one WHATIF design",
       description:
-        "Fetch a single saved IMAGINE design by id as a public image reference. " +
-        "Accepts ANY design id, not just the ones list_designs returns: the uuid itself is the access token, " +
-        "so an id pasted in by the user resolves whichever account saved that design. " +
+        "Fetch the full record for one saved IMAGINE design, by an id the user has explicitly provided (or one returned by list_designs), as a public image reference. " +
+        "Such an id is not limited to what list_designs returns — it resolves whichever account saved that design — so ids must not be guessed, enumerated, incremented or tried at random; " +
+        "resolve only an id you were actually given. " +
         URL_DOC,
       inputSchema: {
         id: z
           .string()
           .describe(
-            "The design's uuid — from list_designs, or supplied by the user for a design owned by any account."
+            "The design's uuid, exactly as the user gave it or as list_designs returned it. Never invent or guess one."
           ),
         preview: z
           .boolean()

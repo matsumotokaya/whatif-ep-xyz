@@ -28,6 +28,7 @@
   "delete": "Delete",
   "copyId": "Copy ID",
   "copyRefUrl": "Copy reference URL",
+  "copyRefUrlUnavailable": "No full-size render yet — open and save this design",
   "copied": "Copied",
   "confirmDelete": "Are you sure you want to delete this banner?",
   "editName": "Edit name",

@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  formatAspectRatio,
   isUuid,
   mapRowToRefDesign,
   orderByRequestedIds,
+  parseRefDesignName,
+  projectRefDesign,
+  REF_DESIGN_FIELDS,
+  REF_DESIGN_LIST_FIELDS,
+  resolveRefDesignFields,
   selectLookupIds,
   stripImageExtension,
   type RefDesignRow,
@@ -52,12 +58,72 @@ describe("isUuid", () => {
   });
 });
 
+describe("parseRefDesignName", () => {
+  // Real names taken from the owner's designs.
+  it.each([
+    ["EPISODE 0313-1 Feed", "0313-1", "Feed"],
+    ["EPISODE 0459-1 Landscape", "0459-1", "Landscape"],
+    ["EPISODE 0418-1 Portrait", "0418-1", "Portrait"],
+    ["EPISODE 0443-1 Cover", "0443-1", "Cover"],
+    // Shapes that exist in the data but do not carry a variant.
+    ["EPISODE #0461", "0461", null],
+    ["EPISODE 400", "400", null],
+    // Names outside the convention parse to nothing rather than throwing.
+    ["WTF-EXP-000001", null, null],
+    ["無題のバナー", null, null],
+  ])("parses %s", (name, episode, variant) => {
+    expect(parseRefDesignName(name)).toEqual({ episode, variant });
+  });
+
+  it("returns nulls for an absent or blank name", () => {
+    expect(parseRefDesignName(null)).toEqual({ episode: null, variant: null });
+    expect(parseRefDesignName(undefined)).toEqual({
+      episode: null,
+      variant: null,
+    });
+    expect(parseRefDesignName("   ")).toEqual({ episode: null, variant: null });
+  });
+
+  it("only reads a variant that ends the name, as a whole word", () => {
+    // "Feed" mid-name is part of a title, not the variant slot.
+    expect(parseRefDesignName("Feed test 01").variant).toBeNull();
+    // ...and a longer word merely ending in one of them is not a variant.
+    expect(parseRefDesignName("EPISODE 0313-1 Newsfeed").variant).toBeNull();
+    // Trailing whitespace still counts as the end.
+    expect(parseRefDesignName("EPISODE 0313-1 Feed  ").variant).toBe("Feed");
+  });
+
+  it("normalizes the variant's casing", () => {
+    expect(parseRefDesignName("episode 0313-1 feed")).toEqual({
+      episode: "0313-1",
+      variant: "Feed",
+    });
+  });
+});
+
+describe("formatAspectRatio", () => {
+  it("reduces dimensions to their simplest ratio", () => {
+    expect(formatAspectRatio(1080, 1350)).toBe("4:5");
+    expect(formatAspectRatio(2560, 1440)).toBe("16:9");
+    expect(formatAspectRatio(1440, 2560)).toBe("9:16");
+    expect(formatAspectRatio(1080, 1080)).toBe("1:1");
+    expect(formatAspectRatio(1080, 1920)).toBe("9:16");
+  });
+
+  it("returns null for anything it cannot reduce", () => {
+    expect(formatAspectRatio(null, 1350)).toBeNull();
+    expect(formatAspectRatio(1080, null)).toBeNull();
+    expect(formatAspectRatio(0, 1350)).toBeNull();
+    expect(formatAspectRatio(-1080, 1350)).toBeNull();
+  });
+});
+
 describe("mapRowToRefDesign", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_SITE_URL = "https://whatif-ep.xyz";
   });
 
-  it("prefers the full-res render and resolves it against the assets origin", () => {
+  it("resolves the full-res render against the assets origin", () => {
     const design = mapRowToRefDesign(row());
 
     expect(design.urlKind).toBe("full");
@@ -65,10 +131,19 @@ describe("mapRowToRefDesign", () => {
       `https://assets.whatif-ep.xyz/user-images/uid/banners/${ID}/full/rev1.jpg?v=${encodeURIComponent(UPDATED_AT)}`
     );
     expect(design.thumbnailUrl).toContain("/thumb/rev1.jpg");
-    expect(design.width).toBe(1080);
-    expect(design.height).toBe(1920);
     expect(design.previewStatus).toBe("ready");
     expect(design.stale).toBe(false);
+  });
+
+  it("reports width/height as the dimensions of the image at `url`", () => {
+    // The full-res render is produced at exactly the document dimensions, so
+    // when there is one the two pairs agree.
+    const design = mapRowToRefDesign(row());
+
+    expect(design.width).toBe(1080);
+    expect(design.height).toBe(1920);
+    expect(design.docWidth).toBe(1080);
+    expect(design.docHeight).toBe(1920);
   });
 
   it("builds stable ref and edit URLs from the site origin", () => {
@@ -79,12 +154,28 @@ describe("mapRowToRefDesign", () => {
     expect(design.editUrl).toBe(`https://whatif-ep.xyz/edit/${ID}`);
   });
 
-  it("falls back to the thumbnail when there is no full-res render", () => {
+  it("never lets a thumbnail stand in for the full-res render", () => {
+    // The bug this API shipped once: `url` served a ~400px thumbnail while
+    // width/height still advertised the document size, so a consumer fed a
+    // paid video generator a low-res image and could not tell.
     const design = mapRowToRefDesign(row({ fullres_key: null }));
 
-    expect(design.urlKind).toBe("thumb");
-    expect(design.url).toContain("/thumb/rev1.jpg");
-    expect(design.url).toBe(design.thumbnailUrl);
+    expect(design.url).toBeNull();
+    expect(design.urlKind).toBeNull();
+    expect(design.width).toBeNull();
+    expect(design.height).toBeNull();
+    // The thumbnail is still offered, under its own name only.
+    expect(design.thumbnailUrl).toContain("/thumb/rev1.jpg");
+  });
+
+  it("keeps the document dimensions and aspect for an unrendered design", () => {
+    const design = mapRowToRefDesign(
+      row({ fullres_key: null, template: { width: 1080, height: 1350 } })
+    );
+
+    expect(design.docWidth).toBe(1080);
+    expect(design.docHeight).toBe(1350);
+    expect(design.aspect).toBe("4:5");
   });
 
   it("reports no image when neither render exists", () => {
@@ -114,6 +205,19 @@ describe("mapRowToRefDesign", () => {
     );
   });
 
+  it("exposes the episode, variant and aspect parsed from the row", () => {
+    const design = mapRowToRefDesign(
+      row({
+        name: "EPISODE 0459-1 Landscape",
+        template: { width: 2560, height: 1440 },
+      })
+    );
+
+    expect(design.episode).toBe("0459-1");
+    expect(design.variant).toBe("Landscape");
+    expect(design.aspect).toBe("16:9");
+  });
+
   it("marks a design stale when the render is behind the document", () => {
     expect(mapRowToRefDesign(row({ preview_revision: 6 })).stale).toBe(true);
     expect(mapRowToRefDesign(row({ preview_status: "pending" })).stale).toBe(true);
@@ -121,6 +225,17 @@ describe("mapRowToRefDesign", () => {
     expect(mapRowToRefDesign(row({ preview_status: null })).stale).toBe(true);
     // A document revision with no matching preview revision is a real mismatch.
     expect(mapRowToRefDesign(row({ preview_revision: null })).stale).toBe(true);
+  });
+
+  it("still tracks staleness for a design that only has a thumbnail", () => {
+    // `stale` follows any render, not `url`, so a thumbnail-only design can
+    // still warn that its preview is behind the document.
+    const design = mapRowToRefDesign(
+      row({ fullres_key: null, preview_revision: 6 })
+    );
+
+    expect(design.url).toBeNull();
+    expect(design.stale).toBe(true);
   });
 
   it("does not flag pre-revision rows whose preview is otherwise ready", () => {
@@ -149,7 +264,107 @@ describe("mapRowToRefDesign", () => {
     expect(design.name).toBe("");
     expect(design.width).toBeNull();
     expect(design.height).toBeNull();
+    expect(design.docWidth).toBeNull();
+    expect(design.docHeight).toBeNull();
+    expect(design.aspect).toBeNull();
+    expect(design.episode).toBeNull();
+    expect(design.variant).toBeNull();
     expect(design.previewStatus).toBeNull();
+  });
+});
+
+describe("field projection", () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://whatif-ep.xyz";
+  });
+
+  it("lists every RefDesign key exactly once", () => {
+    // `fields=all` projects REF_DESIGN_FIELDS, so a field missing from that
+    // array would silently be unreachable.
+    const design = mapRowToRefDesign(row());
+
+    expect([...REF_DESIGN_FIELDS].sort()).toEqual(Object.keys(design).sort());
+  });
+
+  it("keeps the list shape a subsequence of the canonical order", () => {
+    // Otherwise a record's keys would be ordered differently depending on
+    // whether `fields` was passed.
+    expect(
+      REF_DESIGN_FIELDS.filter((field) =>
+        (REF_DESIGN_LIST_FIELDS as readonly string[]).includes(field)
+      )
+    ).toEqual([...REF_DESIGN_LIST_FIELDS]);
+  });
+
+  it("defaults to the compact list shape", () => {
+    expect(resolveRefDesignFields(undefined)).toEqual(REF_DESIGN_LIST_FIELDS);
+    expect(resolveRefDesignFields(null)).toEqual(REF_DESIGN_LIST_FIELDS);
+    expect(resolveRefDesignFields("  ")).toEqual(REF_DESIGN_LIST_FIELDS);
+
+    const projected = projectRefDesign(
+      mapRowToRefDesign(row()),
+      resolveRefDesignFields(undefined)
+    );
+
+    expect(Object.keys(projected)).toEqual([...REF_DESIGN_LIST_FIELDS]);
+    // The four-URLs-per-record payload is what made limit=200 unaffordable.
+    expect(projected).not.toHaveProperty("refUrl");
+    expect(projected).not.toHaveProperty("editUrl");
+    expect(projected).not.toHaveProperty("thumbnailUrl");
+    expect(projected).not.toHaveProperty("updatedAt");
+    expect(projected).not.toHaveProperty("previewStatus");
+  });
+
+  it("adds requested fields to the compact shape without dropping any", () => {
+    const fields = resolveRefDesignFields("refUrl,thumbnailUrl");
+    const projected = projectRefDesign(mapRowToRefDesign(row()), fields);
+
+    for (const field of REF_DESIGN_LIST_FIELDS) {
+      expect(projected).toHaveProperty(field);
+    }
+    expect(projected.refUrl).toBe(`https://whatif-ep.xyz/ref/${ID}`);
+    expect(projected.thumbnailUrl).toContain("/thumb/rev1.jpg");
+    expect(projected).not.toHaveProperty("editUrl");
+  });
+
+  it("keys projected records in the canonical field order", () => {
+    const projected = projectRefDesign(
+      mapRowToRefDesign(row()),
+      resolveRefDesignFields("updatedAt,episode")
+    );
+
+    // Canonical order, not the caller's argument order.
+    expect(Object.keys(projected).indexOf("episode")).toBeLessThan(
+      Object.keys(projected).indexOf("updatedAt")
+    );
+  });
+
+  it("returns the full record for `all`, case-insensitively", () => {
+    expect(resolveRefDesignFields("all")).toEqual(REF_DESIGN_FIELDS);
+    expect(resolveRefDesignFields("ALL")).toEqual(REF_DESIGN_FIELDS);
+    expect(resolveRefDesignFields("refUrl,all")).toEqual(REF_DESIGN_FIELDS);
+
+    const projected = projectRefDesign(
+      mapRowToRefDesign(row()),
+      resolveRefDesignFields("all")
+    );
+
+    expect(Object.keys(projected)).toEqual([...REF_DESIGN_FIELDS]);
+  });
+
+  it("ignores unknown field names instead of failing the request", () => {
+    // A client written against a later version of this API still gets a
+    // useful response.
+    expect(resolveRefDesignFields("nope, ,refUrl,also-not-a-field")).toEqual(
+      resolveRefDesignFields("refUrl")
+    );
+    expect(resolveRefDesignFields("totally-made-up")).toEqual(
+      REF_DESIGN_LIST_FIELDS
+    );
+  });
+
+  it("matches requested field names case-insensitively", () => {
+    expect(resolveRefDesignFields("REFURL")).toContain("refUrl");
   });
 });
 

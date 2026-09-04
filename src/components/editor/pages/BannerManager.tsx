@@ -186,6 +186,11 @@ export const BannerManager = () => {
   // Render a single banner card
   const renderBannerCard = (banner: BannerListItem) => {
     const isGuestBanner = isGuest && banner.id === 'guest';
+    // Copy feedback has to be visible without hovering: the action overlay is
+    // permanently visible on touch, where a hover-only tooltip never appears,
+    // so the button also swaps its icon and colour while the flag is up.
+    const idCopied = copiedKey === `${banner.id}:id`;
+    const refUrlCopied = copiedKey === `${banner.id}:url`;
     const aspectClass = getAspectClass(banner.width, banner.height);
     const isPreviewGenerating = banner.previewStatus === 'pending' && Boolean(banner.previewRequestedAt);
 
@@ -315,10 +320,14 @@ export const BannerManager = () => {
                     e.stopPropagation();
                     void handleCopyToClipboard(`${banner.id}:id`, banner.id);
                   }}
-                  className="px-1.5 py-0.5 text-xs font-mono text-white/80 bg-white/10 hover:bg-white/20 rounded transition-colors"
+                  className={`px-1.5 py-0.5 text-xs font-mono rounded transition-colors ${
+                    idCopied
+                      ? 'bg-emerald-500 text-white'
+                      : 'text-white/80 bg-white/10 hover:bg-white/20'
+                  }`}
                   title={t('banner:copyId')}
                 >
-                  {copiedKey === `${banner.id}:id` ? t('banner:copied') : banner.id.slice(0, 8)}
+                  {idCopied ? `✓ ${t('banner:copied')}` : banner.id.slice(0, 8)}
                 </button>
               )}
             </div>
@@ -347,12 +356,27 @@ export const BannerManager = () => {
                   e.stopPropagation();
                   void handleCopyToClipboard(`${banner.id}:url`, `${SITE_URL}/ref/${banner.id}`);
                 }}
-                className="w-7 h-7 bg-white/90 hover:bg-white text-gray-700 rounded-md transition-colors flex items-center justify-center group/copyref relative shadow-sm"
-                title={t('banner:copyRefUrl')}
+                disabled={!banner.fullresUrl}
+                className={`w-7 h-7 rounded-md transition-colors flex items-center justify-center group/copyref relative shadow-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+                  refUrlCopied
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-white/90 hover:bg-white text-gray-700'
+                }`}
+                title={banner.fullresUrl ? t('banner:copyRefUrl') : t('banner:copyRefUrlUnavailable')}
               >
-                <span className="material-symbols-outlined text-[16px]">link</span>
-                <span className="absolute bottom-full mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/copyref:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  {copiedKey === `${banner.id}:url` ? t('banner:copied') : t('banner:copyRefUrl')}
+                <span className="material-symbols-outlined text-[16px]">
+                  {refUrlCopied ? 'check' : 'link'}
+                </span>
+                <span
+                  className={`absolute bottom-full mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded transition-opacity whitespace-nowrap pointer-events-none ${
+                    refUrlCopied ? 'opacity-100' : 'opacity-0 group-hover/copyref:opacity-100'
+                  }`}
+                >
+                  {refUrlCopied
+                    ? t('banner:copied')
+                    : banner.fullresUrl
+                      ? t('banner:copyRefUrl')
+                      : t('banner:copyRefUrlUnavailable')}
                 </span>
               </button>
               <button

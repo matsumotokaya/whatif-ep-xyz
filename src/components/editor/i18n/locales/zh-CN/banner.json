@@ -28,6 +28,7 @@
   "delete": "删除",
   "copyId": "复制 ID",
   "copyRefUrl": "复制引用链接",
+  "copyRefUrlUnavailable": "尚无完整尺寸图片。打开并保存该设计即可生成",
   "copied": "已复制",
   "confirmDelete": "确定要删除此横幅吗？",
   "editName": "编辑名称",

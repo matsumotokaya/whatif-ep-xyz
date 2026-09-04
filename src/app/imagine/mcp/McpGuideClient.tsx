@@ -34,6 +34,7 @@ const COPY: Record<Language, {
   myDesignsLink: string;
   mcpTitle: string;
   mcpDescription: string;
+  mcpEndpointNote: string;
   mcpClaudeCodeLabel: string;
   mcpOtherClientsLabel: string;
   mcpOtherClientsBody: string;
@@ -73,6 +74,8 @@ const COPY: Record<Language, {
     mcpTitle: 'Connect via MCP',
     mcpDescription:
       'Register WHATIF as a remote MCP server and your assistant can resolve design IDs on its own.',
+    mcpEndpointNote:
+      'This page is documentation, not the endpoint — register https://whatif-ep.xyz/api/mcp in your client.',
     mcpClaudeCodeLabel: 'Claude Code',
     mcpOtherClientsLabel: 'Other MCP clients',
     mcpOtherClientsBody:
@@ -120,6 +123,8 @@ const COPY: Record<Language, {
     mcpTitle: 'MCP で接続する',
     mcpDescription:
       'WHATIF をリモート MCP サーバーとして登録すると、アシスタント自身がデザインIDを解決できるようになります。',
+    mcpEndpointNote:
+      'このページ自体はドキュメントであり、エンドポイントではありません。登録するURLは https://whatif-ep.xyz/api/mcp です。',
     mcpClaudeCodeLabel: 'Claude Code',
     mcpOtherClientsLabel: 'その他の MCP クライアント',
     mcpOtherClientsBody:
@@ -165,6 +170,8 @@ const COPY: Record<Language, {
     myDesignsLink: '我的设计',
     mcpTitle: '通过 MCP 连接',
     mcpDescription: '把 WHATIF 注册为远程 MCP 服务器，助手就能自行解析设计 ID。',
+    mcpEndpointNote:
+      '本页面本身是文档，并非接口地址；请注册 https://whatif-ep.xyz/api/mcp 作为端点。',
     mcpClaudeCodeLabel: 'Claude Code',
     mcpOtherClientsLabel: '其他 MCP 客户端',
     mcpOtherClientsBody:
@@ -208,6 +215,8 @@ const COPY: Record<Language, {
     myDesignsLink: '我的設計',
     mcpTitle: '透過 MCP 連線',
     mcpDescription: '把 WHATIF 註冊為遠端 MCP 伺服器，助手就能自行解析設計 ID。',
+    mcpEndpointNote:
+      '本頁面本身是文件，並非端點；請註冊 https://whatif-ep.xyz/api/mcp 作為端點。',
     mcpClaudeCodeLabel: 'Claude Code',
     mcpOtherClientsLabel: '其他 MCP 用戶端',
     mcpOtherClientsBody:
@@ -253,6 +262,8 @@ const COPY: Record<Language, {
     mcpTitle: 'MCP로 연결하기',
     mcpDescription:
       'WHATIF를 원격 MCP 서버로 등록하면 어시스턴트가 디자인 ID를 직접 확인해 처리할 수 있습니다.',
+    mcpEndpointNote:
+      '이 페이지 자체는 문서이며 엔드포인트가 아닙니다. 등록할 주소는 https://whatif-ep.xyz/api/mcp입니다.',
     mcpClaudeCodeLabel: 'Claude Code',
     mcpOtherClientsLabel: '다른 MCP 클라이언트',
     mcpOtherClientsBody:
@@ -391,6 +402,7 @@ export default function McpGuideClient() {
             {t.mcpTitle}
           </h2>
           <p className="mt-3 text-sm leading-6 text-muted">{t.mcpDescription}</p>
+          <p className="mt-2 text-sm leading-6 text-foreground">{t.mcpEndpointNote}</p>
 
           <p className="mt-5 text-sm font-medium text-foreground">{t.mcpClaudeCodeLabel}</p>
           <CodeBlock

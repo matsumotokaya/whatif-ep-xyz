@@ -38,6 +38,26 @@ id を収集できてしまい、上のモデルが根本から崩れる。そ�
 リネームされるが`id`は変わらないため、動画生成AIへの入力やRemotionのコードに焼き込む
 参照として安定する。
 
+🔴 **`url` はfull-resレンダリングだけを指す。サムネイルには絶対に落とさない**:
+以前は full-res が無いデザインで `url` がサムネイルにフォールバックしていたが、
+`width` / `height` はドキュメント寸法（例: 1080×1350）を申告し続けていた。
+結果として利用側は「1080×1350 の画像だ」と信じて **実体399×499のサムネイル**を掴み、
+そのまま有料の動画生成API（1本 $0.32〜$1.20）に投入できてしまった。
+MiniMax の入力制約は256〜5760pxなので**API側も弾かず、生成後まで気づけない**。
+現在は2つの画像を明確に分離している:
+
+- `url` = full-res レンダリングのみ。無ければ `null`（`urlKind` も `null`）
+- `width` / `height` = **`url` が指す画像の実寸そのもの**。`url` が `null` なら両方 `null`
+- `docWidth` / `docHeight` = デザインのドキュメント寸法。**レンダリングの有無に関わらず常に入る**
+- `thumbnailUrl` = 小さいプレビュー。**別名の別フィールド**として残す
+
+**なぜサムネイルの寸法を返さないか**: サムネイルの生成器が複数あり
+（`Canvas.tsx` の exportThumbnail と `bannerPreviewRenderer.ts`）、さらに旧キー形式
+（`user-images/{uid}/thumbnails/{id}-{ts}.jpg`）の遺産もあるため、**実寸が一意に決まらない**
+（1080×1350のドキュメントが399×499になる）。**推測して申告するくらいなら申告しない**
+というのが #1 の教訓そのものなので、`thumbnailUrl` の寸法は返さず
+「おおよそ400px幅・正確なサイズは保証しない」とだけ書く。
+
 **フラグは将来**: 「このデザインは参照させない」という非公開フラグはv1にはない。
 何もしなければ id を知っている人は誰でも参照できる、という単純なモデルを先に置き、
 必要になった時点で opt-out フラグを追加する（[今後](#今後)参照）。
@@ -62,9 +82,9 @@ id を収集できてしまい、上のモデルが根本から崩れる。そ�
 
 | エンドポイント | 用途 | 範囲 |
 |---|---|---|
-| `GET /api/ref/designs?id=...` | ID指定取得 | **全アカウント** |
-| `GET /api/ref/designs`（`search` / `limit`） | 一覧・検索 | オーナー範囲のみ |
-| `GET /ref/{id}` (`/ref/{id}.jpg` も可) | 現在の最新レンダリングへ302リダイレクト | **全アカウント** |
+| `GET /api/ref/designs?id=...` | ID指定取得（**フルレコード**） | **全アカウント** |
+| `GET /api/ref/designs`（一覧パラメータ） | 一覧・検索（**コンパクトレコード**） | オーナー範囲のみ |
+| `GET /ref/{id}` (`/ref/{id}.jpg` も可) | 現在のfull-resレンダリングへ302リダイレクト | **全アカウント** |
 | `POST /api/mcp` | MCP (Streamable HTTP) エンドポイント | ツールごと（下記） |
 
 ### `GET /api/ref/designs`
@@ -72,36 +92,127 @@ id を収集できてしまい、上のモデルが根本から崩れる。そ�
 | パラメータ | 例 | 意味 | 範囲 |
 |---|---|---|---|
 | `search` | `夏祭り` | 名前の部分一致 | オーナー範囲のみ |
-| `limit` | `50`（デフォルト50、最大200） | 件数 | オーナー範囲のみ |
+| `limit` | `50`（デフォルト50、最大200） | **返す件数（ウィンドウの幅）** | オーナー範囲のみ |
+| `offset` | `200`（デフォルト0） | ウィンドウの開始位置 | オーナー範囲のみ |
+| `renderedOnly` | `true` | full-resレンダリングがあるものだけ | オーナー範囲のみ |
+| `minWidth` | `2000` | `width` がこの値以上のものだけ（**`renderedOnly` を含意**） | オーナー範囲のみ |
+| `fields` | `refUrl,thumbnailUrl` / `all` | コンパクトレコードに項目を**追加**する | オーナー範囲のみ |
 | `id` | `a,b,c` | 指定したIDを**指定順どおり**に返す（最大200件） | **全アカウント** |
 
-`id` を付けた時点で `search` / `limit` は無視され、ID指定取得（全アカウント）になる。
+`id` を付けた時点で他のパラメータは無視され、ID指定取得（全アカウント・フルレコード）になる。
+
+`renderedOnly` は SQL 側で `fullres_key IS NOT NULL OR fullres_url IS NOT NULL`
+（PostgREST の `.or()`）として適用される。
+`minWidth` はドキュメント寸法が `template` jsonb の中にあり、PostgREST は
+`template->>width` を**テキスト比較**してしまう（`"900" >= "2000"` が真になる）ため、
+**SQLでは表現せず JS 側でフィルタしている**。その代わり該当クエリは条件に合う行を先に
+全件（最大1000行）取得してから絞り、`total` とウィンドウ（`limit`/`offset`）を
+フィルタ後の集合に対して正しく適用する。件数が1000を超えるまではこの挙動で正確
+（実データはオーナー全体で345件）。
 
 ```bash
 curl -s "https://whatif-ep.xyz/api/ref/designs?search=夏祭り&limit=10" | jq .
+curl -s "https://whatif-ep.xyz/api/ref/designs?renderedOnly=true&minWidth=2000" | jq .
+curl -s "https://whatif-ep.xyz/api/ref/designs?limit=50&offset=50" | jq .
 curl -s "https://whatif-ep.xyz/api/ref/designs?id=<uuid-a>,<uuid-b>" | jq .
 ```
 
-レスポンス: `{ count, designs: RefDesign[], missing?: string[] }`
-（`missing` は `id=` 指定時のみ。存在しないID・uuid形式でない文字列・200件の上限を
-超えた分がここに入る。500にはならない）
+#### レスポンス
+
+`{ count, total, designs, missing? }`
+
+| フィールド | 意味 |
+|---|---|
+| `count` | **このレスポンスに入っている件数**（`designs.length` と同じ） |
+| `total` | **`limit` / `offset` を無視した、条件に一致する総件数**（Supabase の exact count） |
+| `missing` | `id=` 指定時のみ。存在しないID・uuid形式でない文字列・200件の上限を超えた分。500にはならない |
+
+🔴 `count < total` なら **`limit` で打ち切られている**。以前は `count` しか無く
+「limit=200 で 200件返ってきたとき、打ち切られたのか、ちょうど200件なのか判別できない」
+状態だった。ページングは `offset` を進める。
+
+`offset` が総件数を超えた場合は **200 + 空配列**（`{count: 0, total: N, designs: []}`）を返す。
+PostgREST は範囲外レンジに 416 (`PGRST103`) を返すため、実装側で握って空ページに変換している
+（古い `total` を持ったままページングした利用側が500を踏まないように）。
+
+#### `RefDesign`（フルレコード）
+
+`GET /api/ref/designs?id=...` と MCP `get_design` が返す形。
 
 ```ts
 type RefDesign = {
   id: string;
   name: string;
+  episode: string | null;     // "0313-1" — 名前からのベストエフォート抽出
+  variant: "Feed" | "Landscape" | "Portrait" | "Cover" | null;
+  aspect: string | null;      // "4:5" — docWidth/docHeight をGCDで約分
+
+  // 🔴 url が指す画像の実寸そのもの。url が null なら両方 null
   width: number | null;
   height: number | null;
-  url: string | null;         // 最良のレンダリングの直接R2 URL(不変・バージョン付き)
-  urlKind: "full" | "thumb" | null;
-  thumbnailUrl: string | null;
-  refUrl: string;             // https://whatif-ep.xyz/ref/{id} (常に最新にリダイレクト)
-  editUrl: string;            // https://whatif-ep.xyz/edit/{id}
+  // デザインのドキュメント寸法。レンダリングが無くても常に入る
+  docWidth: number | null;
+  docHeight: number | null;
+
+  url: string | null;         // 🔴 full-resレンダリングのみ。無ければ null
+  urlKind: "full" | null;     // "thumb" は廃止。url がサムネイルになることはない
+  thumbnailUrl: string | null; // 小さいプレビュー（おおよそ400px幅・正確なサイズは保証しない）
+
+  refUrl: string;             // 常に https://whatif-ep.xyz/ref/{id}
+  editUrl: string;            // 常に https://whatif-ep.xyz/edit/{id}
   updatedAt: string;
   previewStatus: "pending" | "ready" | "failed" | null;
-  stale: boolean;             // 保存後まだ再レンダリングされていない
+  stale: boolean;             // レンダリングが保存済みドキュメントより古い
 };
 ```
+
+`urlKind` は `"full"` か `null` しか取らなくなったが、**フィールド自体は残す**
+（既存の利用側が読んでいるため）。
+
+`stale` は full-res だけでなく**サムネイルしか無いデザインでも判定する**
+（`url` ではなく「何らかのレンダリングがあるか」を見る）。
+何もレンダリングされていなければ `false`（`url: null` の方が信号）。
+
+#### 一覧のコンパクトレコードと `fields`
+
+一覧（`id=` 指定でない呼び出し）は**既定でコンパクトレコード**を返す。
+
+```
+id, name, aspect, width, height, docWidth, docHeight, url, urlKind, stale
+```
+
+除外されるのは `refUrl` / `editUrl` / `thumbnailUrl` / `previewStatus` / `updatedAt`。
+理由は応答サイズで、limit=200 のとき従来のフルレコードは **183,584バイト（約46,000トークン）**
+あり、LLMクライアントは1回呼ぶだけでコンテキストの相当量を失っていた。
+膨張の主因は1件あたり4本のURL（`url` / `thumbnailUrl` / `refUrl` / `editUrl`）で、
+同じuuidが4回、R2の長いパス（約200文字）＋URLエンコード済み `?v=` 付きで並んでいた。
+
+**`refUrl` と `editUrl` は `id` から機械的に作れるので、そもそも要求する必要がない**:
+
+```
+refUrl  = https://whatif-ep.xyz/ref/{id}
+editUrl = https://whatif-ep.xyz/edit/{id}
+```
+
+必要なら `fields` で戻せる。**追加**であって置き換えではない
+（コンパクトの10項目は常に入る）。
+
+| 指定 | 結果 |
+|---|---|
+| なし | コンパクトレコード |
+| `fields=refUrl,thumbnailUrl` | コンパクト＋その2項目 |
+| `fields=all` | フルレコード |
+| `fields=nope,refUrl` | 未知の項目名は**無視**（エラーにしない）。`refUrl` だけ追加 |
+
+項目名の大文字小文字は無視する。キーの並び順は指定順ではなく常に正準順。
+
+実測（limit=200、オーナー345件・full-res 133件のデータ）:
+
+| 形 | バイト数 | 概算トークン |
+|---|---|---|
+| 既定（コンパクト） | 54,554 | 約 13,600 |
+| `fields=all` | 147,248 | 約 36,800 |
+| 変更前（フルレコードのみ） | 183,584 | 約 45,900 |
 
 ヘッダー: `Access-Control-Allow-Origin: *`、
 `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`
@@ -115,14 +226,24 @@ type RefDesign = {
 デザインIDに対する**恒久リンク**。常に現時点の最新レンダリングへ302リダイレクトするため、
 「デザインを更新したら参照先も自動で新しくなってほしい」用途（`refUrl` として配る先）に使う。
 
-- `/ref/{id}` → 現在のfull-res R2 URL(なければthumbnail)へリダイレクト
+- `/ref/{id}` → 現在の **full-res** R2 URLへリダイレクト。🔴 **サムネイルへのフォールバックはしない**
 - `/ref/{id}.jpg` → 同上（拡張子は見た目上のヒントとして許容するだけで、実体の形式には影響しない）
-- `?size=thumb` → 常にthumbnailへリダイレクト
+- `?size=thumb` → 常にthumbnailへリダイレクト（従来どおり）
 - **どのアカウントのデザインでも**、id が正しければ解決する（id 自体がアクセス権）
-- 存在しないID・uuid形式でないID・レンダリング未生成のIDは 404 JSON
+
+404 になるケースと本文:
+
+| 状況 | 本文 |
+|---|---|
+| 存在しないID・uuid形式でないID | `Design not found` |
+| full-res未生成（`?size=thumb` なし） | `This design has no full-resolution render yet. Open it in the IMAGINE editor and save it to produce one. Add ?size=thumb to this URL to get the small preview instead (roughly 400px wide; exact size not guaranteed).` |
+| `?size=thumb` でサムネイルも無い | `This design has no thumbnail yet. Open it in the IMAGINE editor and save it to produce one.` |
+
+full-res未生成のときに**サムネイルを黙って返さない**のが変更点。
+「デザインのURL」と称して400pxの画像を配ると、利用側は気づけないまま課金される。
 
 ```bash
-curl -sI "https://whatif-ep.xyz/ref/<uuid>"            # 302 → full-res
+curl -sI "https://whatif-ep.xyz/ref/<uuid>"            # 302 → full-res / 404
 curl -sI "https://whatif-ep.xyz/ref/<uuid>?size=thumb" # 302 → thumbnail
 ```
 
@@ -134,11 +255,26 @@ curl -sI "https://whatif-ep.xyz/ref/<uuid>?size=thumb" # 302 → thumbnail
 
 | ツール | 引数 | 内容 | 範囲 |
 |---|---|---|---|
-| `list_designs` | `search?`, `limit?` | `/api/ref/designs` と同じ一覧を返す | オーナー範囲のみ |
-| `get_design` | `id`, `preview?` | 単一デザインを返す。`preview: true` でthumbnailをMCP image contentとしても添付 | **全アカウント** |
+| `list_designs` | `search?`, `limit?`, `offset?`, `renderedOnly?`, `minWidth?`, `fields?` | `/api/ref/designs` と同じ一覧（コンパクトレコード＋`count`/`total`） | オーナー範囲のみ |
+| `get_design` | `id`, `preview?` | 単一デザインを**フルレコード**で返す。`preview: true` でthumbnailをMCP image contentとしても添付 | **全アカウント** |
 
 ツールの `description` にもこの範囲を書いてある（モデルが `list_designs` を
-「全ユーザーのディレクトリ」と誤解しないように）。
+「全ユーザーのディレクトリ」と誤解しないように）。加えて description には、
+
+- `url` は full-res のみで、`width`/`height` はその実寸であること
+- `thumbnailUrl` を full-size の代用にしないこと
+- `refUrl` / `editUrl` は `id` から作れるので要求不要であること
+- `count` と `total` の違い
+
+を明記している。**LLMクライアントが読む唯一のドキュメントが description なので、
+仕様を変えたらここも必ず直す。**
+
+`get_design` の description は「ユーザーが明示的に渡した id（または `list_designs` が返した id）
+を解決するツール」であることを条件として書き、
+**id を推測・列挙・総当たりしてはならない**と明示する。
+uuid v4 なので総当たりは現実的に不可能だが、
+「ユーザーが貼った id なら誰のものでも解決する」という**書き方自体**が
+モデルにとって他人のidを試す誘因になりうるため。
 
 接続（Claude Code）:
 
@@ -173,10 +309,20 @@ Claude Desktop / Cursor など他クライアントも、同じURLをremote HTTP
 - **この時点の画像で再現したい** → `url`。レンダリングごとにキーがバージョニングされた
   不変URLなので、後からデザインを更新してもこのURLの画像は変わらない
 
+素材を選ぶときは `renderedOnly=true`（または `minWidth`）で絞る。
+`url: null` のデザインは full-res が無いので入力にならない。
+
+```bash
+# 16:9 の full-res 素材だけを、id/name/aspect/url で取る
+curl -s "https://whatif-ep.xyz/api/ref/designs?minWidth=2000&limit=200" \
+  | jq '.designs[] | select(.aspect == "16:9") | {id, name, width, height, url}'
+```
+
 ### CLI
 
 ```bash
-curl -s "https://whatif-ep.xyz/api/ref/designs?search=夏祭り" | jq '.designs[] | {id, name, refUrl}'
+curl -s "https://whatif-ep.xyz/api/ref/designs?search=夏祭り" | jq '.designs[] | {id, name}'
+# refUrl は id から作れる: https://whatif-ep.xyz/ref/{id}
 ```
 
 ### Remotion
@@ -207,7 +353,10 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
 接続後の典型的な会話例:
 
 > 「夏祭りのデザインを探して、そのURLを教えて」
-> → Claudeが `list_designs({ search: "夏祭り" })` を呼び、該当デザインの `refUrl` を提示する
+> → Claudeが `list_designs({ search: "夏祭り" })` を呼び、`id` から ref URL を組み立てて提示する
+
+> 「16:9で使える素材を出して」
+> → `list_designs({ minWidth: 2000, limit: 200 })` を呼び、`aspect: "16:9"` で絞る
 
 > 「このデザインID `abc123...` のプレビュー画像を見せて」
 > → `get_design({ id: "abc123...", preview: true })` を呼び、thumbnailが画像として返る
@@ -216,9 +365,14 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
 
 - full-resは**エディタで保存し、プレビュー生成が走った時**にのみ生成される
   （編集後アイドル10秒、または明示的な保存・離脱時）
-- 現在のカバレッジ（adminアカウント基準、2026-09-04時点）: 345件中、full-res 133件・thumbnailのみ209件
-- デザインをエディタで開いて保存すればfull-resが再生成される
-- full-resが未生成のデザインは自動でthumbnailにフォールバックし、`urlKind: "thumb"` になる
+- full-resはドキュメント寸法ちょうどで書き出される（1080×1350のドキュメント → 1080×1350のJPEG）。
+  だから `width` / `height` を `url` の実寸として申告できる
+- サムネイルはおおよそ400px幅だが**厳密ではない**（1080×1350 → 399×499）。
+  生成器が複数あるため実寸は導出できず、APIも申告しない
+- 現在のカバレッジ（adminアカウント基準、2026-09-04時点）:
+  **345件中、full-res 133件・サムネイルのみ 211件・画像なし 1件**
+- full-resが未生成のデザインは `url: null` / `urlKind: null` / `width`・`height` ともに `null`。
+  **サムネイルにフォールバックはしない**。エディタで開いて保存すれば生成される
 - `stale: true` は「ドキュメントが最後のレンダリング後に編集された」ことを示す
   （`document_revision != preview_revision`、またはプレビュー未完了の場合）。
   再現性が重要な場面では、参照前にエディタを開いて保存し `stale: false` にしてから
@@ -233,9 +387,44 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
 - **キャッシュ**: `/api/ref/designs` は60秒（`s-maxage=60`）。デザイン更新の反映が
   最大60秒遅れうる点は許容している
 
+## フィードバック対応（2026-09-04）
+
+外部プロジェクト **gen-video** が `/api/mcp` を実際にMCPクライアントとして登録し、
+i2v（image-to-video）の素材ソースとして使った際に受けた指摘への対応。
+指摘の原文書は対応完了をもって削除し、要点はこの節に集約した。
+
+| # | 指摘 | 対応 |
+|---|---|---|
+| 1 | `width`/`height` が `url` の実体と一致しない（400pxを1080pxと申告） | `url` を **full-resのみ**に限定。`width`/`height` は `url` の実寸、無ければ `null`。`docWidth`/`docHeight` を新設。`urlKind` は `"full"` / `null` のみ。`/ref/{id}` も同じ規則（full-res無しは404） |
+| 2 | limit=200 の応答が約46,000トークン | 一覧を**コンパクトレコード**（10項目）に。`fields` で追加取得、`fields=all` でフル。`refUrl`/`editUrl` の組み立て方を description と本文に明記。実測 183,584→54,554バイト |
+| 3 | `thumb` が63%を占めるのに絞り込めない | `renderedOnly` / `minWidth` を追加（HTTP・`list_designs` 両方） |
+| 4 | 総数が返らず、打ち切りか否か判別できない | `total`（exact count）と `offset` を追加。`count` は「このレスポンスの件数」と明記 |
+| 5 | 名前の構造がフィールドになっていない | `episode` / `variant` / `aspect` を追加（すべてnullable・ベストエフォート）。パーサは `parseRefDesignName` として `designs.ts` に純関数で置き、実データの名前でユニットテスト |
+| 8 | `get_design` の説明文が他人のidを試す誘因になりうる | 「ユーザーが明示的に渡したid」を条件として明記し、推測・列挙・総当たりの禁止を追加。`list_designs` の「全ユーザーのディレクトリではない」文は好評だったのでそのまま維持 |
+
+| 7 | `/imagine/mcp` がエンドポイントに見え、POSTすると本文なしの405が返る | ドキュメントページへの**非GET/HEADリクエストを `/api/mcp` へ308リダイレクト**（[middleware.ts](../middleware.ts)。308はメソッドと本文を保つのでMCPクライアントはそのまま接続できる）。ページ本文にも「ここはドキュメントで、登録先は `/api/mcp`」と5言語で明記。URL自体は共有済みのため変更しない |
+
+**未対応（判断待ち）**:
+
+- **#6 動的リサイズ・クロップ**（`?w=1920` / `?ar=16:9`）。指摘の中で唯一 Unsplash に明確に劣る点。
+  i2v は**元画像のアスペクト比がそのまま出力比になる**ため、16:9の動画には16:9の素材が要るが、
+  オーナーの200件中16:9は19件しかない。実装には R2 の前に Cloudflare Images か Workers を挟む必要が
+  あり**費用が発生する**。このサイトは過去に Vercel の画像最適化が無料枠を超えて402を返し、
+  画像が表示されなくなった経緯がある（[README](../README.md)・`next.config.ts` の `unoptimized: true`）ため、
+  **オーナーの承認なしに進めない**。`aspect` フィルタは緩和にはなるが代替ではない
+
+**良かった点として維持したもの**: 認証なし・`stale`/`previewStatus`/`urlKind` を隠さない・
+`isError: true` ＋人間可読メッセージ・R2直リンクの `.jpg` 拡張子・`/ref/{id}.jpg` の別形・
+Acceptヘッダ検査・CORS `*` と `Mcp-Session-Id` の expose・`refUrl` と `url` の使い分け。
+
 ## 今後
 
-- テンプレート（`public.templates`。壁紙テンプレート等）を参照対象に追加
+- 動的リサイズ・クロップ（#6。上記「未対応（判断待ち）」を参照）
+- テンプレート（`public.templates`。壁紙テンプレート等）を参照対象に追加。
+  **注意: `templates` には full-res の列が無く、299行すべてサムネイルしか持っていない**
+  （`thumbnail_key` のみ。`banners` の `fullres_key` に相当する列が存在しない）。
+  そのまま公開すると全件 `url: null` になるため、先に full-res を生成する仕組みが要る。
+  元になった `banners` 行から辿るか、テンプレート用のレンダリング経路を足すかの設計が先
 - `user_images` のアップロード素材を参照対象に追加
 - デザイン単位の非公開フラグ（opt-out）。
   **一度配ったref URLを無効化する手段は現状ない**ため、取り消しを可能にするならこれが入口になる
