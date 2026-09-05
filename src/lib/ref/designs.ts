@@ -658,7 +658,7 @@ export interface RefDesignLayers {
   // Machine-readable statement of what reproduces exactly.
   fidelity: {
     images: "exact";
-    text: "approximate" | "none"; // "none" when the design has no text
+    text: "approximate" | "none"; // "none" when the document has no text
     note: string;
   };
 }
@@ -679,13 +679,17 @@ export interface RefDesignLayersRow {
   elements: unknown[] | null;
 }
 
+// Phrased WITHOUT the word "design": templates reuse this mapper (see
+// mapRowToRefTemplateLayers in ./templates.ts) and a template is not a design —
+// nor does it have a flattened render at all, so "the composed picture" is the
+// only description true of both kinds.
 const FIDELITY_NOTE_WITH_TEXT =
-  "Image layers are the original source files, so placing each one at the geometry given here reproduces the flattened render exactly. " +
+  "Image layers are the original source files, so placing each one at the geometry given here reproduces the composed picture exactly. " +
   "Text layers are laid out by the editor's canvas engine (Konva), so a DOM-based renderer such as Remotion will differ slightly in letter spacing and wrapping — phase 2 will supply a pre-rendered transparent PNG for text.";
 
 const FIDELITY_NOTE_IMAGES_ONLY =
-  "Image layers are the original source files, so placing each one at the geometry given here reproduces the flattened render exactly. " +
-  "This design has no text, so nothing in it is approximate.";
+  "Image layers are the original source files, so placing each one at the geometry given here reproduces the composed picture exactly. " +
+  "This document has no text, so nothing in it is approximate.";
 
 // The editor's own default when a document carries no canvas colour. Every row
 // in public.banners currently has one, so this is a guard, not a code path.

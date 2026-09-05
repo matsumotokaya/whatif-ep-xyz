@@ -14,17 +14,35 @@ import {
   projectRefAssets,
   resolveRefAssetFields,
 } from "@/lib/ref/assets";
+import {
+  getRefTemplate,
+  getRefTemplateLayers,
+  listRefTemplates,
+  projectRefTemplates,
+  resolveRefTemplateFields,
+} from "@/lib/ref/templates";
 
 // MCP endpoint for the Ref Library: lets any MCP client (Claude, an agent
 // framework, a video pipeline) discover the site's referenceable images and
 // grab a public URL for any of them.
 //
-// Two kinds are exposed. DESIGNS (list_designs / get_design /
+// Three kinds are exposed. DESIGNS (list_designs / get_design /
 // get_design_layers) are saved IMAGINE documents, owned by users and rendered
 // on save. ASSETS (list_assets / get_asset) are the site's official, curated
 // image library — character cutouts and general art — which is public data with
-// a recorded pixel size on every row. An agent choosing a source needs to know
-// both exist, so each pair's description points at the other.
+// a recorded pixel size on every row. TEMPLATES (list_templates / get_template
+// / get_template_layers) are the curated starting points the gallery offers. An
+// agent choosing a source needs to know all three exist, so the descriptions
+// point at each other.
+//
+// 🔴 TEMPLATES ARE THE ONE KIND WITH NO USABLE IMAGE. public.templates stores a
+// thumbnail and no full-size render, and the gallery's "wallpaper download"
+// draws the picture in the browser at the moment it is pressed rather than
+// fetching a stored file — so there is no image URL to hand out and none is
+// invented. A template's value here is get_template_layers: the elements in
+// draw order, which is what makes it usable as an animatable source. The tool
+// descriptions say this plainly, because a model that assumes every kind has a
+// `url` would otherwise reach for the thumbnail.
 //
 // get_design_layers is the one tool that does not return an image reference: it
 // returns the DOCUMENT STRUCTURE, so a consumer can animate a design's parts
@@ -426,6 +444,187 @@ function createServer(): McpServer {
       }
 
       return { content };
+    }
+  );
+
+  server.registerTool(
+    "list_templates",
+    {
+      title: "List WHATIF design templates",
+      description:
+        "List the site's DESIGN TEMPLATES — the curated starting points the IMAGINE gallery offers, which a user opens to begin a design of their own. " +
+        "This is the third referenceable kind, alongside saved designs (list_designs) and the official asset library (list_assets). " +
+        "TEMPLATES ARE THE ONE KIND WITH NO USABLE IMAGE: a template has never been rendered at full size, so records carry NO `url` field at all and there is no image permalink for one. " +
+        "`thumbnailUrl` is a small preview, and its exact pixel size is not recorded and is not reported — never pass it to anything that needs a real image, and never treat it as a full-size source. " +
+        "WHAT A TEMPLATE IS FOR HERE IS ITS LAYERS: call get_template_layers to get the elements in draw order with geometry and per-image source URLs, which is what makes it usable as an animatable source. " +
+        "If what you need is a finished, composed picture, use list_designs / get_design instead — those are rendered. " +
+        "`width`/`height` are the template document's canvas size, not the size of any image, and `aspect` is their reduced ratio. " +
+        "`planType` is the tier a user needs to open the template in the editor; it does not restrict reading it here. " +
+        "Ordered as the gallery orders them (curated order first, then most recently updated). " +
+        "Records are compact by default (id, name, width, height, aspect, planType, thumbnailUrl); use `fields` to choose a different set — it selects exactly what you name, so it can shrink a record as well as widen it. " +
+        "`count` is how many records this response contains and `total` is how many templates match the filters — count < total means `limit` truncated the result, so page with `offset`. " +
+        "`layersUrl` never needs requesting: it is always https://whatif-ep.xyz/api/ref/templates/{id}/layers.",
+      inputSchema: {
+        search: z
+          .string()
+          .optional()
+          .describe("Case-insensitive substring match on the template's name."),
+        planType: z
+          .string()
+          .optional()
+          .describe(
+            "Filter by tier: \"free\" or \"premium\". This is the tier needed to open the template in the editor, not a restriction on reading it here."
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Size of the returned window (default 50, max 200)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Number of matching templates to skip before the window (default 0). Use with `total` to page."
+          ),
+        minWidth: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            "Return only templates whose CANVAS is at least this many pixels wide. This filters the document size, not an image."
+          ),
+        fields: FIELDS_SCHEMA.describe(
+          "Which fields each record should carry. SELECTS rather than adds: the response contains EXACTLY the fields named, plus `id`. " +
+            "Omit it for the compact record (id, name, width, height, aspect, planType, thumbnailUrl); use \"all\" for the full one. " +
+            "Accepts an array ([\"id\",\"name\"]) or a comma-separated string (\"id,name\"). Unknown names are ignored. layersUrl is derivable from id and rarely worth requesting."
+        ),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ search, planType, limit, offset, minWidth, fields }) => {
+      const { templates, total } = await listRefTemplates({
+        search,
+        planType,
+        limit,
+        offset,
+        minWidth,
+      });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              count: templates.length,
+              total,
+              templates: projectRefTemplates(
+                templates,
+                resolveRefTemplateFields(fields)
+              ),
+            }),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "get_template",
+    {
+      title: "Get one WHATIF design template",
+      description:
+        "Fetch the full record for one design template, by an id returned by list_templates or given by the user — the gallery card's id button copies exactly this id. " +
+        "For a saved IMAGINE design id use get_design, and for a library asset id use get_asset; the three kinds have separate ids and separate tools. " +
+        "THIS RECORD CARRIES NO IMAGE URL. A template has no full-size render, so there is no `url` field and no image permalink; `thumbnailUrl` is a small preview whose pixel size is not recorded and must never be used as a full-size source. " +
+        "To actually USE the template, call get_template_layers — its elements are what an external renderer can place and animate. " +
+        "`width`/`height` are the canvas size of the document and `backgroundColor` the canvas colour.",
+      inputSchema: {
+        id: z
+          .string()
+          .describe(
+            "The template's uuid, exactly as list_templates returned it or as the user gave it. Never invent or guess one."
+          ),
+        preview: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, also attach the thumbnail as inline image content so the template can be looked at, not just linked. This is a preview to judge by, not a source image."
+          ),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ id, preview }) => {
+      const template = await getRefTemplate(id);
+      if (!template) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `No template found for id "${id}".`,
+            },
+          ],
+        };
+      }
+
+      const content: Array<
+        | { type: "text"; text: string }
+        | { type: "image"; data: string; mimeType: string }
+      > = [{ type: "text", text: JSON.stringify(template) }];
+
+      if (preview && template.thumbnailUrl) {
+        const inline = await fetchInlineImage(template.thumbnailUrl);
+        if (inline) content.push(inline);
+      }
+
+      return { content };
+    }
+  );
+
+  server.registerTool(
+    "get_template_layers",
+    {
+      title: "Get one WHATIF design template's layers",
+      description:
+        "Fetch the LAYER STRUCTURE of one design template — its elements in draw order, each with geometry and, for image layers, the public URL of its original source file. " +
+        "THIS IS THE ONLY WAY TO USE A TEMPLATE'S ARTWORK, and the reason templates are exposed here: a template has no flattened render, so there is no image to fetch, but its document is complete and needs no rendering step. " +
+        "With it a background, a character cutout and a caption can be placed and animated independently — a template is a layered starting point by design, which is exactly what a Remotion composition wants. " +
+        "The response is the same shape as get_design_layers, so a consumer that can render one can render the other with no branching. " +
+        "IMAGE LAYERS REPRODUCE EXACTLY: their `url` is the original file the editor itself loads, so placing it at the given x/y/width/height/rotation/opacity recreates that part pixel for pixel (`exact: true`). " +
+        "TEXT LAYERS ARE APPROXIMATE TODAY: the editor lays text out with a canvas engine, so a DOM-based renderer (Remotion, HTML) will differ slightly in letter spacing and wrapping (`exact: false`). Each layer carries its own `exact` flag and the response's `fidelity` block states this for the template as a whole. " +
+        "`index` is the draw order, 0 at the BOTTOM and ascending on top — render in that order. " +
+        "Elements hidden in the editor (`visible: false`) are already omitted, so draw everything returned and nothing else. " +
+        "`width`/`height` at the top level are the canvas size and `backgroundColor` the canvas colour, so the container to place layers in is fully described. Text layers have `width`/`height` null because the document does not store a measured box for them.",
+      inputSchema: {
+        id: z
+          .string()
+          .describe(
+            "The template's uuid, exactly as list_templates returned it or as the user gave it. Never invent or guess one."
+          ),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ id }) => {
+      const layers = await getRefTemplateLayers(id);
+      if (!layers) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `No template found for id "${id}".`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(layers) }],
+      };
     }
   );
 
