@@ -831,9 +831,15 @@ export const BannerEditor = () => {
   // explicit save/leave actions so list thumbnails are refreshed before exit.
   const flushQueuedSave = useCallback(async (generateThumbnail: boolean) => {
     const currentBanner = saveDepsRef.current.banner;
+    // A row left at 'pending' or 'failed' has no other way back to 'ready':
+    // a document-only save marks it pending, and the local dirty flags are
+    // clean on a fresh open, so without this the stale status is permanent.
+    const previewStatusNeedsRepair = currentBanner?.previewStatus === 'pending'
+      || currentBanner?.previewStatus === 'failed';
     const previewNeedsRefresh = generateThumbnail && (
       previewDirtyRef.current ||
       saveDepsRef.current.isGuest ||
+      previewStatusNeedsRepair ||
       (!!currentBanner && (!currentBanner.thumbnailUrl || !currentBanner.fullresUrl))
     );
     const hasPendingWork =
