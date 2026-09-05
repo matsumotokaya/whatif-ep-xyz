@@ -85,8 +85,8 @@ src/
 │   ├── admin/                        # content-factory / cover-lab / storage-cleanup
 │   ├── the-club/                     # The Club area (intro / library / [slug])
 │   ├── api/                          # works & episode downloads, wallpaper zip/checkout, stripe webhook, Ref Library, MCP
-│   │   ├── ref/                      # Ref Library HTTP API: designs/ + assets/ (read-only, CORS *; designs listing is owner-scoped)
-│   │   └── mcp/                      # MCP endpoint (Streamable HTTP, no auth): list/get designs & assets
+│   │   ├── ref/                      # Ref Library HTTP API: designs/ + assets/ + templates/ (read-only, CORS *; only the designs listing is owner-scoped)
+│   │   └── mcp/                      # MCP endpoint (Streamable HTTP, no auth): 8 tools over designs, assets & templates
 │   ├── ref/                          # Ref Library permalinks → 302 to R2: [id]/ (design full-res) + asset/[id]/
 │   ├── imagine/about-mcp/            # Ref Library / MCP docs page (5 languages, linked from both footers)
 │   ├── sitemap.ts                    # Dynamic sitemap (all published works)
@@ -112,7 +112,7 @@ src/
     ├── works.ts / work-images.ts / work-saves.ts   # works data access (source of truth)
     ├── wallpaper.ts / wallpaper-manual.ts / wallpaper-purchases.ts
     ├── club/ · admin/ · supabase/ · stripe.ts
-    ├── ref/                                       # Ref Library: designs.ts / assets.ts (scope lives per kind) + common.ts (pure helpers only)
+    ├── ref/                                       # Ref Library: designs.ts / assets.ts / templates.ts (scope lives per kind) + common.ts (pure helpers only)
     ├── episodes.ts / images.ts / r2.ts             # legacy episode helpers
     └── types.ts
 src/data/
@@ -298,29 +298,32 @@ IMAGINE で作った画像を、外部のツール（MCPクライアント・CLI
 返すだけでよく、**エクスポートも再アップロードも不要**になる。
 正本は **[docs/REF_LIBRARY.md](docs/REF_LIBRARY.md)**。
 
-### 参照できる2種類（kind）
+### 参照できる3種類（kind）
 
 | kind | 実体 | 中身 | ユーザーが id を取る場所 |
 |---|---|---|---|
 | **designs** | `public.banners` | IMAGINE で保存したデザイン（オーナー範囲で345件） | `/mydesign` の各カード。8文字のチップでデザインID、リンクボタンで ref URL をコピー（full-res が無いカードはリンクボタンが無効） |
 | **assets** | `public.default_images` | サイト公式のキュレーション素材ライブラリ（全130件・`character_cutout` 81 / `general` 49） | エディタの画像ライブラリピッカー（公式素材タブ）の各セルにあるコピーボタン（`/ref/asset/{id}` をそのままコピー） |
+| **templates** | `public.templates` | デザインテンプレート（全299件）。**フルサイズ画像を持たない**ので画像URLは返さず、レイヤー構造を返す | テンプレートギャラリーの各カード下部、利用者数の右にあるタグアイコンのボタン（uuid をそのままコピー） |
 
 URL の形（`/ref/...` は恒久リンクで、その時点の実体（デザインなら最新レンダリング）へ302リダイレクトする）:
 
 ```
-https://whatif-ep.xyz/ref/{id}         # デザインの full-res（/ref/{id}.jpg・?size=thumb も可）
-https://whatif-ep.xyz/ref/asset/{id}   # 公式素材のフルサイズ（同上）
-GET  /api/ref/designs                  # 一覧・検索・id指定取得（読み取り専用・CORS 全開放。範囲は後述）
-GET  /api/ref/designs/{id}/layers      # デザインのレイヤー構造（合成前の要素・描画順・ジオメトリ）
-GET  /api/ref/assets                   # 同上（素材ライブラリ。こちらは全経路が公開）
-POST /api/mcp                          # MCP エンドポイント（Streamable HTTP・stateless・認証なし）
+https://whatif-ep.xyz/ref/{id}          # デザインの full-res（/ref/{id}.jpg・?size=thumb も可）
+https://whatif-ep.xyz/ref/asset/{id}    # 公式素材のフルサイズ（同上）
+GET  /api/ref/designs                   # 一覧・検索・id指定取得（読み取り専用・CORS 全開放。範囲は後述）
+GET  /api/ref/designs/{id}/layers       # デザインのレイヤー構造（合成前の要素・描画順・ジオメトリ）
+GET  /api/ref/assets                    # 同上（素材ライブラリ。こちらは全経路が公開）
+GET  /api/ref/templates                 # テンプレートの一覧・検索・id指定取得（全経路が公開）
+GET  /api/ref/templates/{id}/layers     # テンプレートのレイヤー構造（画像が無いので、これが唯一の使い道）
+POST /api/mcp                           # MCP エンドポイント（Streamable HTTP・stateless・認証なし）
 ```
 
 MCP のツールは `list_designs` / `get_design` / `get_design_layers` / `list_assets` /
-`get_asset` の5つ（`get_design_layers` はデザインを合成済み画像ではなく
-**レイヤー構造**で返し、パーツ別アニメーションを可能にする）。get 系に
-`preview: true` を渡すとサムネイルが MCP image content として添付されるので、
-アシスタントは**使う前に画像を見て**選べる。Claude Code からの接続:
+`get_asset` / `list_templates` / `get_template` / `get_template_layers` の8つ
+（`*_layers` は合成済み画像ではなく**レイヤー構造**を返し、パーツ別アニメーションを
+可能にする）。get 系に `preview: true` を渡すとサムネイルが MCP image content として
+添付されるので、アシスタントは**使う前に画像を見て**選べる。Claude Code からの接続:
 
 ```bash
 claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
@@ -353,10 +356,29 @@ claude mcp add --transport http whatif-ref https://whatif-ep.xyz/api/mcp
 full-res のカバレッジ、`fields` によるレスポンス縮小、`count` と `total` の違い、404本文などの
 詳細はすべて [docs/REF_LIBRARY.md](docs/REF_LIBRARY.md) を参照する。
 
+### 🔴 templates は画像を持たない（`url` フィールドが存在しない）
+
+`public.templates` には `thumbnail_key` しか無く、`banners` の `fullres_key` に相当する列が
+**存在しない**。ギャラリーの「壁紙ダウンロード」は保存済みファイルを取りに行っておらず、
+押した瞬間に**ブラウザ内の隠しCanvasで描画**して書き出している
+（`TemplateWallpaperExporter.tsx`）。フルサイズはその場限りの揮発的な産物なので、
+配れるURLがそもそも無い。
+
+したがって templates のレコードは **`url` を `null` で返すのではなく、フィールド自体を持たない**。
+`/ref/template/{id}` のような画像恒久リンクも作らない（作れば必ずサムネイルへ302することになり、
+上の 🔴 規則に反する）。**価値はレイヤーにある**: `elements` は NOT NULL で全299行が
+最低1要素を持ち、レンダリング経路を一切必要としない。
+
+公開範囲は **`is_public = false` の70行も premium の191行も含めて全開**。Ref Library が
+まだ告知されておらず絞る材料が無いための **2026-09-05 の暫定判断**で、正式アナウンス前に
+見直す（[docs/REF_LIBRARY.md](docs/REF_LIBRARY.md)）。なお `templates` の RLS は
+`Allow public read access USING (true)` が効いており、**anon が既に全行の `elements` を
+読める**状態なので、このAPIはDBが隠していたものを暴いてはいない。
+
 ### 未対応 / 判断待ち
 
 - **アップロード素材**（`public.user_images`・144行）: API 未提供。他人の私有アップロードに「id＝アクセス権」モデルを適用するかの判断が先
-- **テンプレート**（`public.templates`・299行）: **full-res の列が存在せずサムネイルしか持たない**ため、公開する前にレンダリング経路が必要
+- **テンプレートのフルサイズ生成**: 上記のとおり実体が無い。`fullres_key` 相当の列とレンダリング経路を足せば templates も designs と同じ意味の `/ref/...` を持てるが、ブラウザ依存の描画をサーバー側へ移す作業になる
 - ~~**動的リサイズ・クロップ**（`?w=1920` / `?ar=16:9`）~~: **提案者が取り下げたため実装しない**。リサイズ・クロップは絵ごとに「どこを残すか」が変わるデザイン判断で、機械化しても出力を人が捨てることになる。ただし `/ref/{id}` と `/ref/asset/{id}` が**変換系クエリを 400 で弾く**のは最終仕様として残す（黙って原寸へ302すると、利用側が「リサイズが効いた」と誤認したまま有料APIへ投入してしまう）。比率の問題自体はレイヤー参照（背景を広げて置き直す）で別の解き方ができる
 
 ---

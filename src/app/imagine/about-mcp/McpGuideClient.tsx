@@ -19,6 +19,9 @@ const REF_URL = 'https://whatif-ep.xyz/ref/{design-id}';
 const REF_URL_JPG = 'https://whatif-ep.xyz/ref/{design-id}.jpg';
 const REF_URL_THUMB = 'https://whatif-ep.xyz/ref/{design-id}?size=thumb';
 const CURL_COMMAND = 'curl -s "https://whatif-ep.xyz/api/ref/designs?id=<id>"';
+const TEMPLATES_API_URL = 'https://whatif-ep.xyz/api/ref/templates';
+const TEMPLATE_LAYERS_API_URL =
+  'https://whatif-ep.xyz/api/ref/templates/{template-id}/layers';
 
 const COPY: Record<Language, {
   eyebrow: string;
@@ -54,6 +57,19 @@ const COPY: Record<Language, {
   designsBody: string;
   libraryLabel: string;
   libraryBody: string;
+  templatesLabel: string;
+  templatesBody: string;
+  templatesTitle: string;
+  templatesIntro: string;
+  templatesNoImage: string;
+  templatesLayers: string;
+  templatesScope: string;
+  templatesApiLabel: string;
+  templatesListUrlMeaning: string;
+  templatesLayersUrlMeaning: string;
+  templatesFieldsNote: string;
+  templatesToolsLabel: string;
+  templatesToolsBody: string;
   accessTitle: string;
   accessBody: string;
   accessNote: string;
@@ -98,14 +114,37 @@ const COPY: Record<Language, {
     urlBaseMeaning: 'Redirects to the current full-size rendered image.',
     urlJpgMeaning: 'Behaves identically, for services that require a file extension.',
     urlThumbMeaning: 'Returns the small thumbnail instead of the full-size render.',
-    referenceTypesTitle: 'Two kinds of reference URLs',
-    referenceTypesIntro: 'The same kind of URL points to two different sources:',
+    referenceTypesTitle: 'Three kinds of references',
+    referenceTypesIntro:
+      'The Ref Library covers three different sources. The first two are images with a reference URL; the third is a layered document with no image.',
     designsLabel: 'Your designs',
     designsBody:
       "What you make in the editor, listed on My Designs. Each one has a full-size image and a thumbnail, so an assistant can look at the thumbnail and use the full-size image as the reference. A design that has never been rendered at full size has no reference URL yet — open it in the editor and save it once to create one.",
     libraryLabel: 'The official library',
     libraryBody:
       "The site's curated artwork: character cutouts and general art. Every asset has a full-size image, and its URL is copied from the image picker inside the editor, with the same link button. Its URL form is https://whatif-ep.xyz/ref/asset/{asset-id}.",
+    templatesLabel: 'Design templates',
+    templatesBody:
+      'The curated starting points in the template gallery, the ones you open to begin a design of your own. A template has no full-size image and therefore no reference URL — what you can use is its layer structure. See below.',
+    templatesTitle: 'Design templates',
+    templatesIntro:
+      "Each card in the template gallery has a small id button — the tag icon in the bottom overlay, just right of the open count. Pressing it copies that template's id, the same way the id chip on a design card does.",
+    templatesNoImage:
+      'A template has no full-size image. Only a thumbnail is stored, and the wallpaper download button draws the picture in your browser at the moment you press it instead of fetching a stored file — so there is nothing to hand out as a URL. Template records carry no url field at all, there is no /ref/… image permalink for a template, and thumbnailUrl is a small preview that must never be used as a full-size source.',
+    templatesLayers:
+      "What a template is good for is its layers. The layer structure is stored data rather than something that gets rendered, so it is available for every template with no rendering step: a background, a character cutout and a caption come back separately, each with its own position and size. That is what a Remotion project or a video pipeline needs in order to animate the parts independently. The response has the same shape as a design's layers.",
+    templatesScope:
+      'Every template can be read through these endpoints, premium ones included. That is how it works today, not a promise about the future.',
+    templatesApiLabel: 'Endpoints',
+    templatesListUrlMeaning:
+      'Lists templates, or looks up exact ones with ?id=uuid1,uuid2. Also accepts search, planType (free or premium), minWidth, limit (1–200, default 50), offset and fields.',
+    templatesLayersUrlMeaning:
+      'Returns the layer structure: the elements in draw order, each with its own position and size.',
+    templatesFieldsNote:
+      "A list record carries id, name, width, height, aspect, planType and thumbnailUrl; fields=all adds isPublic, backgroundColor, layersUrl, openCount, likeCount and updatedAt. width and height are the template's canvas size, not the size of any image.",
+    templatesToolsLabel: 'MCP tools',
+    templatesToolsBody:
+      "The MCP server offers the same three steps as tools, with nothing to register again: list_templates browses and searches, get_template returns one record by id (with preview: true it also attaches the thumbnail as an inline image), and get_template_layers returns the layer structure — the only way to actually use a template's artwork.",
     accessTitle: 'Who can open your reference URL',
     accessBody:
       'The design ID is the key. Anyone holding the URL can view and download that image without logging in, and can pass the URL on to someone else.',
@@ -155,14 +194,37 @@ const COPY: Record<Language, {
     urlBaseMeaning: '現在のフルサイズのレンダリング画像へリダイレクトします。',
     urlJpgMeaning: '動作は同じです。拡張子が必要なサービス向けの形式です。',
     urlThumbMeaning: 'フルサイズではなく、小さいサムネイル画像を返します。',
-    referenceTypesTitle: '参照URLの2つの種類',
-    referenceTypesIntro: '同じ形式のURLが、2種類の異なる画像を指しています。',
+    referenceTypesTitle: '参照できる3つの種類',
+    referenceTypesIntro:
+      'Ref Library が扱う対象は3種類あります。最初の2つは参照URLを持つ画像で、3つ目は画像を持たないレイヤー構造のドキュメントです。',
     designsLabel: 'あなたのデザイン',
     designsBody:
       'エディタで作成し、「あなたのデザイン」に一覧表示されるものです。それぞれフルサイズの画像とサムネイルを持っており、アシスタントはサムネイルを見て、参照にはフルサイズの画像を使えます。一度もフルサイズでレンダリングされていないデザインにはまだ参照URLがありません。エディタで開いて一度保存すると作成されます。',
     libraryLabel: '公式ライブラリ',
     libraryBody:
       'サイトが用意しているキュレーション済みのアートワーク（キャラクター切り抜きや一般アート）です。すべての素材にフルサイズの画像があり、そのURLはエディタ内の画像ピッカーから、同じリンクボタンでコピーできます。URLの形式は https://whatif-ep.xyz/ref/asset/{asset-id} です。',
+    templatesLabel: 'デザインテンプレート',
+    templatesBody:
+      'テンプレートギャラリーに並ぶ、自分のデザインを作り始めるための出発点です。テンプレートにはフルサイズの画像がなく、したがって参照URLもありません。使えるのはレイヤー構造です（下記）。',
+    templatesTitle: 'デザインテンプレート',
+    templatesIntro:
+      'テンプレートギャラリーの各カードには、小さなIDボタン（下部オーバーレイにあるタグアイコン。オープン数のすぐ右）があります。押すとそのテンプレートのIDがコピーされます。デザインカードのIDチップと同じ仕組みです。',
+    templatesNoImage:
+      'テンプレートにはフルサイズの画像がありません。保存されているのはサムネイルだけで、壁紙ダウンロードのボタンは保存済みのファイルを取得するのではなく、押した瞬間にブラウザ上で画像を描画します。そのため、渡せるURLが存在しません。テンプレートのレコードには url フィールド自体がなく、/ref/… の画像パーマリンクもありません。thumbnailUrl は小さなプレビューであり、フルサイズの素材として使ってはいけません。',
+    templatesLayers:
+      'テンプレートの使いどころはレイヤーです。レイヤー構造はレンダリングの結果ではなく保存されたデータなので、どのテンプレートでもレンダリング工程なしにそのまま取得できます。背景・キャラクターの切り抜き・キャプションが、それぞれの位置とサイズを持って別々に返ります。Remotion や動画パイプラインでパーツごとにアニメーションさせるには、これが必要です。レスポンスの形式はデザインのレイヤーと同じです。',
+    templatesScope:
+      'これらのエンドポイントでは、プレミアムのものも含めてすべてのテンプレートを読み取れます。これは現時点の挙動であり、将来を約束するものではありません。',
+    templatesApiLabel: 'エンドポイント',
+    templatesListUrlMeaning:
+      'テンプレートの一覧を返します。?id=uuid1,uuid2 で特定のテンプレートを直接指定できます。search、planType（free または premium）、minWidth、limit（1〜200、既定は50）、offset、fields も指定できます。',
+    templatesLayersUrlMeaning:
+      'レイヤー構造を返します。描画順に並んだ要素と、それぞれの位置とサイズです。',
+    templatesFieldsNote:
+      '一覧のレコードには id・name・width・height・aspect・planType・thumbnailUrl が含まれ、fields=all を付けると isPublic・backgroundColor・layersUrl・openCount・likeCount・updatedAt が加わります。width と height はテンプレートのキャンバスサイズであり、画像のサイズではありません。',
+    templatesToolsLabel: 'MCP ツール',
+    templatesToolsBody:
+      'MCP サーバーにも同じ3つのツールがあり、登録し直す必要はありません。list_templates で一覧・検索、get_template でIDから1件のレコードを取得（preview: true を付けるとサムネイルをインライン画像としても返します）、get_template_layers でレイヤー構造を取得します。テンプレートのアートワークを実際に使う方法は get_template_layers だけです。',
     accessTitle: '参照URLを開ける人',
     accessBody:
       'デザインIDがそのまま鍵になります。URLを知っている人は誰でも、ログインせずにその画像を表示・ダウンロードでき、URLを他の人に渡すこともできます。',
@@ -209,14 +271,36 @@ const COPY: Record<Language, {
     urlBaseMeaning: '重定向到当前的完整尺寸渲染图片。',
     urlJpgMeaning: '行为完全相同，适用于要求带文件扩展名的服务。',
     urlThumbMeaning: '返回较小的缩略图，而不是完整尺寸的渲染图片。',
-    referenceTypesTitle: '两种可引用的图片',
-    referenceTypesIntro: '同一种形式的 URL 指向两种不同的来源：',
+    referenceTypesTitle: '三种可引用的对象',
+    referenceTypesIntro:
+      'Ref Library 涵盖三种来源。前两种是带引用 URL 的图片，第三种是没有图片的分层文档。',
     designsLabel: '你的设计',
     designsBody:
       '在编辑器中创作、并列在「我的设计」中的作品。每个设计都有一张完整尺寸的图片和一张缩略图，助手可以先看缩略图，再使用完整尺寸的图片作为参考。从未以完整尺寸渲染过的设计还没有引用 URL——在编辑器中打开并保存一次即可生成。',
     libraryLabel: '官方素材库',
     libraryBody:
       '网站精选的美术素材，包括角色立绘和通用插画。每个素材都有完整尺寸的图片，其 URL 可以在编辑器内的图片选择器中，用同一个链接按钮复制。URL 形式为 https://whatif-ep.xyz/ref/asset/{asset-id}。',
+    templatesLabel: '设计模板',
+    templatesBody:
+      '模板库中精选的起点，你打开它来开始自己的设计。模板没有完整尺寸的图片，因此也没有引用 URL；可以使用的是它的图层结构，详见下文。',
+    templatesTitle: '设计模板',
+    templatesIntro:
+      '模板库中每张卡片的底部浮层里都有一个小的 ID 按钮——标签图标，就在打开次数的右边。点击它会复制该模板的 ID，与设计卡片上的 ID 标签是同样的用法。',
+    templatesNoImage:
+      '模板没有完整尺寸的图片。这里只保存了缩略图，而「壁纸下载」按钮并不是去取一份已存好的文件，而是在你按下的那一刻在浏览器里现画出来，所以没有任何可以交出去的 URL。模板记录中根本不含 url 字段，也没有 /ref/… 形式的图片永久链接；thumbnailUrl 只是小尺寸预览，绝不能当作完整尺寸的素材使用。',
+    templatesLayers:
+      '模板真正有用的是它的图层。图层结构是存储下来的数据，而不是渲染的产物，所以每个模板都能直接取到，无需任何渲染步骤：背景、角色立绘和文案会分别返回，各自带有位置与尺寸。要用 Remotion 或视频流程按部件分别做动画，需要的正是这些。返回结构与设计的图层完全相同。',
+    templatesScope:
+      '通过这些接口可以读取全部模板，包括高级模板。这是目前的状态，并非对未来的承诺。',
+    templatesApiLabel: '接口',
+    templatesListUrlMeaning:
+      '返回模板列表；用 ?id=uuid1,uuid2 可精确查询指定模板。还支持 search、planType（free 或 premium）、minWidth、limit（1–200，默认 50）、offset 和 fields。',
+    templatesLayersUrlMeaning: '返回图层结构：按绘制顺序排列的元素，各自带有位置与尺寸。',
+    templatesFieldsNote:
+      '列表记录包含 id、name、width、height、aspect、planType 和 thumbnailUrl；加上 fields=all 会再返回 isPublic、backgroundColor、layersUrl、openCount、likeCount 和 updatedAt。width 与 height 是模板的画布尺寸，而不是任何图片的尺寸。',
+    templatesToolsLabel: 'MCP 工具',
+    templatesToolsBody:
+      'MCP 服务器也提供同样的三个工具，无需重新注册：list_templates 用于浏览和搜索，get_template 按 ID 返回单条记录（加上 preview: true 会把缩略图作为内嵌图片一并返回），get_template_layers 返回图层结构——这是真正使用模板美术素材的唯一方式。',
     accessTitle: '谁能打开你的引用 URL',
     accessBody:
       '设计 ID 本身就是钥匙。任何拿到这个 URL 的人都可以在未登录的情况下查看并下载该图片，也可以把 URL 转发给别人。',
@@ -262,14 +346,36 @@ const COPY: Record<Language, {
     urlBaseMeaning: '導向目前完整尺寸的算圖圖片。',
     urlJpgMeaning: '行為完全相同，適用於需要副檔名的服務。',
     urlThumbMeaning: '回傳較小的縮圖，而不是完整尺寸的圖片。',
-    referenceTypesTitle: '兩種可參照的圖片',
-    referenceTypesIntro: '同一種形式的 URL 指向兩種不同的來源：',
+    referenceTypesTitle: '三種可參照的對象',
+    referenceTypesIntro:
+      'Ref Library 涵蓋三種來源。前兩種是帶有參照 URL 的圖片，第三種是沒有圖片的分層文件。',
     designsLabel: '你的設計',
     designsBody:
       '在編輯器中創作、並列在「我的設計」中的作品。每個設計都有一張完整尺寸的圖片和一張縮圖，助手可以先看縮圖，再使用完整尺寸的圖片作為參照。從未以完整尺寸算圖過的設計還沒有參照 URL——在編輯器中開啟並儲存一次即可產生。',
     libraryLabel: '官方素材庫',
     libraryBody:
       '網站精選的美術素材，包括角色立繪與一般插畫。每個素材都有完整尺寸的圖片，其 URL 可以在編輯器內的圖片選擇器中，用同一個連結按鈕複製。URL 形式為 https://whatif-ep.xyz/ref/asset/{asset-id}。',
+    templatesLabel: '設計模板',
+    templatesBody:
+      '模板庫中精選的起點，你開啟它來開始自己的設計。模板沒有完整尺寸的圖片，因此也沒有參照 URL；可以使用的是它的圖層結構，詳見下方。',
+    templatesTitle: '設計模板',
+    templatesIntro:
+      '模板庫中每張卡片的底部浮層都有一個小的 ID 按鈕——標籤圖示，就在開啟次數的右邊。按下它會複製該模板的 ID，與設計卡片上的 ID 標籤用法相同。',
+    templatesNoImage:
+      '模板沒有完整尺寸的圖片。這裡只儲存了縮圖，而「桌布下載」按鈕並不是去取一份已存好的檔案，而是在你按下的那一刻在瀏覽器裡即時繪製，因此沒有任何可以交出去的 URL。模板記錄中根本沒有 url 欄位，也沒有 /ref/… 形式的圖片永久連結；thumbnailUrl 只是小尺寸預覽，絕不能當成完整尺寸的素材使用。',
+    templatesLayers:
+      '模板真正有用的是它的圖層。圖層結構是儲存下來的資料，而不是算圖的產物，所以每個模板都能直接取得，不需要任何算圖步驟：背景、角色立繪與文案會分別回傳，各自帶有位置與尺寸。要用 Remotion 或影片流程為各部件分別做動畫，需要的正是這些。回應結構與設計的圖層完全相同。',
+    templatesScope:
+      '透過這些端點可以讀取所有模板，包含進階模板。這是目前的狀態，並非對未來的承諾。',
+    templatesApiLabel: '端點',
+    templatesListUrlMeaning:
+      '回傳模板清單；用 ?id=uuid1,uuid2 可精確查詢指定模板。也支援 search、planType（free 或 premium）、minWidth、limit（1–200，預設 50）、offset 與 fields。',
+    templatesLayersUrlMeaning: '回傳圖層結構：依繪製順序排列的元素，各自帶有位置與尺寸。',
+    templatesFieldsNote:
+      '清單記錄包含 id、name、width、height、aspect、planType 與 thumbnailUrl；加上 fields=all 會再回傳 isPublic、backgroundColor、layersUrl、openCount、likeCount 與 updatedAt。width 與 height 是模板的畫布尺寸，而不是任何圖片的尺寸。',
+    templatesToolsLabel: 'MCP 工具',
+    templatesToolsBody:
+      'MCP 伺服器也提供同樣的三個工具，不需要重新註冊：list_templates 用於瀏覽與搜尋，get_template 依 ID 回傳單筆記錄（加上 preview: true 會把縮圖以內嵌圖片一併回傳），get_template_layers 回傳圖層結構——這是真正使用模板美術素材的唯一方式。',
     accessTitle: '誰能開啟你的參照 URL',
     accessBody:
       '設計 ID 本身就是鑰匙。任何拿到這個 URL 的人都可以在未登入的狀態下檢視並下載該圖片，也可以把 URL 轉給其他人。',
@@ -318,14 +424,37 @@ const COPY: Record<Language, {
     urlBaseMeaning: '현재 원본 크기의 렌더링 이미지로 리디렉션합니다.',
     urlJpgMeaning: '동작은 같습니다. 파일 확장자가 필요한 서비스를 위한 형태입니다.',
     urlThumbMeaning: '원본 크기 대신 작은 썸네일 이미지를 반환합니다.',
-    referenceTypesTitle: '참조 URL의 두 가지 종류',
-    referenceTypesIntro: '같은 형태의 URL이 서로 다른 두 가지 대상을 가리킵니다.',
+    referenceTypesTitle: '참조할 수 있는 세 가지 종류',
+    referenceTypesIntro:
+      'Ref Library가 다루는 대상은 세 가지입니다. 앞의 두 가지는 참조 URL이 있는 이미지이고, 세 번째는 이미지가 없는 레이어 문서입니다.',
     designsLabel: '내 디자인',
     designsBody:
       '에디터에서 만들어 내 디자인 목록에 표시되는 것입니다. 각 디자인에는 원본 크기 이미지와 썸네일이 있어, 어시스턴트가 썸네일을 보고 참조에는 원본 크기 이미지를 사용할 수 있습니다. 원본 크기로 렌더링된 적이 없는 디자인은 아직 참조 URL이 없습니다. 에디터에서 열어 한 번 저장하면 생성됩니다.',
     libraryLabel: '공식 라이브러리',
     libraryBody:
       '사이트가 엄선한 아트워크(캐릭터 컷아웃과 일반 아트)입니다. 모든 에셋에는 원본 크기 이미지가 있으며, 그 URL은 에디터 안의 이미지 피커에서 같은 링크 버튼으로 복사할 수 있습니다. URL 형태는 https://whatif-ep.xyz/ref/asset/{asset-id}입니다.',
+    templatesLabel: '디자인 템플릿',
+    templatesBody:
+      '템플릿 갤러리에 있는, 내 디자인을 시작할 때 여는 출발점입니다. 템플릿에는 원본 크기 이미지가 없고 따라서 참조 URL도 없습니다. 사용할 수 있는 것은 레이어 구조이며, 자세한 내용은 아래를 참고하세요.',
+    templatesTitle: '디자인 템플릿',
+    templatesIntro:
+      '템플릿 갤러리의 각 카드 하단 오버레이에는 작은 ID 버튼(태그 아이콘)이 열기 횟수 바로 오른쪽에 있습니다. 누르면 해당 템플릿의 ID가 복사되며, 디자인 카드의 ID 칩과 같은 방식입니다.',
+    templatesNoImage:
+      '템플릿에는 원본 크기 이미지가 없습니다. 저장되어 있는 것은 썸네일뿐이고, 배경화면 다운로드 버튼은 저장된 파일을 가져오는 것이 아니라 누르는 순간 브라우저에서 이미지를 그려냅니다. 그래서 건네줄 수 있는 URL이 존재하지 않습니다. 템플릿 레코드에는 url 필드 자체가 없고 /ref/… 형태의 이미지 고정 링크도 없습니다. thumbnailUrl은 작은 미리보기일 뿐이므로 원본 크기 소스로 사용해서는 안 됩니다.',
+    templatesLayers:
+      '템플릿이 쓸모 있는 지점은 레이어입니다. 레이어 구조는 렌더링의 결과가 아니라 저장된 데이터라서, 모든 템플릿에서 렌더링 과정 없이 바로 가져올 수 있습니다. 배경, 캐릭터 컷아웃, 캡션이 각각의 위치와 크기를 가지고 따로 반환됩니다. Remotion이나 영상 파이프라인에서 부분별로 애니메이션하려면 바로 이것이 필요합니다. 응답 형태는 디자인의 레이어와 같습니다.',
+    templatesScope:
+      '이 엔드포인트로는 프리미엄 템플릿을 포함해 모든 템플릿을 읽을 수 있습니다. 이는 현재 상태이며 앞으로를 약속하는 것은 아닙니다.',
+    templatesApiLabel: '엔드포인트',
+    templatesListUrlMeaning:
+      '템플릿 목록을 반환합니다. ?id=uuid1,uuid2로 특정 템플릿을 정확히 조회할 수 있습니다. search, planType(free 또는 premium), minWidth, limit(1~200, 기본값 50), offset, fields도 사용할 수 있습니다.',
+    templatesLayersUrlMeaning:
+      '레이어 구조를 반환합니다. 그리기 순서대로 정렬된 요소와 각각의 위치·크기입니다.',
+    templatesFieldsNote:
+      '목록 레코드에는 id, name, width, height, aspect, planType, thumbnailUrl이 담기며, fields=all을 붙이면 isPublic, backgroundColor, layersUrl, openCount, likeCount, updatedAt이 추가됩니다. width와 height는 템플릿의 캔버스 크기이며 이미지의 크기가 아닙니다.',
+    templatesToolsLabel: 'MCP 도구',
+    templatesToolsBody:
+      'MCP 서버에도 같은 세 가지 도구가 있으며 다시 등록할 필요는 없습니다. list_templates로 목록과 검색을, get_template으로 ID에 해당하는 레코드 한 건을(preview: true를 주면 썸네일을 인라인 이미지로도 함께 반환), get_template_layers로 레이어 구조를 가져옵니다. 템플릿의 아트워크를 실제로 사용하는 방법은 get_template_layers뿐입니다.',
     accessTitle: '참조 URL을 열 수 있는 사람',
     accessBody:
       '디자인 ID가 곧 열쇠입니다. URL을 가진 사람은 누구나 로그인하지 않고도 그 이미지를 보고 내려받을 수 있으며, URL을 다른 사람에게 전달할 수도 있습니다.',
@@ -404,6 +533,11 @@ export default function McpGuideClient() {
     { url: REF_URL, meaning: t.urlBaseMeaning },
     { url: REF_URL_JPG, meaning: t.urlJpgMeaning },
     { url: REF_URL_THUMB, meaning: t.urlThumbMeaning },
+  ];
+
+  const templateEndpoints = [
+    { url: TEMPLATES_API_URL, meaning: t.templatesListUrlMeaning },
+    { url: TEMPLATE_LAYERS_API_URL, meaning: t.templatesLayersUrlMeaning },
   ];
 
   return (
@@ -511,7 +645,43 @@ export default function McpGuideClient() {
               <dt className="text-sm font-medium text-foreground">{t.libraryLabel}</dt>
               <dd className="mt-1 text-sm leading-6 text-muted">{t.libraryBody}</dd>
             </div>
+            <div className="py-4 first:pt-0 last:pb-0">
+              <dt className="text-sm font-medium text-foreground">{t.templatesLabel}</dt>
+              <dd className="mt-1 text-sm leading-6 text-muted">{t.templatesBody}</dd>
+            </div>
           </dl>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted">
+            {t.templatesTitle}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-muted">{t.templatesIntro}</p>
+          <p className="mt-3 text-sm leading-6 text-foreground">{t.templatesNoImage}</p>
+          <p className="mt-3 text-sm leading-6 text-muted">{t.templatesLayers}</p>
+          <p className="mt-3 text-sm leading-6 text-muted">{t.templatesScope}</p>
+
+          <div className="mt-6 border-t border-border pt-6">
+            <p className="text-sm font-medium text-foreground">{t.templatesApiLabel}</p>
+            <dl className="mt-4 divide-y divide-border">
+              {templateEndpoints.map((endpoint) => (
+                <div key={endpoint.url} className="py-4 first:pt-0 last:pb-0">
+                  <dt className="overflow-x-auto">
+                    <code className="whitespace-pre font-mono text-xs leading-6 text-foreground">
+                      {endpoint.url}
+                    </code>
+                  </dt>
+                  <dd className="mt-1 text-sm leading-6 text-muted">{endpoint.meaning}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-4 text-sm leading-6 text-muted">{t.templatesFieldsNote}</p>
+          </div>
+
+          <div className="mt-6 border-t border-border pt-6">
+            <p className="text-sm font-medium text-foreground">{t.templatesToolsLabel}</p>
+            <p className="mt-1 text-sm leading-6 text-muted">{t.templatesToolsBody}</p>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 sm:p-8">

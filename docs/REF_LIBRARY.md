@@ -9,12 +9,16 @@
 ファイルをダウンロードしてローカルパスを指す運用を廃止し、
 常に最新のR2 URLを直接渡せるようにするのが狙い。
 
-🔴 **参照できる対象（kind）は2種類ある。** 片方だけを見て設計判断をしないこと。
+🔴 **参照できる対象（kind）は3種類ある。** 1つだけを見て設計判断をしないこと。
 
 | kind | 実体 | 中身 | 公開範囲 |
 |---|---|---|---|
 | **designs** | `public.banners` | IMAGINE で保存したデザイン（ユーザーの私物・保存時にレンダリング） | **id指定=全アカウント / 列挙=オーナー範囲** |
 | **assets** | `public.default_images` | サイト公式のキュレーション素材ライブラリ（キャラクター切り抜き・一般アート） | **完全公開**（id指定も列挙もスコープ無し） |
+| **templates** | `public.templates` | デザインテンプレート（ギャラリーの雛形・**フルサイズ画像を持たない**） | **完全公開**（暫定・下記） |
+
+🔴 **templates だけは画像を返さない。** レイヤー構造（`elements`）を返す kind であり、
+`url` フィールド自体が存在しない。理由は[templates の節](#templatespublictemplates)。
 
 ## 設計判断
 
@@ -127,24 +131,56 @@ assets では**例外なく成立する**。`thumbnail_path` も全行にある�
 - 素材そのものはすでに `/api/lab/assets` で公開済み。Ref Library はそこに
   **id指定取得・`count`/`total`・`fields`・恒久リンク**という参照用の意味付けを足したもの
 
-### 2つの kind の比較
+### templates（`public.templates`）
 
-| | designs | assets |
-|---|---|---|
-| テーブル | `public.banners` | `public.default_images` |
-| 一覧の範囲 | オーナー範囲のみ | **全件（公開）** |
-| id指定の範囲 | 全アカウント | 全件（公開） |
-| Supabaseクライアント | service-role（RLS迂回） | **anon**（RLSに従う） |
-| `url` | full-res レンダリングのみ。無ければ `null` | フルサイズ画像。**全行に存在** |
-| `width`/`height` | `url` の実寸。`url` が無ければ `null` | `url` の実寸。**全行に記録あり** |
-| `aspect` | ドキュメント寸法の比（`"4:5"` 等の整った値） | 実寸の比（`"1223:2063"` 等・等値フィルタ不可） |
-| 恒久リンク | `/ref/{id}` | `/ref/asset/{id}` |
-| MCPツール | `list_designs` / `get_design` / `get_design_layers` | `list_assets` / `get_asset` |
-| キャッシュ | `s-maxage=60` | `s-maxage=300` |
-| 更新頻度 | 保存のたび | まれ（キュレーション時のみ） |
+- **一覧・検索・id指定のすべてが公開**。`is_public = false` の70行も premium の行も含めて
+  全299行が読める
+- 🔴 **この kind だけ、使える画像を持っていない。** `templates` には `thumbnail_key` しか無く、
+  `banners` の `fullres_key` に相当する列が**存在しない**。ギャラリーの「壁紙ダウンロード」は
+  保存済みファイルを取りに行っておらず、押した瞬間に**ブラウザ内の隠しCanvasで描画**して
+  data URL を書き出している（`TemplateWallpaperExporter.tsx`）。つまりフルサイズは
+  その場限りの揮発的な産物で、配れるURLはどこにも存在しない
+- したがってレコードは **`url` フィールドを持たない**（`null` ですら返さない）。
+  `/ref/template/{id}` のような画像恒久リンクも**作らない**。
+  サムネイルを `url` として返すのは、designs で一度やって取り消した誤りそのもの
+  （利用側が400px程度の画像をフルサイズだと信じて有料の動画生成APIへ投入した）
+- **価値はレイヤーにある。** `elements` は NOT NULL で全299行が最低1要素を持ち
+  （平均2.6・最大23・image 485 / text 296 / shape）、レンダリング経路を一切必要としない。
+  `/api/ref/templates/{id}/layers` が designs と**同一形状**のレイヤー構造を返す
+- ユーザーが id を取る場所は、テンプレートギャラリーのカード下部・利用者数の右にある
+  タグアイコンのボタン（uuid をそのままコピー）
 
-まだ含まないもの: テンプレート（`public.templates`）とアップロード素材（`user_images`）。
-[今後](#今後)を参照。
+#### 🔴 公開範囲を「全開」にしたのは暫定判断（2026-09-05）
+
+`is_public = false` の行も premium の行も区別せず全件を公開している。これは
+**Ref Library がまだ告知されておらず、絞る材料が無いため**の意図的な暫定措置である。
+
+- UI の premium ゲートは「**自分のデザインとして展開する**」操作に対する課金導線であって、
+  データ読み取りの制限ではない
+- `public.templates` の RLS は3本とも permissive で PUBLIC ロールに付いており、そのうち
+  `Allow public read access` が `USING (true)`。**`is_public` にも `plan_type` にも関係なく
+  anon が全行の `elements` を読める**状態が既にある。つまりこのAPIはDBが隠していたものを
+  暴いてはいない
+- **正式にアナウンスする前に見直す。**[今後](#今後)に記録済み
+
+### 3つの kind の比較
+
+| | designs | assets | templates |
+|---|---|---|---|
+| テーブル | `public.banners` | `public.default_images` | `public.templates` |
+| 一覧の範囲 | オーナー範囲のみ | **全件（公開）** | **全件（公開）** |
+| id指定の範囲 | 全アカウント | 全件（公開） | 全件（公開） |
+| Supabaseクライアント | service-role（RLS迂回） | **anon**（RLSに従う） | **anon**（RLSに従う） |
+| `url` | full-res レンダリングのみ。無ければ `null` | フルサイズ画像。**全行に存在** | 🔴 **フィールド自体が無い** |
+| `width`/`height` | `url` の実寸。`url` が無ければ `null` | `url` の実寸。**全行に記録あり** | **キャンバス寸法**（画像の寸法ではない） |
+| `aspect` | ドキュメント寸法の比（`"4:5"` 等の整った値） | 実寸の比（`"1223:2063"` 等・等値フィルタ不可） | キャンバス寸法の比 |
+| 恒久リンク | `/ref/{id}` | `/ref/asset/{id}` | **無し**（画像が無いため） |
+| レイヤー | `/api/ref/designs/{id}/layers` | — | `/api/ref/templates/{id}/layers` |
+| MCPツール | `list_designs` / `get_design` / `get_design_layers` | `list_assets` / `get_asset` | `list_templates` / `get_template` / `get_template_layers` |
+| キャッシュ | `s-maxage=60` | `s-maxage=300` | `s-maxage=300` |
+| 更新頻度 | 保存のたび | まれ（キュレーション時のみ） | まれ（キュレーション時のみ） |
+
+まだ含まないもの: アップロード素材（`user_images`）。[今後](#今後)を参照。
 
 ## API リファレンス
 
@@ -157,7 +193,14 @@ assets では**例外なく成立する**。`thumbnail_path` も全行にある�
 | `GET /api/ref/assets?id=...` | assets | ID指定取得（**フルレコード**） | 公開 |
 | `GET /api/ref/assets`（一覧パラメータ） | assets | 一覧・検索（**コンパクトレコード**） | 公開 |
 | `GET /ref/asset/{id}` (`.jpg`/`.png` も可) | assets | フルサイズ画像へ302リダイレクト | 公開 |
-| `POST /api/mcp` | 両方 | MCP (Streamable HTTP) エンドポイント | ツールごと（下記） |
+| `GET /api/ref/templates?id=...` | templates | ID指定取得（**フルレコード**） | 公開 |
+| `GET /api/ref/templates`（一覧パラメータ） | templates | 一覧・検索（**コンパクトレコード**） | 公開 |
+| `GET /api/ref/templates/{id}/layers` | templates | **レイヤー構造**（テンプレートを使う唯一の手段。画像は無い） | 公開 |
+| `POST /api/mcp` | 3つとも | MCP (Streamable HTTP) エンドポイント | ツールごと（下記） |
+
+templates に画像エンドポイントが無いのは実装漏れではない。**返せる画像が存在しない**ため、
+`/ref/template/{id}` を作れば必ずサムネイルへ302することになり、
+「[`url` はfull-resレンダリングだけを指す](#設計判断)」という規則に真っ向から反する。
 
 `/ref/asset/...` は静的セグメントなので、Next.js のルーティング上
 **動的な `/ref/[id]` より優先**される（同じ深さでは静的が動的に勝つ）。
@@ -674,6 +717,16 @@ JSON Schema 上は `anyOf: [string, array of string]`。
 （同じJSONだから当然で、以前はMCP経由の方だけが約1.3万バイト分の空白を運んでいた）。
 `fields: ["id","name","aspect","url"]` を併用すると 37,011 バイトになる。
 
+`list_templates` / `get_template` / `get_template_layers` の description には、
+🔴 **この kind だけ使える画像を持たない**こと（`url` フィールドが無く、恒久リンクも無い）、
+`thumbnailUrl` をフルサイズの代用にしてはならないこと、
+**テンプレートを実際に使う手段は `get_template_layers` だけ**であること、
+合成済みの絵が欲しいなら designs 側を使うこと、
+`width`/`height` はキャンバス寸法であって画像の寸法ではないこと、
+`planType` はエディタで開くのに必要なティアであってここでの読み取り制限ではないこと、
+を明記している。**「どの kind にも `url` がある」と仮定したモデルは
+サムネイルに手を伸ばす**ので、これは description でしか防げない。
+
 `list_assets` / `get_asset` の description には、
 **全素材がフルサイズ画像と正確な実寸を持つので、そのまま画像リファレンスとして使える**こと、
 `refUrl` が常に `https://whatif-ep.xyz/ref/asset/{id}` であること、
@@ -1023,11 +1076,22 @@ MCP `get_design_layers`。画像レイヤーは厳密・テキストは近似。
   （上記の ℹ️ 参照）。**全345件を先回りで焼く動機が無いため、この項目は追わない。**
 - ~~公式素材ライブラリ（`public.default_images`）を参照対象に追加~~ →
   **2026-09-04 完了**（`/api/ref/assets`・`/ref/asset/{id}`・`list_assets`・`get_asset`）
-- テンプレート（`public.templates`。壁紙テンプレート等）を参照対象に追加。
-  **注意: `templates` には full-res の列が無く、299行すべてサムネイルしか持っていない**
-  （`thumbnail_key` のみ。`banners` の `fullres_key` に相当する列が存在しない）。
-  そのまま公開すると全件 `url: null` になるため、先に full-res を生成する仕組みが要る。
-  元になった `banners` 行から辿るか、テンプレート用のレンダリング経路を足すかの設計が先
+- ~~テンプレート（`public.templates`）を参照対象に追加~~ →
+  **2026-09-05 完了**（`/api/ref/templates`・`/api/ref/templates/{id}/layers`・
+  `list_templates` / `get_template` / `get_template_layers`）。
+  「full-res の列が無いので先にレンダリング経路が要る」と記録していたが、**それは合成画像の話で
+  レイヤーには当てはまらなかった**。`/layers` は `elements` と `canvas_color` と寸法しか読まず
+  レンダリング結果を一切参照しないため、`elements`（NOT NULL・全299行）を持つ
+  テンプレートはそのまま公開できた。合成画像の方は依然ブロックのままで、
+  だからこの kind には `url` も画像恒久リンクも無い
+- **templates の公開範囲を見直す**（正式アナウンス前に）。現在は `is_public = false` の70行も
+  premium の191行も含めて全開。2026-09-05 の暫定判断であり、
+  絞るなら `listRefTemplates` / `getRefTemplatesByIds` に条件を足す
+  （`src/lib/ref/templates.ts`。スコープは kind ごとに持つ規約なので `common.ts` には置かない）
+- **テンプレートのフルサイズ生成**。今は「壁紙ダウンロード」がブラウザ内の隠しCanvasで
+  その場で描いており、保存もURL発行もしていない（`TemplateWallpaperExporter.tsx`）。
+  `fullres_key` 相当の列とレンダリング経路を足せば templates も designs と同じ意味の
+  `/ref/...` を持てるが、ブラウザ依存の描画をサーバー側へ移す作業になる
 - `user_images` のアップロード素材を参照対象に追加
 - デザイン単位の非公開フラグ（opt-out）。
   **一度配ったref URLを無効化する手段は現状ない**ため、取り消しを可能にするならこれが入口になる
