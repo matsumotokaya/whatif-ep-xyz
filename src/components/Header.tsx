@@ -369,12 +369,9 @@ export function Header() {
                 })}
               </nav>
 
-              {/* Bottom: social links + branding */}
+              {/* Bottom: social links */}
               <div className="mt-auto pt-8">
-                <div className="border-t border-border pt-6 flex items-center justify-between">
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-muted">
-                    &copy; {new Date().getFullYear()} WHATIF EP
-                  </p>
+                <div className="border-t border-border pt-6 flex items-center justify-end">
                   <div className="flex items-center gap-4">
                     {sharedSocialLinks.map((social) => (
                       <a

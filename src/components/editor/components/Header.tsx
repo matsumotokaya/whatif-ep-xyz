@@ -274,10 +274,7 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
               </nav>
 
               <div className="mt-auto border-t border-white/10 pt-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">
-                    &copy; {new Date().getFullYear()} WHATIF EP
-                  </p>
+                <div className="flex items-center justify-end">
                   <div className="flex items-center gap-4">
                     {sharedSocialLinks.map((link) => (
                       <a

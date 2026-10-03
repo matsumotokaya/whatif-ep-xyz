@@ -27,7 +27,6 @@ const COPY: Record<Language, {
   termsOfService: string;
   securityPolicy: string;
   legalInfo: string;
-  copyright: string;
 }> = {
   en: {
     tagline: "An AI-driven art project.",
@@ -39,7 +38,6 @@ const COPY: Record<Language, {
     termsOfService: "Terms of Service",
     securityPolicy: "Security Policy",
     legalInfo: "Legal Info",
-    copyright: "© WHATIF. All rights reserved.",
   },
   ja: {
     tagline: "AIを活用したアートプロジェクト。",
@@ -51,7 +49,6 @@ const COPY: Record<Language, {
     termsOfService: "利用規約",
     securityPolicy: "セキュリティポリシー",
     legalInfo: "特定商取引法に基づく表記",
-    copyright: "© WHATIF. All rights reserved.",
   },
   "zh-CN": {
     tagline: "由 AI 驱动的艺术项目。",
@@ -63,7 +60,6 @@ const COPY: Record<Language, {
     termsOfService: "服务条款",
     securityPolicy: "安全政策",
     legalInfo: "法律信息",
-    copyright: "© WHATIF. All rights reserved.",
   },
   "zh-TW": {
     tagline: "由 AI 驅動的藝術專案。",
@@ -75,7 +71,6 @@ const COPY: Record<Language, {
     termsOfService: "服務條款",
     securityPolicy: "安全政策",
     legalInfo: "法律資訊",
-    copyright: "© WHATIF. All rights reserved.",
   },
   ko: {
     tagline: "AI 기반 아트 프로젝트.",
@@ -87,7 +82,6 @@ const COPY: Record<Language, {
     termsOfService: "이용약관",
     securityPolicy: "보안 정책",
     legalInfo: "법적 고지",
-    copyright: "© WHATIF. All rights reserved.",
   },
 };
 
@@ -189,8 +183,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-col items-center justify-center gap-4 border-t border-border pt-8 md:flex-row md:justify-between">
-          <p className="text-xs text-muted">{t.copyright}</p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 border-t border-border pt-8 md:flex-row md:justify-end">
           <div className="flex items-center gap-4">
             <LanguageSwitcher dropUp />
             <Link

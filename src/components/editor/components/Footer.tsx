@@ -105,10 +105,7 @@ export function Footer() {
                     </div>
                 </div>
 
-                <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row md:justify-between justify-center items-center gap-4">
-                    <p className="text-gray-500 text-xs">
-                        {t('footer.copyright')}
-                    </p>
+                <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row md:justify-end justify-center items-center gap-4">
                     <div className="flex items-center gap-4">
                         <LanguageSwitcher dropUp />
                         <button
