@@ -39,7 +39,7 @@ export function ImagineBanner() {
       }`}
     >
       <div className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
-        <Link href="/edit" aria-label="Open Imagine" className="block">
+        <Link href="/imagine" aria-label="Open Imagine" className="block">
           <Image
             src="/img/banner_imagine_001.png"
             alt="Try /IMAGINE - Free design service by WHATIF"
