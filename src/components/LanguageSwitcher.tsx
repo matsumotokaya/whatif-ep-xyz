@@ -43,7 +43,7 @@ export function LanguageSwitcher({ dropUp = false }: { dropUp?: boolean }) {
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        className="btn-press flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground transition-colors hover:bg-surface-hover"
+        className="btn-press flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-foreground transition-colors hover:border-muted hover:bg-surface-hover"
         aria-label="Switch language"
         aria-expanded={isOpen}
       >
