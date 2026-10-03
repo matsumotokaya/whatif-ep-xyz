@@ -31,7 +31,7 @@ export function SortToggle({ sort, onSortChange }: SortToggleProps) {
         onChange={(event) =>
           onSortChange(event.target.value as "newest" | "oldest")
         }
-        className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-hover"
+        className="h-10 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
       >
         <option value="newest">{t.newest}</option>
         <option value="oldest">{t.oldest}</option>

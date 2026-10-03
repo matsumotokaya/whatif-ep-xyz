@@ -29,16 +29,16 @@ export function GallerySeriesSelect({
 
   return (
     <label className={`inline-flex items-center gap-2 text-xs text-muted ${className ?? ""}`}>
-      <span className="uppercase tracking-[0.18em]">{t.series}</span>
+      <span className="shrink-0">{t.series}</span>
       <select
-        aria-label="Select gallery series"
+        aria-label={t.series}
         value={selectedSlug}
         onChange={(event) => {
           const nextSlug = event.target.value;
           if (!nextSlug || nextSlug === selectedSlug) return;
           router.push(`/works/${nextSlug}`);
         }}
-        className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-hover"
+        className="h-10 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
       >
         {series.map((item) => {
           const suffix = item.workCount > 0 ? ` (${item.workCount})` : ` (${t.comingSoon})`;

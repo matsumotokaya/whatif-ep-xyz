@@ -174,7 +174,7 @@ export const FontSelector = ({ selectedFont, onFontChange }: FontSelectorProps) 
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-[#2b2b2b] border border-[#444444] rounded-lg text-xs text-gray-100 hover:bg-[#333333] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+        className="w-full flex items-center justify-between px-3 py-2 bg-[#2b2b2b] border border-[#444444] rounded-lg text-xs text-gray-100 hover:bg-[#333333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all"
       >
         <span
           className="truncate text-sm"

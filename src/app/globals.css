@@ -199,11 +199,45 @@ html[lang="zh-TW"] body {
   --duration-slow: 400ms;
 }
 
-/* ─── Focus ring ─── */
+/* Native menus keep platform keyboard/touch behavior, with a consistent chevron.
+   Reserve its own space so long labels and browser arrows never collide. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  cursor: pointer;
+}
+select:not([multiple]):not([size]):dir(rtl) {
+  background-position: left 0.75rem center;
+}
+select:disabled {
+  cursor: not-allowed;
+}
+@media (forced-colors: active) {
+  select:not([multiple]):not([size]) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+
+/* Pointer clicks retain focus without a ring. Keyboard focus remains visible;
+   never change a control's corner geometry just because it receives focus. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
 :focus-visible {
-  outline: 2px solid var(--foreground);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Text-entry fields retain their editing focus cues. Suppress only control
+   outlines during pointer use, including native select focus heuristics. */
+html[data-input-modality="pointer"] :is(button, a, select, summary, [role="button"], [role="tab"], [role="menuitem"]):focus {
+  outline: none;
 }
 
 /* ─── Scrollbar: hidden ─── */
