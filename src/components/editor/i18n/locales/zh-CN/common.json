@@ -108,5 +108,13 @@
     "businessHours": "工作时间",
     "businessHoursDescription": "我们将在1-3个工作日内回复您的咨询。",
     "businessHoursNote": "（周末及节假日除外）"
+  },
+  "imageLoad": {
+    "image": "图片 {{index}}",
+    "loading": "正在加载…",
+    "error": "图片加载失败",
+    "retry": "重试",
+    "retryImage": "重新加载图片 {{index}}",
+    "libraryError": "图片列表加载失败"
   }
 }

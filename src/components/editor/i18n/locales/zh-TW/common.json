@@ -108,5 +108,13 @@
     "businessHours": "營業時間",
     "businessHoursDescription": "我們將在1-3個工作天內回覆您的詢問。",
     "businessHoursNote": "（週末及國定假日除外）"
+  },
+  "imageLoad": {
+    "image": "圖片 {{index}}",
+    "loading": "載入中…",
+    "error": "圖片載入失敗",
+    "retry": "重試",
+    "retryImage": "重新載入圖片 {{index}}",
+    "libraryError": "圖片列表載入失敗"
   }
 }

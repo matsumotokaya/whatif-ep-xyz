@@ -1,3 +1,4 @@
+import { BLEED } from '../utils/canvasGeometry';
 import { useRef, forwardRef, useImperativeHandle, useEffect, useEffectEvent, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Stage, Layer, Group, Rect, Line, Transformer } from 'react-konva';
@@ -90,7 +91,7 @@ export interface CanvasRef {
 
 // Bleed area around artboard (canvas units) so elements/transformers
 // that extend beyond the artboard boundary remain visible.
-export const BLEED = 400;
+export { BLEED } from '../utils/canvasGeometry';
 
 // Custom "T" cursor SVG for text placement mode
 const TEXT_PLACEMENT_CURSOR = (() => {

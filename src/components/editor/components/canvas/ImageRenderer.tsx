@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState, memo } from 'react';
+import { useRef, useEffect, memo } from 'react';
 import Konva from 'konva';
+import { useEditorImage } from '../../hooks/useEditorImage';
 import { Image as KonvaImage } from 'react-konva';
 import type { ImageElement } from '../../types/template';
 import { resolveElementSrc } from '@/lib/asset';
@@ -43,10 +44,6 @@ const ImageRendererComponent = ({
   nodeRef,
   onImageLoad,
 }: ImageRendererProps) => {
-  const [loadedImage, setLoadedImage] = useState<{
-    src: string;
-    image: HTMLImageElement;
-  } | null>(null);
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const lockAxisRef = useRef<'x' | 'y' | null>(null);
   const localNodeRef = useRef<Konva.Image | null>(null);
@@ -65,37 +62,11 @@ const ImageRendererComponent = ({
   };
 
   const resolvedSrc = resolveElementSrc(imageElement.src);
-  const image = loadedImage?.src === resolvedSrc ? loadedImage.image : null;
+  const { image, status } = useEditorImage(resolvedSrc);
 
   useEffect(() => {
-    const img = new window.Image();
-
-    if (!resolvedSrc) {
-      onImageLoad?.(imageElement.id, 'error');
-      return;
-    }
-
-    img.decoding = 'async';
-    if (!resolvedSrc.startsWith('blob:') && !resolvedSrc.startsWith('data:')) {
-      img.crossOrigin = 'anonymous';
-    }
-
-    img.onload = () => {
-      setLoadedImage({ src: resolvedSrc, image: img });
-      onImageLoad?.(imageElement.id, 'loaded');
-    };
-    img.onerror = (error) => {
-      console.error('Failed to load image:', imageElement.src, resolvedSrc, error);
-      setLoadedImage(null);
-      onImageLoad?.(imageElement.id, 'error');
-    };
-    img.src = resolvedSrc;
-
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [imageElement.id, imageElement.src, onImageLoad, resolvedSrc]);
+    if (status !== 'loading') onImageLoad?.(imageElement.id, status);
+  }, [imageElement.id, onImageLoad, status]);
 
   useEffect(() => {
     const node = localNodeRef.current;
@@ -202,31 +173,5 @@ const ImageRendererComponent = ({
   );
 };
 
-// Memo to prevent unnecessary re-renders
-export const ImageRenderer = memo(ImageRendererComponent, (prevProps, nextProps) => {
-  const prevImage = prevProps.imageElement;
-  const nextImage = nextProps.imageElement;
-
-  return (
-    prevImage.id === nextImage.id &&
-    prevImage.src === nextImage.src &&
-    prevImage.x === nextImage.x &&
-    prevImage.y === nextImage.y &&
-    prevImage.width === nextImage.width &&
-    prevImage.height === nextImage.height &&
-    prevImage.rotation === nextImage.rotation &&
-    prevImage.opacity === nextImage.opacity &&
-    prevImage.locked === nextImage.locked &&
-    prevImage.visible === nextImage.visible &&
-    prevImage.shadowEnabled === nextImage.shadowEnabled &&
-    prevImage.shadowColor === nextImage.shadowColor &&
-    prevImage.shadowBlur === nextImage.shadowBlur &&
-    prevImage.shadowOffsetX === nextImage.shadowOffsetX &&
-    prevImage.shadowOffsetY === nextImage.shadowOffsetY &&
-    prevImage.shadowOpacity === nextImage.shadowOpacity &&
-    prevImage.blurRadius === nextImage.blurRadius &&
-    prevProps.isShiftPressed === nextProps.isShiftPressed &&
-    prevProps.isMultiDragging === nextProps.isMultiDragging &&
-    prevProps.isMultiSelected === nextProps.isMultiSelected
-  );
-});
+// Compare callbacks as well as visual props, so edits never retain stale handlers.
+export const ImageRenderer = memo(ImageRendererComponent);

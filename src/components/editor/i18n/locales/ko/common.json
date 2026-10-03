@@ -108,5 +108,13 @@
     "businessHours": "업무 시간",
     "businessHoursDescription": "문의에 대한 답변은 보통 1-3영업일 이내에 이루어집니다.",
     "businessHoursNote": "(주말 및 공휴일 제외)"
+  },
+  "imageLoad": {
+    "image": "이미지 {{index}}",
+    "loading": "불러오는 중…",
+    "error": "이미지를 불러오지 못했습니다",
+    "retry": "다시 시도",
+    "retryImage": "이미지 {{index}} 다시 불러오기",
+    "libraryError": "이미지 목록을 불러오지 못했습니다"
   }
 }

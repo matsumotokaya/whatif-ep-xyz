@@ -108,5 +108,13 @@
     "businessHours": "Business Hours",
     "businessHoursDescription": "We will respond to your inquiry within 1-3 business days.",
     "businessHoursNote": "(Excluding weekends and holidays)"
+  },
+  "imageLoad": {
+    "image": "Image {{index}}",
+    "loading": "Loading…",
+    "error": "Could not load image",
+    "retry": "Retry",
+    "retryImage": "Retry image {{index}}",
+    "libraryError": "Could not load the image library"
   }
 }

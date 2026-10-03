@@ -150,6 +150,23 @@ The Club の権限を変えるときは、コードと同時にこのポリシ�
   banner and factory queries so a partial external failure cannot remain hidden
   behind the five-minute list cache.
 
+### Editor image loading
+
+- Original image resolution and the entrance animation are preserved. A separate
+  DOM status overlay reports each visible image as loading or failed (with retry),
+  including images added after startup and those still loading after the five-second
+  entrance fallback. Feedback is excluded from canvas exports and localized in five languages.
+- `editorImageResource` shares the request and decoded bitmap for each resolved URL
+  between canvas layers and feedback. Ready means decoding completed. The final
+  subscriber leaving releases the resource; no unbounded decoded-image cache is retained.
+- Canvas and loading overlays share `canvasGeometry.BLEED`; keep their coordinate
+  systems aligned. Image requests start while the lazy canvas module is loading.
+- Library thumbnails retain lazy loading and display loading/error/retry states.
+  Library metadata failures are distinct from empty results. Auth/profile state comes
+  from the shared context, and obsolete page/tab requests are aborted and ignored.
+- Regression coverage: `editorImageResource.test.ts` and
+  `tests/e2e/editor-image-feedback.spec.ts` (delayed image, failure, retry, mobile/desktop).
+
 ### Preview reliability phases
 
 この Phase 番号は**バナープレビュー信頼性改善だけ**を指す。プロダクト全体の

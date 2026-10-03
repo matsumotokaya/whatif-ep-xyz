@@ -1,3 +1,5 @@
+import { useAuth } from '../contexts/AuthContext';
+import { ImageLibraryThumbnail } from './ImageLibraryThumbnail';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getSupabase } from '../utils/supabase';
@@ -42,9 +44,11 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [defaultImages, setDefaultImages] = useState<DefaultImageWithUrl[]>([]);
   const [userImages, setUserImages] = useState<UserImageWithUrl[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { profile, user, loading: authLoading } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const [loadError, setLoadError] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -61,96 +65,53 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
     };
   }, []);
 
-  // Check if current user is admin
-  useEffect(() => {
-    const checkAdmin = async () => {
-      const supabase = await getSupabase();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setIsAdmin(false); return; }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Error fetching user role:', error);
-        setIsAdmin(false);
-      } else {
-        setIsAdmin(data?.role === 'admin');
-      }
-    };
-    checkAdmin();
-  }, []);
-
   // Set initial tab and reset page when modal opens
   useEffect(() => {
     if (isOpen) {
+      setLoading(true);
       setActiveTab(initialTab);
       setCurrentPage(0);
     }
   }, [isOpen, initialTab]);
 
-  // Load images when modal opens, tab changes, or page changes
+  // Ignore old responses after switching tabs/pages; abort their DB requests.
   useEffect(() => {
-    if (!isOpen) return;
-
+    if (!isOpen || authLoading) return;
+    const controller = new AbortController();
     const fetchImages = async () => {
-      const supabase = await getSupabase();
       setLoading(true);
-      const offset = currentPage * PAGE_SIZE;
-      const to = offset + PAGE_SIZE - 1;
-
-      if (activeTab === 'default') {
-        const { data, error, count } = await supabase
-          .from('default_images')
-          .select('*', { count: 'exact' })
-          .order('created_at', { ascending: false })
-          .range(offset, to);
-
-        if (error) {
-          console.error('Error fetching default images:', error);
-          setDefaultImages([]);
-          setTotalCount(0);
-        } else if (data) {
-          setDefaultImages(data);
-          setTotalCount(count ?? 0);
-        }
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+      setLoadError(false);
+      try {
+        const supabase = await getSupabase();
+        if (controller.signal.aborted) return;
+        if (activeTab === 'user' && !user) {
           setUserImages([]);
           setTotalCount(0);
-          setLoading(false);
           return;
         }
-
-        const { data, error, count } = await supabase
-          .from('user_images')
-          .select('*', { count: 'exact' })
-          .eq('user_id', user.id)
-          .eq('asset_scope', 'user')
-          .order('created_at', { ascending: false })
-          .range(offset, to);
-
-        if (error) {
-          console.error('Error fetching user images:', error);
-          setUserImages([]);
-          setTotalCount(0);
-        } else if (data) {
-          setUserImages(data);
-          setTotalCount(count ?? 0);
-        }
+        const offset = currentPage * PAGE_SIZE;
+        const query = activeTab === 'default'
+          ? supabase.from('default_images').select('*', { count: 'exact' })
+          : supabase.from('user_images').select('*', { count: 'exact' }).eq('user_id', user!.id).eq('asset_scope', 'user');
+        const { data, error, count } = await query.order('created_at', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1).abortSignal(controller.signal);
+        if (controller.signal.aborted) return;
+        if (error) throw error;
+        if (activeTab === 'default') setDefaultImages(data ?? []);
+        else setUserImages(data ?? []);
+        setTotalCount(count ?? 0);
+      } catch {
+        if (!controller.signal.aborted) setLoadError(true);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
-
-      setLoading(false);
     };
-
-    fetchImages();
-  }, [isOpen, activeTab, currentPage, refreshKey]);
+    void fetchImages();
+    return () => controller.abort();
+  }, [isOpen, activeTab, currentPage, refreshKey, user, authLoading]);
 
   const handleTabChange = (tab: TabType) => {
+    if (tab !== activeTab) setLoading(true);
     setActiveTab(tab);
     setCurrentPage(0);
   };
@@ -306,7 +267,7 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
       return urlCacheRef.current.get(cacheKey)!;
     }
 
-    const publicUrl = resolveAsset(storagePath, { legacyBucket: bucketName });
+    const publicUrl = resolveAsset(storagePath, { legacyBucket: bucketName, corsMode: 'anonymous' });
     urlCacheRef.current.set(cacheKey, publicUrl);
     return publicUrl;
   };
@@ -486,9 +447,15 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
 
         {/* Image Grid */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-[#333] border-t-indigo-500"></div>
+          {loading || authLoading ? (
+            <div role="status" className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-200">
+              <div aria-hidden="true" className="inline-block motion-safe:animate-spin rounded-full h-8 w-8 border-2 border-[#333] border-t-indigo-500" />
+              <span>{t('common:imageLoad.loading')}</span>
+            </div>
+          ) : loadError ? (
+            <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-200">
+              <p>{t('common:imageLoad.libraryError')}</p>
+              <button type="button" className="rounded border border-gray-500 px-3 py-2 focus-visible:outline-2 focus-visible:outline-white" onClick={() => setRefreshKey(value => value + 1)}>{t('common:imageLoad.retry')}</button>
             </div>
           ) : images.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -510,22 +477,12 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
                     key={image.id}
                     className="group relative aspect-square rounded-md overflow-hidden border border-[#333] hover:border-indigo-500 transition-all bg-[#222]"
                   >
-                    <button
-                      onClick={() => handleSelect(image as DefaultImageWithUrl & UserImageWithUrl)}
-                      className="absolute inset-0 w-full h-full"
-                      title={image.name}
+                    <ImageLibraryThumbnail
+                      key={getCachedDisplayUrl(image.thumbnail_path || image.storage_path, bucketName)}
+                      src={getCachedDisplayUrl(image.thumbnail_path || image.storage_path, bucketName)}
+                      name={image.name}
+                      onSelect={() => handleSelect(image as DefaultImageWithUrl & UserImageWithUrl)}
                     >
-                      <img
-                        src={getCachedDisplayUrl(
-                          image.thumbnail_path || image.storage_path,
-                          bucketName,
-                        )}
-                        alt={image.name}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                        decoding="async"
-                        crossOrigin="anonymous"
-                      />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
                         <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 text-3xl drop-shadow-lg">
                           add_circle
@@ -542,7 +499,7 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
                           </div>
                         )}
                       </div>
-                    </button>
+                    </ImageLibraryThumbnail>
 
                     {isDefaultTab && (
                       <button
@@ -582,7 +539,7 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
         </div>
 
         {/* Pagination */}
-        {!loading && totalPages > 1 && (
+        {!loading && !loadError && totalPages > 1 && (
           <div className="flex items-center justify-center gap-1 px-6 py-3 border-t border-[#333]">
             <button
               onClick={() => setCurrentPage(p => p - 1)}

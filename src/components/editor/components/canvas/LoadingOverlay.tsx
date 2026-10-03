@@ -10,7 +10,8 @@ interface LoadingOverlayProps {
   canvasColor: string;
 }
 
-const BLEED = 200;
+import { BLEED } from '../../utils/canvasGeometry';
+import { useTranslation } from 'react-i18next';
 
 function getElementBounds(el: CanvasElement): { x: number; y: number; width: number; height: number } {
   if (el.type === 'shape') {
@@ -29,6 +30,7 @@ function getElementBounds(el: CanvasElement): { x: number; y: number; width: num
 }
 
 export function LoadingOverlay({ elements, template, scale, phase, canvasColor }: LoadingOverlayProps) {
+  const { t } = useTranslation('common');
   const [hasFadedOut, setHasFadedOut] = useState(false);
   const isFadingOut = phase === 'animating';
   const isVisible = phase !== 'complete' && !hasFadedOut;
@@ -77,7 +79,7 @@ export function LoadingOverlay({ elements, template, scale, phase, canvasColor }
             return (
               <div
                 key={el.id}
-                className="absolute rounded animate-pulse"
+                className="absolute rounded motion-safe:animate-pulse"
                 style={{
                   left: bounds.x * scale,
                   top: bounds.y * scale,
@@ -94,10 +96,10 @@ export function LoadingOverlay({ elements, template, scale, phase, canvasColor }
           <div className="flex flex-col items-center gap-3">
             <div className="relative h-8 w-8">
               <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30" />
-              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-indigo-500 animate-spin" />
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-indigo-500 motion-safe:animate-spin" />
             </div>
             <span className="text-xs text-gray-400 font-medium tracking-wider uppercase">
-              Loading...
+              {t('status.loading')}
             </span>
           </div>
         </div>

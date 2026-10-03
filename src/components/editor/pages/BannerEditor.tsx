@@ -36,6 +36,7 @@ import { insertUserImageRecord } from '../utils/libraryAssets';
 import { getFitToCanvasPlacement } from '../utils/canvasPlacement';
 import { migrateElements } from '../utils/elementMigration';
 import { useEntranceAnimation } from '../hooks/useEntranceAnimation';
+import { ImageLoadFeedback } from '../components/canvas/ImageLoadFeedback';
 import { LoadingOverlay } from '../components/canvas/LoadingOverlay';
 import type { CanvasRef } from '../components/Canvas';
 import { SaveQueue } from '../utils/saveQueue';
@@ -1980,6 +1981,7 @@ export const BannerEditor = () => {
           storiesTextEditActive={storiesTextSession !== null}
         />
       </Suspense>
+      <ImageLoadFeedback elements={elements} scale={canvasScale} width={banner.template.width} height={banner.template.height} />
       {(animationPhase === 'loading' || animationPhase === 'animating') && (
         <LoadingOverlay
           elements={elements}

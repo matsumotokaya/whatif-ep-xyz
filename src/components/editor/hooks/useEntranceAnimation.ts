@@ -89,77 +89,80 @@ export function useEntranceAnimation({
   useEffect(() => {
     if (phase !== 'animating') return;
 
-    const nodesMap = canvasRef.current?.getNodesMap();
-    if (!nodesMap || nodesMap.size === 0) {
-      // Nodes not ready yet — wait a frame
-      const rafId = requestAnimationFrame(() => {
-        setPhase(prev => (prev === 'animating' ? 'animating' : prev));
-      });
-      return () => cancelAnimationFrame(rafId);
-    }
+    let rafId: number | undefined;
+    const animate = () => {
+      const nodesMap = canvasRef.current?.getNodesMap();
+      if (!nodesMap || nodesMap.size === 0) {
+        // Retry the readiness check itself; setting the same phase does not render.
+        rafId = requestAnimationFrame(animate);
+        return;
+      }
 
-    // Filter visible elements and sort by Y position (top to bottom)
-    const sorted = [...elements]
-      .filter(el => (el.visible ?? true))
-      .sort((a, b) => a.y - b.y);
+      // Filter visible elements and sort by Y position (top to bottom)
+      const sorted = [...elements]
+        .filter(el => (el.visible ?? true))
+        .sort((a, b) => a.y - b.y);
 
-    if (sorted.length === 0) {
-      queueMicrotask(() => setPhase('complete'));
-      return;
-    }
+      if (sorted.length === 0) {
+        queueMicrotask(() => setPhase('complete'));
+        return;
+      }
 
-    // Store original Y positions before modifying
-    const originalPositions = new Map<string, { y: number; opacity: number }>();
+      // Store original Y positions before modifying
+      const originalPositions = new Map<string, { y: number; opacity: number }>();
 
-    // Set all nodes to invisible initial state
-    sorted.forEach(el => {
-      const node = nodesMap.get(el.id);
-      if (!node) return;
+      // Set all nodes to invisible initial state
+      sorted.forEach(el => {
+        const node = nodesMap.get(el.id);
+        if (!node) return;
 
-      originalPositions.set(el.id, {
-        y: node.y(),
-        opacity: node.opacity(),
-      });
-
-      node.opacity(0);
-      node.y(node.y() + Y_OFFSET);
-    });
-
-    // Force redraw
-    const layer = canvasRef.current?.getLayerNode();
-    layer?.batchDraw();
-
-    // Stagger tweens
-    sorted.forEach((el, index) => {
-      const node = nodesMap.get(el.id);
-      const original = originalPositions.get(el.id);
-      if (!node || !original) return;
-
-      const t = setTimeout(() => {
-        const tween = new Konva.Tween({
-          node,
-          duration: TWEEN_DURATION_S,
-          opacity: original.opacity,
-          y: original.y,
-          easing: Konva.Easings.EaseOut,
+        originalPositions.set(el.id, {
+          y: node.y(),
+          opacity: node.opacity(),
         });
-        tween.play();
-        tweensRef.current.push(tween);
-      }, index * STAGGER_MS);
 
-      animationTimeoutsRef.current.push(t);
-    });
+        node.opacity(0);
+        node.y(node.y() + Y_OFFSET);
+      });
 
-    // Transition to complete after all tweens finish
-    const totalDuration = (sorted.length - 1) * STAGGER_MS + TWEEN_DURATION_S * 1000 + 50;
-    const completeTimeout = setTimeout(() => {
-      setPhase('complete');
-      cleanup();
-    }, totalDuration);
+      // Force redraw
+      const layer = canvasRef.current?.getLayerNode();
+      layer?.batchDraw();
 
-    animationTimeoutsRef.current.push(completeTimeout);
+      // Stagger tweens
+      sorted.forEach((el, index) => {
+        const node = nodesMap.get(el.id);
+        const original = originalPositions.get(el.id);
+        if (!node || !original) return;
+
+        const t = setTimeout(() => {
+          const tween = new Konva.Tween({
+            node,
+            duration: TWEEN_DURATION_S,
+            opacity: original.opacity,
+            y: original.y,
+            easing: Konva.Easings.EaseOut,
+          });
+          tween.play();
+          tweensRef.current.push(tween);
+        }, index * STAGGER_MS);
+
+        animationTimeoutsRef.current.push(t);
+      });
+
+      // Transition to complete after all tweens finish
+      const totalDuration = (sorted.length - 1) * STAGGER_MS + TWEEN_DURATION_S * 1000 + 50;
+      const completeTimeout = setTimeout(() => {
+        setPhase('complete');
+        cleanup();
+      }, totalDuration);
+
+      animationTimeoutsRef.current.push(completeTimeout);
+    };
+    animate();
 
     return () => {
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
       cleanup();
     };
   }, [phase, elements, canvasRef, cleanup]);
