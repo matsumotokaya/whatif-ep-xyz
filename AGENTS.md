@@ -42,3 +42,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 |-------------|-----|--------|
 | Local | http://localhost:3710 | active |
 | Production | https://whatif-ep.xyz | active |
+
+## Wallpaper maintenance workflow
+
+For wallpaper asset preparation, Content Factory registration, or resuming this workflow, read `docs/WALLPAPER_CLI.md` first. It contains the user-approved composition reference, completed episodes, remaining candidates, and the required handoff before publishing.

@@ -370,6 +370,18 @@ Gallery 側は制作を持たず、配布情報だけを持つ。
 
 この違いが最重要。
 
+### 素材選定・サイズ派生の運用メモ（2026-10-03）
+
+- 未公開の壁紙を作品単位で順に制作し、手順を記録して自動化へつなげる。
+- QHDの独立した原画は前提にせず、HD素材を単純拡大してQHDを用意する（ユーザー確認済み）。スマホは1080×1920から1440×2560、PCは1920×1080から2560×1440へ派生する。
+- Release Dateは登録入力日を使う。Work Tagsは既存候補を優先し、適する候補がなければユーザーに伝える。0458では既存の `She looks moody...☔` を使用する。
+- Summaryは画像から読み取れる説明または空欄。Asset Notesも当面は空欄、またはSummaryと同文でよい。Summaryは作品情報、Asset Notesは素材台帳の備考として保存先が異なる。
+- 完成した一枚絵のケースではキャラクター切り抜き・背景合成を省略する。現在のOfficial Asset IntakeはFiles必須なので、完成済みの縦型壁紙を初期素材として取り込む。Asset Roleは `Derived Output`、Asset Tagsは `Wallpaper` とし、横型の完成画像は後でLandscapeマスターに設定する（0458でユーザー確認済み）。
+- 元素材は基本的に `/Users/kaya.matsumoto/projects/whatif/_feed` の作品番号を含むファイルから探す。ユーザーから完成済みの縦・横素材が指定された場合は、その素材を優先する。
+- 縦・横それぞれの構図を確認し、トリミングで必要な部分が失われる場合にアウトペインティングを検討する。すでに必要な比率の素材があれば生成し直さない。
+- Episode 0458 はユーザー指定の Desktop の `EPISODE #0458.png`（1080×1920）と `EPISODE #0458 (1).png`（1920×1080）を使用する。QHD は単純拡大でよいとの明示指示により、それぞれ1440×2560と2560×1440へ拡大する。
+- 0458 の登録用4サイズは `/Users/kaya.matsumoto/projects/whatif/wallpaper/episode/0458` に保存する。ローカル素材の準備とContent Factoryへの登録・公開の完了は別々に記録する。
+
 ## Rollout Plan
 
 ### Phase 1. Manual but IMAGINE-centered
