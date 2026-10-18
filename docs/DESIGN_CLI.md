@@ -24,7 +24,7 @@ AIが本人のアカウントでレイヤー付きの下書き（`public.banners
 ## 前提
 
 - 接続先は BANALIST（`https://rgqduwojvylkulhyodqg.supabase.co`）。`.env.local` の `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を読み、URLが完全一致しなければ止まる
-- 描画ブリッジ: 既定は `http://localhost:3710/edit/render`（`npm run dev`）。本番にデプロイ後は `WHATIF_RENDER_BASE_URL=https://whatif-ep.xyz` でも使える。ブリッジは資格情報もデータも持たず、渡された文書を描いて JPEG を返すだけ
+- 描画ブリッジ: 既定は `http://localhost:3710/edit/render`（`npm run dev`）。開発サーバーを起動しない場合は、`WHATIF_RENDER_BASE_URL=https://whatif-ep.xyz` で本番の `/edit/render` を使う（2026-10-18 デプロイ済み・ドライランで確認）。ローカルで描画処理を変えたときは、その変更を反映した開発サーバーで描く。ブリッジは資格情報もデータも持たず、渡された文書を描いて JPEG を返すだけ
 - Chromium は `@playwright/test` のものを使う
 
 ### ログイン（本人が一度だけ、ターミナルで）
@@ -92,7 +92,6 @@ npm run design -- status <id>                               # revision・プレ�
 - フォントはエディタが読み込む Google Fonts（Noto Sans JP、Noto Serif JP、Bebas Neue ほか。`lib/fonts.ts`）と、システムフォントだけが使える。描画できなかったフォントは `unresolvedFonts` に出る。`fontWeight` は Konva の `fontStyle` に丸められる（700以上は bold = 700、300以下は lighter）。
 - 文書にはクロップもレイヤー名も無い。テキストには幅の枠が無い（`\n` で改行する）。効果は影・ぼかし（画像）・線だけ。
 - full-res は JPEG（品質 0.88）で、ドキュメント寸法ちょうどの大きさになる。PNG 出力は Ref の「今後」を参照。
-- 描画ブリッジは開発サーバー上で動く。本番デプロイ前は `/edit/render` が本番に存在しない。
 
 ## 検証記録
 
