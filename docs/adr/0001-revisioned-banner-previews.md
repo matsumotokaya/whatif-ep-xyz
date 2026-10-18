@@ -40,6 +40,13 @@ do not receive execute permission. A future server worker may use a service-role
 credential only inside that server boundary and should have its own job-oriented
 interface.
 
+Addendum (2026-10-18): `scripts/design.mjs` ([DESIGN_CLI.md](../DESIGN_CLI.md))
+uses this same user-session path from a local CLI. It does not use a service
+role. It renders with the editor's `renderBannerPreviewAssets` in headless
+Chromium and finalizes through `finalize_banner_preview` / `fail_banner_preview`.
+Its document update is a compare-and-swap on `document_revision`, with the same
+column effects as `save_banner_document`.
+
 ## Consequences
 
 Out-of-order preview completion cannot overwrite a newer document. Document

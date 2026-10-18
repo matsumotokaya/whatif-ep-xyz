@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "wallpaper": "node scripts/wallpaper.mjs",
+    "design": "node --env-file-if-exists=.env.local scripts/design.mjs",
     "dev": "next dev -p 3710",
     "build": "next build",
     "start": "next start",

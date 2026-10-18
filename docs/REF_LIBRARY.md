@@ -809,6 +809,10 @@ curl -s "https://whatif-ep.xyz/api/ref/designs?search=夏祭り" | jq '.designs[
 # refUrl は id から作れる: https://whatif-ep.xyz/ref/{id}
 ```
 
+### 書き込み（AIが下書きを作る）
+
+Ref Library は読み取り専用のまま。AIが本人のアカウントでレイヤー付き下書きを作り、人間が `/edit/{id}` で仕上げる経路は [DESIGN_CLI.md](./DESIGN_CLI.md) が正本（本人セッション・revision の CAS・エディタと同じ描画）。作った下書きは、このページの designs としてそのまま参照できる。
+
 ### Remotion
 
 Remotionから自分のデザインを参照する場合、`fetch-assets.mjs` のような事前ダウンロードは不要。
