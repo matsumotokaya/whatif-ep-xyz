@@ -149,8 +149,10 @@ export function resolveAsset(
     ? [version, "cors-anon-v1"].filter(Boolean).join("-")
     : version;
 
+  // Inline data never hits a cache, and a `?v=` suffix corrupts a data URL's
+  // payload or turns a blob URL into one that no longer exists.
   if (isInlineData(value)) {
-    return appendCacheBust(value, resolvedVersion);
+    return value;
   }
 
   if (isFullUrl(value)) {

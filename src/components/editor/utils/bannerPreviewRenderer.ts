@@ -28,16 +28,28 @@ function textFontStyle(element: TextElement): 'bold' | 'lighter' | 'normal' {
   return 'normal';
 }
 
+export function textFontSpec(element: TextElement): string {
+  return `${textFontStyle(element)} ${element.fontSize}px ${element.fontFamily}`;
+}
+
 async function ensureTextFonts(elements: CanvasElement[]): Promise<void> {
   if (!('fonts' in document)) return;
 
-  const fontSpecs = new Set(
-    elements
-      .filter((element): element is TextElement => element.type === 'text')
-      .map((element) => `${element.fontWeight} ${element.fontSize}px ${element.fontFamily}`),
-  );
+  // Pass the actual text: web fonts split by unicode-range (every Japanese
+  // Google Font) only fetch the subsets covering the sample text, and the
+  // default sample is a single space, so CJK glyphs would fall back silently.
+  // Load the face Konva will actually request (fontStyle maps weights
+  // coarsely, e.g. 900 -> bold = 700), not the stored numeric weight.
+  const textBySpec = new Map<string, string>();
+  for (const element of elements) {
+    if (element.type !== 'text') continue;
+    const spec = textFontSpec(element);
+    textBySpec.set(spec, (textBySpec.get(spec) ?? '') + element.text);
+  }
 
-  await Promise.allSettled([...fontSpecs].map((font) => document.fonts.load(font)));
+  await Promise.allSettled(
+    [...textBySpec].map(([font, text]) => document.fonts.load(font, text || ' ')),
+  );
   await document.fonts.ready;
 }
 
