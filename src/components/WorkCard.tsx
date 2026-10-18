@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useRef, useState } from "react";
+import { useState } from "react";
 import type { WorkListItem } from "@/lib/types";
 import { useLanguage, type Language } from "@/context/LanguageContext";
 import { SaveButton } from "@/components/SaveButton";
@@ -24,6 +24,7 @@ interface WorkCardProps {
   /** True when the signed-in user has purchased this work's wallpaper. */
   purchased?: boolean;
   style?: React.CSSProperties;
+  eager?: boolean;
 }
 
 function WorkPlaceholder({ code }: { code: string }) {
@@ -35,20 +36,13 @@ function WorkPlaceholder({ code }: { code: string }) {
   );
 }
 
-export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
-  // feedThumbUrl is a pre-sized credited thumbnail served `unoptimized` (bypasses
-  // Vercel Image Optimization). When present it is tried first; on error we fall
-  // back to imageCandidates (feedImageUrl + variant images) rendered via normal
-  // optimized next/image. The full-size feed PNG is NEVER served unoptimized.
+export function WorkCard({ work, purchased = false, style, eager = false }: WorkCardProps) {
   const { feedThumbUrl, imageCandidates, hasWallpaperOffer } = work;
   const { lang } = useLanguage();
   const badges = BADGE_COPY[lang];
   const [index, setIndex] = useState(0);
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
 
-  // Index 0 = the unoptimized feed_thumb (when available); the remaining indices
-  // map into the optimized imageCandidates fallback chain.
+  // Try the thumbnail first, then the existing original-image fallback chain.
   // All sources are served unoptimized: feed_thumb is already a lightweight
   // pre-sized WebP, and the fallbacks come from R2 (egress-free). This bypasses
   // Vercel Image Optimization, whose transformation quota returns 402 once
@@ -60,16 +54,6 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
 
   const current = sources[index] ?? null;
   const src = current?.url ?? null;
-  const isLoading = Boolean(src) && loadedSrc !== src;
-  const setImageRef = useCallback(
-    (node: HTMLImageElement | null) => {
-      imgRef.current = node;
-      if (node && src && node.complete && node.naturalWidth > 0) {
-        setLoadedSrc(src);
-      }
-    },
-    [src]
-  );
 
   return (
     <Link
@@ -79,22 +63,17 @@ export function WorkCard({ work, purchased = false, style }: WorkCardProps) {
       style={style}
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-surface">
-        {isLoading && src && <div className="shimmer absolute inset-0" />}
         {src ? (
           <Image
             key={src}
-            ref={setImageRef}
             src={src}
             alt={work.title}
             fill
             unoptimized={current?.unoptimized ?? false}
             sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
-            className={`object-cover transition-all duration-500 ease-out group-hover:scale-[1.03] ${
-              isLoading ? "opacity-0" : "opacity-100"
-            }`}
-            loading="lazy"
+            className="object-cover transition-transform duration-150 ease-out group-hover:scale-[1.03] motion-reduce:transition-none"
+            loading={eager ? "eager" : "lazy"}
             onError={() => setIndex((prev) => prev + 1)}
-            onLoad={() => setLoadedSrc(src)}
           />
         ) : (
           <WorkPlaceholder code={work.displayCode} />

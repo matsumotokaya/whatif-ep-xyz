@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { bannerStorage } from '../utils/bannerStorage';
 import { templateStorage } from '../utils/templateStorage';
 import { hasGuestDesignConflict, isPremiumTemplate } from '../utils/guestDesign';
-import { invalidateBannerCollectionQueries } from './useBanners';
+import { bannerKeys, invalidateBannerCollectionQueries } from './useBanners';
 import { DEFAULT_TEMPLATES } from '../templates/defaultTemplates';
 import type { Template, TemplateRecord } from '../types/template';
 
@@ -107,8 +107,14 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
       try {
         const created = await bannerStorage.createFromTemplate(resolvedTemplate, editorTemplate);
         if (created) {
-          await invalidateBannerCollectionQueries(queryClient);
+          // The insert already returned the full document. Let useBanner read
+          // that response instead of fetching the same row again after navigation.
+          queryClient.setQueryData(bannerKeys.detail(created.id), created);
           navigate(`/edit/${created.id}`);
+          // Refresh other views without delaying the editor behind active lists.
+          void invalidateBannerCollectionQueries(queryClient).catch(error => {
+            console.warn('[useOpenTemplate] List refresh failed:', error);
+          });
         }
       } finally {
         onCreatingChange?.(null);

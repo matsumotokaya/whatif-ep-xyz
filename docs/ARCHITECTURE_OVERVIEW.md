@@ -167,6 +167,85 @@ The Club の権限を変えるときは、コードと同時にこのポリシ�
 - Regression coverage: `editorImageResource.test.ts` and
   `tests/e2e/editor-image-feedback.spec.ts` (delayed image, failure, retry, mobile/desktop).
 
+#### Image visibility investigation (2026-10-18)
+
+- EPISODE 0457's default editing template (`7234a064-7da6-41f1-b18e-16ac313c2a03`)
+  contains two images and two text objects. Its character PNG is 1500×2579,
+  3,264,013 bytes; the background JPEG is 1856×2464, 716,064 bytes.
+- Direct HTTP GET measurements from this Mac: character CDN MISS 0.69s,
+  subsequent HIT 0.31s; background HIT 0.14s. All returned 200, and the
+  requests with the production Origin returned `Access-Control-Allow-Origin: *`.
+  These measure transfers, not browser startup or decoding. They do not rule
+  out intermittent network problems. The production editor rendered both
+  images without reload during this observation.
+- The reported failure has bounding boxes but no image-loading feedback.
+  Under the current resource implementation, that points toward the canvas
+  state after decoding rather than a request still in flight.
+- A separate deterministic defect was reproduced: the entrance animation's
+  wall-clock completion timer can run before Konva advances its frames.
+  `Tween.destroy()` stops at the current opacity/position. Cancellation before
+  a staggered tween starts has the same problem. The local fix restores every
+  affected node on completion/cancellation, including pending tweens.
+  `useEntranceAnimation.test.ts` covers stalled frames and interrupted/restarted
+  animation; both tests failed against the previous implementation.
+- Production resolution is **not yet verified**; this fix has not been deployed
+  as part of the investigation. Image transfer/decode timeout handling remains
+  a separate gap: a pending resource has no deadline and retry is error-only.
+
+### Structural performance audit (2026-10-18, image quality unchanged)
+
+The scope is the site-wide wait before images become visible, not just the
+missing-character defect. Concrete improvement targets in the current code:
+
+1. `WorkCard` and `EpisodeDetailImage` initially render their images at opacity
+   zero. Even an already downloaded image waits for hydration/ref/onLoad state
+   before becoming visible. Decouple basic image visibility from JavaScript;
+   retain failure handling without hiding successfully downloaded SSR images.
+2. Work detail waits for `getWorkBySeriesAndCode`, then waits again for series,
+   adjacent-work and wallpaper-pack data before returning its main image.
+   `enrichWorks` also requests series-wide production-image maps even for one
+   work, and fetches all tag definitions. Narrow detail reads and stream
+   secondary panels independently. The existing data cache mitigates repeat
+   reads but does not remove cold-path dependencies.
+3. Template opening waits for auth/profile, fetches the template, validates the
+   user again inside `createFromTemplate`, inserts/returns the banner, awaits
+   collection invalidation, navigates, then fetches the same banner again via
+   `useBanner`. Seed the detail cache from the insert response and move
+   nonessential list refresh off the navigation path. Keep authorization/RLS.
+   Invalidation blocks on refetch only when corresponding queries are active.
+4. Editor data fetching starts inside a client-only dynamically loaded app;
+   Canvas is another lazy boundary. Unopened modals and mobile editing panels
+   are statically imported by BannerEditor, and all five translation languages
+   are imported at startup. Start document fetching independently of tool UI
+   loading; defer optional tools. Bundle costs still need measurement.
+5. Work cards disable route prefetch entirely. Consider bounded hover/focus
+   prefetch for intended destinations, rather than eager prefetch of all works.
+
+Read-only, anonymous production HTTP probes from this Mac (two sequential
+requests per URL; **not** a controlled cold-browser experiment):
+
+| Route | Response headers, seconds | Complete HTML, seconds | Vercel page cache |
+| --- | --- | --- | --- |
+| `/works/episode` | 2.114 / 0.445 | 2.312 / 0.469 | MISS / MISS |
+| `/works/episode/0457` | 0.398 / 0.398 | 0.469 / 0.564 | MISS / MISS |
+| `/edit` | 0.169 / 0.201 | 0.170 / 0.203 | HIT / HIT |
+
+Gallery responses were private/no-store; this is distinct from the existing
+`unstable_cache` data caches. The first listing response demonstrates waiting
+before image transfer, but does not identify DB time versus server startup or
+network overhead. Editor HTML contains no design images, so its fast HTTP
+response does not establish a fast editor startup.
+
+Already addressed: paginated gallery reads, parallel list metadata retrieval,
+nonblocking saved/purchased state, shared auth and browser Supabase client.
+Do not claim duplicate auth providers or unbounded gallery list reads as causes.
+Existing gallery tests allow a 3-second API response and wait for hydration;
+they do not enforce a first-visible-image latency budget. Follow-up local changes remove hydration-dependent image hiding and gallery
+entrance delays, eagerly request the first five cards, seed the newly created
+banner detail cache, and stop awaiting list refresh before navigation. These
+changes are not deployed; actual speedups remain unmeasured. The full staged
+UX checklist is in `UX_BILLING_FIX_LIST.md`.
+
 ### Preview reliability phases
 
 この Phase 番号は**バナープレビュー信頼性改善だけ**を指す。プロダクト全体の

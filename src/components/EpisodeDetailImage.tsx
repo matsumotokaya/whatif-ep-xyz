@@ -68,26 +68,13 @@ export function EpisodeDetailImage({
   const t = COPY[lang];
   const [index, setIndex] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
   const upgradedRef = useRef(false);
   const src = candidates[index] ?? "";
   const editable = Boolean(imagineUrl);
-  const isLoading = Boolean(src) && loadedSrc !== src;
 
   useEffect(() => {
     upgradedRef.current = false;
   }, [candidates]);
-
-  const setImageRef = useCallback(
-    (node: HTMLImageElement | null) => {
-      imgRef.current = node;
-      if (node && src && node.complete && node.naturalWidth > 0) {
-        setLoadedSrc(src);
-      }
-    },
-    [src]
-  );
 
   const openImagine = useCallback(() => {
     if (imagineUrl) window.open(imagineUrl, "_blank", "noopener,noreferrer");
@@ -108,14 +95,8 @@ export function EpisodeDetailImage({
 
   return (
     <div className="relative h-full w-full">
-      {isLoading && src && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="shimmer h-full w-full" />
-        </div>
-      )}
       <Image
         key={src}
-        ref={setImageRef}
         src={src}
         alt={alt}
         fill
@@ -124,16 +105,12 @@ export function EpisodeDetailImage({
         // the /_next/image transformation quota (which returns 402 once exhausted).
         unoptimized
         sizes="(min-width: 1024px) calc(100vw - 360px), 100vw"
-        className={`object-contain object-top p-2 transition-opacity duration-500 ease-out sm:p-4 lg:p-8 ${
-          isLoading ? "opacity-0" : "opacity-100"
-        }`}
+        className="object-contain object-top p-2 sm:p-4 lg:p-8"
         priority
         onError={() => {
           setIndex((current) => current + 1);
         }}
         onLoad={() => {
-          setLoadedSrc(src);
-
           // Paint a lightweight preview first, then upgrade once the heavier
           // source finishes in the background. This keeps detail navigation
           // responsive without permanently locking the page to the preview.

@@ -3,7 +3,6 @@
 import { memo } from "react";
 import type { WorkListItem } from "@/lib/types";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import { cn } from "@/lib/utils";
 import { WorkCard } from "./WorkCard";
 
 interface WorkGalleryProps {
@@ -30,23 +29,15 @@ const GalleryCard = memo(function GalleryCard({
   purchased: boolean;
   index: number;
 }) {
-  const animateEntrance = index < 20;
   return (
     <div
       data-card
       data-work-id={work.id}
       data-work-code={work.displayCode}
       data-work-sequence={work.sequenceNumber}
-      className={cn(
-        animateEntrance && "animate-fade-in-up motion-reduce:animate-none"
-      )}
-      style={
-        animateEntrance
-          ? { animationDelay: `${index * 30}ms` }
-          : undefined
-      }
+
     >
-      <WorkCard work={work} purchased={purchased} />
+      <WorkCard work={work} purchased={purchased} eager={index < 5} />
     </div>
   );
 });

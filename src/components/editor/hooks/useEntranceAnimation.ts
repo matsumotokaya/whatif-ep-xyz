@@ -29,6 +29,7 @@ export function useEntranceAnimation({
   const tweensRef = useRef<Konva.Tween[]>([]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const restoreNodesRef = useRef<(() => void) | null>(null);
   const hasStartedRef = useRef(false);
 
   // Cleanup all tweens and timers
@@ -41,6 +42,11 @@ export function useEntranceAnimation({
     }
     animationTimeoutsRef.current.forEach(t => clearTimeout(t));
     animationTimeoutsRef.current = [];
+    // A timer can run before Konva's next animation frame (busy/background
+    // tabs). destroy() only stops a tween; it does not reach its final state.
+    // Restore even nodes whose staggered tween has not started yet.
+    restoreNodesRef.current?.();
+    restoreNodesRef.current = null;
   }, []);
 
   // Transition to loading when enabled and elements exist
@@ -110,6 +116,15 @@ export function useEntranceAnimation({
 
       // Store original Y positions before modifying
       const originalPositions = new Map<string, { y: number; opacity: number }>();
+      restoreNodesRef.current = () => {
+        originalPositions.forEach((original, id) => {
+          const node = nodesMap.get(id);
+          if (!node) return;
+          node.y(original.y);
+          node.opacity(original.opacity);
+        });
+        canvasRef.current?.getLayerNode()?.batchDraw();
+      };
 
       // Set all nodes to invisible initial state
       sorted.forEach(el => {
