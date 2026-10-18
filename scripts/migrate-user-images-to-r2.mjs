@@ -2,7 +2,7 @@
  * Phase 1 (M3): copy every Supabase Storage `user-images` object into the R2
  * assets bucket `whatif-assets` under the key `user-images/{original path}`.
  *
- * See docs/M3_ASSET_KEY_PLAN.md. This is a COPY only — the Supabase originals
+ * See docs/archive/M3_ASSET_KEY_PLAN.md. This is a COPY only — the Supabase originals
  * are left untouched (they stay the read source for bare-key rows until Stage
  * C/D). The script is idempotent: objects already present on R2 (verified via
  * an authenticated S3 HEAD) are skipped, so it can be re-run safely.
@@ -28,18 +28,17 @@
  *   R2_ASSETS_BUCKET          (defaults to `whatif-assets`; NOT R2_BUCKET)
  *
  * IMPORTANT — which env file:
- *   Use ../imagine/.env.r2backfill.local, NOT whatif-ep-xyz/.env.local. The
- *   gallery .env.local R2 credentials are scoped to the LEGACY bucket
- *   `whatif-ep-xyz` and get 403 Access Denied on `whatif-assets`. The imagine
- *   backfill env file holds credentials with write access to `whatif-assets`
- *   (and R2_BUCKET=whatif-assets, though this script reads R2_ASSETS_BUCKET).
+ *   Use this repository's gitignored .env.r2backfill.local, NOT .env.local.
+ *   The latter's credentials were scoped to the LEGACY bucket and returned
+ *   403 on whatif-assets. The dedicated backfill configuration is kept local;
+ *   never commit its credentials or infer bucket permissions from key names.
  *
  * Usage:
  *   # dry-run (lists what would be copied, no writes):
- *   node --env-file=../imagine/.env.r2backfill.local scripts/migrate-user-images-to-r2.mjs
+ *   node --env-file=.env.r2backfill.local scripts/migrate-user-images-to-r2.mjs
  *
  *   # actually copy:
- *   node --env-file=../imagine/.env.r2backfill.local scripts/migrate-user-images-to-r2.mjs --apply
+ *   node --env-file=.env.r2backfill.local scripts/migrate-user-images-to-r2.mjs --apply
  *
  * Notes:
  *   - The Supabase JS Storage API caps `list()` at 100 rows per page and does

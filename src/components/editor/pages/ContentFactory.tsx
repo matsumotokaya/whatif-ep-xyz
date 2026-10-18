@@ -1364,7 +1364,7 @@ export function ContentFactory() {
                 この画面を起点に、先に workflow を固定し、その後に storage と delivery を分離していく。
               </p>
             </div>
-            <span className="text-xs text-gray-400">Docs: `imagine/docs/WALLPAPER_FACTORY_PLAN.md`</span>
+            <span className="text-xs text-gray-400">Docs: `docs/WALLPAPER_CLI.md`</span>
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">

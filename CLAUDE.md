@@ -5,7 +5,7 @@
 ## Overview
 WHATIF EP digital art gallery（本番: https://whatif-ep.xyz）。**作品ハブ + 壁紙販売 + IMAGINE 編集導線**。
 Next.js 16 + Tailwind CSS v4 + Vercel + Supabase + Cloudflare R2。
-姉妹アプリ **IMAGINE**（`app.whatif-ep.xyz`）と**同一 Supabase プロジェクトを共有**する。
+**IMAGINE はこの Next.js アプリへ統合済み**。エディタ実装は `src/components/editor/`、入口は `/imagine` と `/edit`。旧独立アプリは停止済みで、開発・修正は本リポジトリで行う。
 
 外部サービスのMCP／CLI接続先とセッション開始時チェックは `docs/AGENT_TOOLING.md` を正本とする。
 Stripe、Vercel、Supabaseを扱う前に同文書を確認する。
@@ -62,7 +62,8 @@ Premium判定の三層（機能アクセス / 課金表示 / Stripe整合）と�
 ## Supabase（DB操作の注意）
 - **MCP は read-only**。スキーマ変更/バックフィルの DDL/DML は**SQLを提示してユーザーが手動実行**。
 - `auth.users` と `public.users(user_id)` を区別（親 `/Users/kaya.matsumoto/CLAUDE.md` のルールに従う）。
-- R2 移行の正本は `imagine/docs/R2_MIGRATION.md`（残: default-images / 残り user-images のバックフィル）。
+- 現行の画像参照・配信構成は `README.md` と `src/lib/asset.ts` / `src/lib/asset-url.ts` を参照する。移行履歴は `docs/archive/M3_ASSET_KEY_PLAN.md` と `docs/archive/CUTOVER_MILESTONES.md`。旧移行計画の未完了記述を現在の実測状態として扱わない。
+- バックフィルには本リポジトリの gitignored `.env.r2backfill.local` を使う（`package.json` の `backfill:gallery-thumbs`）。通常の `.env.local` とバケット権限が異なるため混用しない。秘密値はコミットしない。
 
 ## Git
 - GitHub account: **matsumotokaya**（personal）／ host: `github.com`

@@ -230,7 +230,7 @@ Gallery 側では `work_offer` として公開する。
 
 IMAGINE 側の詳細設計:
 
-- [../../imagine/docs/WALLPAPER_FACTORY_PLAN.md](../../imagine/docs/WALLPAPER_FACTORY_PLAN.md)
+- [WALLPAPER_CLI.md](WALLPAPER_CLI.md) — 現行の素材準備・Content Factory 登録手順
 
 壁紙量産のために必要なのは、次の構造改革。
 

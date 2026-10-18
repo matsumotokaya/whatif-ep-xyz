@@ -5,6 +5,9 @@
  * objects to the R2 assets bucket. It does not update Supabase or replace any
  * source object. Existing destination objects are always skipped.
  *
+ * Configuration: repository-local, gitignored .env.r2backfill.local.
+ * Keep assets-bucket credentials separate from the legacy Gallery .env.local.
+ *
  * Dry run:
  *   npm run backfill:gallery-thumbs
  *

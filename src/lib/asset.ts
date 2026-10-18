@@ -1,7 +1,7 @@
 // Single asset-reference module for the consolidated app (M3).
 //
 // Background (see docs/archive/M3_ASSET_KEY_PLAN.md and
-// imagine/docs/ASSET_REFERENCE_REDESIGN.md): the app used to bake absolute
+// docs/archive/ASSET_REFERENCE_REDESIGN.md): the app used to bake absolute
 // backend URLs into the database (banners/templates thumbnail columns and the
 // JSONB elements[].src). Every time storage moved (Supabase -> R2) those rows
 // had to be find-and-rewritten, and any missed field silently 404'd once the
