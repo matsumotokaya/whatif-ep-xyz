@@ -104,3 +104,52 @@ npm run design -- status <id>                               # revision・プレ�
   - ユーザーがエディタで調整・保存した版（rev27）を `get` で読み戻した。エディタが作った同じ revision の full-res が ready で、実寸 1920×1080 だった。
   - その版をもとに縦カバー `a5f4fb01-…`（1080×1920）を作成した。登録済みの素材キーを再利用し、ready を実寸で確認した。
   - 公開 MCP の `get_design` でも `previewStatus: ready` / `stale: false` / `url` ありを確認した。記録は制作側の `2026-10-17_mada-atatakai-mv/release/asset-sources.json`。
+
+## 複数デザインの更新・プレビュー一括生成（2026-11-14）
+
+Feed・Portrait・Landscapeを同じジョブに並べ、1回のログインと1つの描画ブリッジで処理する。特定の作品・クレジット専用ではない。既存の下書きを更新する機能で、Content Factory登録やPublishは行わない。
+
+```sh
+npm run design -- batch --manifest batch.json --out batch-report.json
+npm run design -- batch --manifest batch.json --out batch-report.json --apply
+```
+
+初回はローカルプレビューのみ。`--apply` で文書保存とthumbnail/full-res確定まで実施。対象IDと、`get`で取得した現在の`documentRevision`を指定する。プレビューは既定で`batch-report.json.previews/<id>.jpg`に保存（`--preview-dir`で変更可）。本人の既存CLIセッションとRLSを使用し、service roleやブラウザからのトークン抽出は不要。エージェントから実行する際のBANALIST接続確認・書き込み授権はAGENTS.mdに従う。このコマンドを接続制約の迂回に使わない。
+
+```json
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "action": "update",
+      "documentRevision": 4,
+      "patch": {
+        "canvasColor": "#221fff",
+        "elements": [
+          {
+            "match": { "id": "credit-title", "type": "text" },
+            "count": 1,
+            "set": { "fill": "#000000", "rotation": 90, "x": 1054, "y": 35 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "action": "render",
+      "documentRevision": 7
+    }
+  ]
+}
+```
+
+- 上記IDは例。実在する対象のIDへ置き換える。各ジョブは1デザインにつき1件。
+- `patch`は指定した項目だけを変更する。人物画像の位置や番号の文字列は、指定しない限り保持する。背景色はcanvasColorとtemplate.backgroundColorを同期する。
+- 要素の`match`は`id`・`type`・`text`の完全一致（複数指定はAND）。`count`と一致件数が違えば停止する。`set`で色・座標・回転・フォント・文字列など既存の要素プロパティを指定できる。IDと要素typeの変更、要素の追加削除・素材アップロードはこのバッチでは扱わない。
+- `action: render`は文書を変更せず現在の版のプレビューを生成する。バッチではrenderも`--apply`なしならローカル出力のみ。
+- 全対象のrevision・変更後文書・描画を事前確認してから保存する。途中で人が編集した場合は既存のrevision競合検知で停止する。描画結果は保存時に再利用し、同じ画像を二度レンダリングしない。
+- 複数件全体のトランザクションではない。途中で失敗した場合、レポートに`ready`（完了）、`failed`、`prepared`（未実施）を残して停止し、終了コード1を返す。文書保存後にプレビューで失敗した場合は保存済み`documentRevision`も残る。再開時は現状をgetで取得し、完了分を除いたmanifestを作る。文書が保存済みなら`render`でプレビューだけ再生成できる。古いmanifestをそのまま再適用しない。
+- 通常は代表プレビューを軽く見てユーザーへ渡す。全件の画面巡回や画像再ダウンロード検品は行わない。
+
+検証: モックを使った回帰テストで、パッチの範囲保持、曖昧な対象の拒否、dry-runで書き込まないこと、全件事前確認、競合時の部分成功レポート、render-onlyを確認。本番データへの適用は別工程。

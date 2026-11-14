@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // AI-authored layered design drafts. Spec and workflow: docs/DESIGN_CLI.md.
+import { executeBatch, validateBatch } from './lib/design-batch.mjs';
 import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -26,9 +27,10 @@ const usage = `Usage (npm run design -- <command>):
   create --doc <doc.json> --key <idempotency-key> [--preview <out.jpg>] [--apply]
   update <designId> --doc <doc.json> [--preview <out.jpg>] [--apply]
   render <designId> [--preview <out.jpg>]    render the current revision and store its preview
+  batch --manifest <batch.json> --out <report.json> [--preview-dir <dir>] [--apply]
   status <designId>
 
-Without --apply, create/update only validate and render a local preview; nothing is written.
+Without --apply, create/update/batch only validate and render local previews; no design or preview is written.
 The render bridge is ${RENDER_BASE_URL}/edit/render (start "npm run dev" for localhost).`;
 
 const editUrl = (id) => `${SITE_URL}/edit/${id}`;
@@ -226,6 +228,12 @@ async function run(command, args, values) {
   if (command === 'logout') { await rm(SESSION_FILE, { force: true }); return { loggedOut: true }; }
   if (command === 'presets') return withBridge((bridge) => bridge.presets());
 
+  if (command === 'batch') {
+    if (!values.manifest || !values.out) throw new Error('batch requires --manifest and --out.');
+    validateBatch(JSON.parse(await readFile(values.manifest, 'utf8')));
+    if (path.resolve(values.manifest) === path.resolve(values.out)) throw new Error('Report must not overwrite the manifest.');
+  }
+
   // A create dry run touches nothing remote, so it previews without a session.
   const offline = command === 'create' && !values.apply;
   const { supabase, user } = offline ? await connect().catch(() => ({ supabase: null, user: null })) : await connect();
@@ -239,6 +247,34 @@ async function run(command, args, values) {
     const editable = toEditableDocument(row);
     if (values.out) await writeFile(values.out, JSON.stringify(editable, null, 2) + '\n');
     return { ...editable, elements: values.out ? `written to ${values.out}` : editable.elements, layers: layerSummary(row.elements), editUrl: editUrl(id), preview };
+  }
+
+  if (command === 'batch') {
+    if (!values.manifest || !values.out) throw new Error('batch requires --manifest and --out.');
+    const manifest = JSON.parse(await readFile(values.manifest, 'utf8'));
+    if (path.resolve(values.manifest) === path.resolve(values.out)) throw new Error('Report must not overwrite the manifest.');
+    const previewDir = path.resolve(values['preview-dir'] ?? `${values.out}.previews`);
+    await mkdir(previewDir, { recursive: true });
+    await mkdir(path.dirname(path.resolve(values.out)), { recursive: true });
+    return withBridge(async (bridge) => {
+      const result = await executeBatch(manifest, {
+        apply: values.apply,
+        read: (id) => readOwnedBanner(supabase, user.id, id),
+        normalize: bridge.normalize,
+        render: async (doc, id) => {
+          const rendered = await bridge.render(doc);
+          await writeFile(path.join(previewDir, `${id}.jpg`), rendered.fullres);
+          return rendered;
+        },
+        update: (id, expectedRevision, doc) => updateDocument({ supabase, userId: user.id, id, expectedRevision, doc }),
+        commit: (row, rendered) => commitPreview({ supabase, userId: user.id, row, rendered }),
+        report: async (report) => {
+          await writeFile(values.out, JSON.stringify({ ...report, previewDir }, null, 2) + '\n');
+        },
+      });
+      if (result.phase === 'failed') process.exitCode = 1;
+      return { ...result, previewDir, report: values.out };
+    });
   }
 
   if (command === 'render') {
@@ -286,6 +322,7 @@ async function run(command, args, values) {
 
 try {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
+    manifest: { type: 'string' }, 'preview-dir': { type: 'string' },
     doc: { type: 'string' }, key: { type: 'string' }, out: { type: 'string' }, preview: { type: 'string' },
     email: { type: 'string' }, otp: { type: 'boolean', default: false }, apply: { type: 'boolean', default: false }, help: { type: 'boolean' },
   } });
