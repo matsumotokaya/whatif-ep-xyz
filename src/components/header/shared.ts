@@ -21,7 +21,7 @@ export const sharedNavItems: Array<{
   href: string;
   external?: boolean;
 }> = [
-  { key: "episodes", href: "/works/episode" },
+  { key: "episodes", href: "/works/recommend" },
   { key: "imagine", href: "/imagine" },
   { key: "club", href: "/the-club" },
   { key: "store", href: "https://whatif.stores.jp", external: true },

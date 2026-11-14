@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
-  getGallerySeries,
+  getGalleryNavSeries,
   getSeriesDisplayName,
   getWorkCardsPageBySeries,
   getWorkFilterMetaBySeries,
@@ -39,7 +39,7 @@ export default async function WorksSeriesPage({
 
   // Catalog data (cached via unstable_cache) — fast, forms the static shell.
   const [seriesOptions, initialPage, filterMeta] = await Promise.all([
-    getGallerySeries(),
+    getGalleryNavSeries(),
     getWorkCardsPageBySeries(series, { tagSlug: initialSelectedTagId ?? null }),
     getWorkFilterMetaBySeries(series),
   ]);
@@ -48,20 +48,11 @@ export default async function WorksSeriesPage({
   if (!selectedSeries) notFound();
 
   return (
-    <div className="w-full px-3 py-6 sm:px-5 sm:py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          Gallery
-        </h1>
-        <h2 className="sr-only">{selectedSeries.name}</h2>
-        <p className="mt-1 text-sm text-muted">
-          {selectedSeries.name} / {filterMeta.total} works
-        </p>
-      </div>
-
+    <div className="w-full px-3 pb-6 sm:px-5 sm:pb-8">
       <WorksPageClient
         series={seriesOptions}
         selectedSeriesSlug={series}
+        seriesName={selectedSeries.name}
         initialPage={initialPage}
         filterMeta={filterMeta}
         initialSelectedTagId={initialSelectedTagId ?? null}

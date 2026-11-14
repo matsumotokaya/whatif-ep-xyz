@@ -76,6 +76,9 @@ const VARIANT_COLUMNS = [
   "is_primary",
   "created_at",
   "updated_at",
+  "video_storage_key",
+  "video_preview_storage_key",
+  "video_has_audio",
 ].join(", ");
 
 const OFFER_COLUMNS = [
@@ -177,6 +180,9 @@ function mapVariant(
     updatedAt: row.updated_at,
     feedImageUrl: null,
     feedThumbUrl: null,
+    videoUrl: row.video_storage_key ?? null,
+    videoPreviewUrl: row.video_preview_storage_key ?? row.video_storage_key ?? null,
+    videoHasAudio: row.video_has_audio === true,
     offers,
   };
 }
@@ -523,6 +529,140 @@ const _cachedGallerySeries = unstable_cache(
 
 export const getGallerySeries = cache(_cachedGallerySeries);
 
+// ─── Recommend (curated) ─────────────────────────────────────────────────────
+// A virtual gallery mode, listed first and used as the default landing page.
+// Its works are the ones saved by one curator account — the admin's way of
+// pushing hand-picked works to the front. The curator is configured in
+// public.site_settings (key 'recommend_curator_user_id', value = auth user id
+// as a JSON string); change it with SQL, there is no UI. See docs/RECOMMEND.md.
+export const RECOMMEND_SLUG = "recommend";
+const RECOMMEND_NAME = "Recommend";
+
+type RecommendedWorkRef = { id: string; seriesSlug: string };
+
+const _cachedRecommendedWorkRefs = unstable_cache(
+  async (): Promise<RecommendedWorkRef[]> => {
+    const supabase = createAdminClient();
+    if (!supabase) return [];
+
+    const { data: setting, error: settingError } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "recommend_curator_user_id")
+      .maybeSingle();
+    if (settingError) {
+      console.error(`Failed to read recommend curator: ${settingError.message}`);
+      return [];
+    }
+    const value = (setting as { value: unknown } | null)?.value;
+    const curatorId = typeof value === "string" ? value : null;
+    if (!curatorId) return [];
+
+    // Newest save first. Only published works in public series are shown.
+    const { data, error } = await supabase
+      .from("work_saves")
+      .select("work_id, created_at, works!inner(status, work_series!inner(slug, is_public))")
+      .eq("user_id", curatorId)
+      .eq("works.status", "published")
+      .eq("works.work_series.is_public", true)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error(`Failed to load recommended works: ${error.message}`);
+      return [];
+    }
+
+    type Row = {
+      work_id: string;
+      works: { work_series: { slug: string } | { slug: string }[] } | { work_series: { slug: string } }[];
+    };
+    const refs: RecommendedWorkRef[] = [];
+    for (const row of (data ?? []) as unknown as Row[]) {
+      const work = Array.isArray(row.works) ? row.works[0] : row.works;
+      const series = Array.isArray(work?.work_series) ? work.work_series[0] : work?.work_series;
+      if (series?.slug) refs.push({ id: row.work_id, seriesSlug: series.slug });
+    }
+    return refs;
+  },
+  ["works:recommended-refs:v1"],
+  // Saves are written from the browser (no server hook to revalidate), so keep
+  // this short: a curator's new save shows up within 2 minutes.
+  { tags: ["works", "recommend"], revalidate: 120 }
+);
+
+/** Gallery mode selector entries: Recommend first, then the public series. */
+export async function getGalleryNavSeries(): Promise<GallerySeries[]> {
+  const [series, refs] = await Promise.all([getGallerySeries(), _cachedRecommendedWorkRefs()]);
+  return [
+    {
+      id: RECOMMEND_SLUG,
+      slug: RECOMMEND_SLUG,
+      name: RECOMMEND_NAME,
+      routeBase: `/works/${RECOMMEND_SLUG}`,
+      numberPadding: 4,
+      sortOrder: 0,
+      isPublic: true,
+      workCount: refs.length,
+    },
+    ...series,
+  ];
+}
+
+async function loadRecommendedCardsPage(
+  options: NormalizedWorkCardsPageOptions
+): Promise<WorkListPage> {
+  let refs = await _cachedRecommendedWorkRefs();
+  if (options.sort === "oldest") refs = [...refs].reverse();
+  if (options.ids !== null) {
+    const allowed = new Set(options.ids);
+    refs = refs.filter((ref) => allowed.has(ref.id));
+  }
+
+  // Cursor = offset into the curated list (series cursors are sequence numbers).
+  const offset = Math.max(0, options.cursor ?? 0);
+  const pageRefs = refs.slice(offset, offset + options.limit);
+
+  const idsBySeries = new Map<string, string[]>();
+  for (const ref of pageRefs) {
+    const bucket = idsBySeries.get(ref.seriesSlug) ?? [];
+    bucket.push(ref.id);
+    idsBySeries.set(ref.seriesSlug, bucket);
+  }
+
+  // Reuse the per-series card RPC (≤ limit ids per call) and the same per-card
+  // extras, then restore the curated order.
+  const itemsById = new Map<string, WorkListItem>();
+  await Promise.all(
+    [...idsBySeries].map(async ([seriesSlug, ids]) => {
+      const rows = await callGalleryRpc<GalleryWorkCardRow[]>("get_gallery_work_cards_page", {
+        p_series_slug: seriesSlug,
+        p_sort: "newest",
+        p_limit: ids.length,
+        p_cursor_sequence: null,
+        p_range_start: null,
+        p_range_end: null,
+        p_tag_slug: null,
+        p_wallpaper_only: false,
+        p_ids: ids,
+      });
+      const items = rows.map(mapGalleryWorkCardRow);
+      await attachCardVariantExtras(seriesSlug, items);
+      for (const item of items) itemsById.set(item.id, item);
+    })
+  );
+
+  const items = pageRefs
+    .map((ref) => itemsById.get(ref.id))
+    .filter((item): item is WorkListItem => Boolean(item));
+  const hasMore = offset + options.limit < refs.length;
+  return {
+    items,
+    total: refs.length,
+    limit: options.limit,
+    hasMore,
+    nextCursor: hasMore ? offset + options.limit : null,
+  };
+}
+
 const _cachedWorkCountBySeries = unstable_cache(
   async (seriesSlug: string): Promise<number> => {
     const supabase = createAnonClient();
@@ -665,6 +805,7 @@ export async function getPrimarySeriesSlug(): Promise<string> {
 }
 
 export async function getSeriesDisplayName(seriesSlug: string): Promise<string> {
+  if (seriesSlug === RECOMMEND_SLUG) return RECOMMEND_NAME;
   const series = await getSeriesBySlug(seriesSlug);
   return series?.name ?? seriesSlug;
 }
@@ -738,7 +879,18 @@ function mapGalleryWorkCardRow(row: GalleryWorkCardRow): WorkListItem {
     imageCandidates,
     hasWallpaperOffer: row.has_wallpaper_offer,
     hasStarterOffer: row.has_starter_offer,
+    aspectRatio: DEFAULT_CARD_ASPECT_RATIO,
   };
+}
+
+// Legacy list thumbnails (gallery-thumbs) and Content Factory feed images are
+// both 4:5, so that is the right card shape when a variant has no dimensions.
+const DEFAULT_CARD_ASPECT_RATIO = 4 / 5;
+
+function cardAspectRatio(width: number | null, height: number | null): number {
+  if (!width || !height || width <= 0 || height <= 0) return DEFAULT_CARD_ASPECT_RATIO;
+  // Keep extreme panoramas/strips from producing unusable cards.
+  return Math.min(2.5, Math.max(0.4, width / height));
 }
 
 type GalleryRpcName =
@@ -783,6 +935,11 @@ const _cachedWorkFilterMetaBySeries = unstable_cache(
 export async function getWorkFilterMetaBySeries(
   seriesSlug: string
 ): Promise<WorkFilterMeta> {
+  if (seriesSlug === RECOMMEND_SLUG) {
+    // Cross-series: number ranges and series tags do not apply.
+    const refs = await _cachedRecommendedWorkRefs();
+    return { total: refs.length, maxSequence: 0, tagFilters: [] };
+  }
   return _cachedWorkFilterMetaBySeries(seriesSlug);
 }
 
@@ -834,6 +991,99 @@ function normalizeWorkCardsPageOptions(
   };
 }
 
+// Per-card extras from work_variants, in one small query per page:
+// - Motion works: the primary variant's silent preview video.
+// - Multi-variant works: one carousel slide per ready variant (plus the
+//   already-cached series feed maps when a page needs them).
+async function attachCardVariantExtras(seriesSlug: string, items: WorkListItem[]) {
+  if (items.length === 0) return;
+  const supabase = createAdminClient();
+  if (!supabase) return;
+
+  const { data, error } = await supabase
+    .from("work_variants")
+    .select("work_id, variant_number, thumbnail_storage_key, original_storage_key, updated_at, video_storage_key, video_preview_storage_key, width, height")
+    .in("work_id", items.map((item) => item.id))
+    .eq("status", "ready")
+    .order("is_primary", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .order("variant_number", { ascending: true });
+
+  if (error) {
+    // Carousels are an enhancement; the primary image still renders.
+    console.error(`Failed to load card variants: ${error.message}`);
+    return;
+  }
+
+  type SlideVariantRow = {
+    work_id: string;
+    variant_number: number;
+    thumbnail_storage_key: string | null;
+    original_storage_key: string | null;
+    updated_at: string;
+    video_storage_key: string | null;
+    video_preview_storage_key: string | null;
+    width: number | null;
+    height: number | null;
+  };
+  const variantsByWorkId = new Map<string, SlideVariantRow[]>();
+  for (const row of (data ?? []) as SlideVariantRow[]) {
+    const bucket = variantsByWorkId.get(row.work_id) ?? [];
+    bucket.push(row);
+    variantsByWorkId.set(row.work_id, bucket);
+  }
+
+  for (const item of items) {
+    const primary = variantsByWorkId.get(item.id)?.[0];
+    if (primary) item.aspectRatio = cardAspectRatio(primary.width, primary.height);
+    const previewUrl = primary?.video_preview_storage_key ?? primary?.video_storage_key ?? null;
+    if (!primary || !previewUrl) continue;
+    const posterUrl = primary.thumbnail_storage_key ?? primary.original_storage_key ?? null;
+    item.video = { previewUrl, posterUrl };
+    // The poster is the real list image; skip the gallery-thumbs fallback
+    // (never generated for Motion) so cards do not request a missing file.
+    if (posterUrl) item.feedThumbUrl = posterUrl;
+  }
+
+  const multiVariantItems = items.filter(
+    (item) => (variantsByWorkId.get(item.id)?.length ?? 0) > 1
+  );
+  if (multiVariantItems.length === 0) return;
+
+  const [feedThumbMap, feedImageMap] = await Promise.all([
+    getSeriesFeedThumbMap(seriesSlug),
+    getSeriesFeedImageMap(seriesSlug),
+  ]);
+
+  for (const item of multiVariantItems) {
+    const variants = variantsByWorkId.get(item.id) ?? [];
+    item.slides = variants.map((variant, index) => {
+      if (index === 0) {
+        // Keep the card's existing primary chain (gallery thumb first).
+        return {
+          variantNumber: variant.variant_number,
+          candidates: [
+            ...(item.feedThumbUrl ? [item.feedThumbUrl] : []),
+            ...item.imageCandidates,
+          ],
+        };
+      }
+      const key = `${item.displayCode}:${variant.variant_number}`;
+      const candidates = [
+        feedThumbMap.get(key) ?? null,
+        feedImageMap.get(key) ?? null,
+        ...getVariantThumbnailCandidates({
+          thumbnailStorageKey: variant.thumbnail_storage_key,
+          originalStorageKey: variant.original_storage_key,
+          updatedAt: variant.updated_at,
+        }),
+      ].filter((url): url is string => Boolean(url));
+      return { variantNumber: variant.variant_number, candidates: [...new Set(candidates)] };
+    }).filter((slide) => slide.candidates.length > 0);
+    if (item.slides.length < 2) delete item.slides;
+  }
+}
+
 async function loadWorkCardsPageBySeries(
   seriesSlug: string,
   options: NormalizedWorkCardsPageOptions
@@ -866,6 +1116,7 @@ async function loadWorkCardsPageBySeries(
   const hasMore = rows.length > limit;
   const pageRows = rows.slice(0, limit);
   const items = pageRows.map(mapGalleryWorkCardRow);
+  await attachCardVariantExtras(seriesSlug, items);
   const lastItem = items.at(-1);
 
   return {
@@ -879,7 +1130,7 @@ async function loadWorkCardsPageBySeries(
 
 const _cachedWorkCardsPageBySeries = unstable_cache(
   loadWorkCardsPageBySeries,
-  ["works:gallery-card-page:v1"],
+  ["works:gallery-card-page:v4"],
   {
     tags: ["works", "work_tags", "production"],
     revalidate: 300,
@@ -891,6 +1142,11 @@ export async function getWorkCardsPageBySeries(
   options: WorkCardsPageOptions = {}
 ): Promise<WorkListPage> {
   const normalizedOptions = normalizeWorkCardsPageOptions(options);
+
+  if (seriesSlug === RECOMMEND_SLUG) {
+    // The curated id list is cached; card rows reuse the cached series RPC path.
+    return loadRecommendedCardsPage(normalizedOptions);
+  }
 
   // Saved-work IDs are user-specific and must never enter the shared cache.
   if (normalizedOptions.ids !== null) {

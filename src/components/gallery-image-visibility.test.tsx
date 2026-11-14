@@ -12,7 +12,7 @@ const work: WorkListItem = {
   id: 'test', seriesSlug: 'episode', displayCode: '0457', title: 'Test',
   themeCategory: '', tags: [], sequenceNumber: 457,
   feedThumbUrl: 'https://assets.whatif-ep.xyz/test.webp', imageCandidates: [],
-  hasWallpaperOffer: false, hasStarterOffer: false,
+  hasWallpaperOffer: false, hasStarterOffer: false, aspectRatio: 4 / 5,
 };
 
 // Exercise the real Next Image output before hydration. Cached/downloaded

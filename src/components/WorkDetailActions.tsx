@@ -138,6 +138,8 @@ interface WorkDetailActionsProps {
   /** Optional client-side endpoint for the non-critical purchase badge. */
   wallpaperStateUrl?: string;
   workTitle: string;
+  /** Motion (video) works have no IMAGINE template or still download. */
+  isVideo?: boolean;
 }
 
 export function WorkDetailActions({
@@ -150,6 +152,7 @@ export function WorkDetailActions({
   wallpaperCoverUrl,
   wallpaperStateUrl,
   workTitle,
+  isVideo = false,
 }: WorkDetailActionsProps) {
   const { profile } = useAuth();
   const { lang } = useLanguage();
@@ -198,21 +201,23 @@ export function WorkDetailActions({
             <SparklesIcon className="h-4 w-4" />
             {t.editIllustration}
           </a>
-        ) : (
+        ) : isVideo ? null : (
           <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
             <SparklesIcon className="h-4 w-4" />
             {t.editIllustrationPending}
           </span>
         )}
 
-        <DownloadButton
-          url={downloadUrl}
-          filename={downloadFilename}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
-        >
-          <DownloadIcon className="h-4 w-4" />
-          {t.download}
-        </DownloadButton>
+        {!isVideo && (
+          <DownloadButton
+            url={downloadUrl}
+            filename={downloadFilename}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
+          >
+            <DownloadIcon className="h-4 w-4" />
+            {t.download}
+          </DownloadButton>
+        )}
 
         {storeUrl && (
           <a

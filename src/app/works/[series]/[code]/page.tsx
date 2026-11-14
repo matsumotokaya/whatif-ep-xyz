@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
+import { MotionDetailVideo } from "@/components/MotionDetailVideo";
 import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import {
@@ -18,7 +19,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { NearbyWallpapers } from "./NearbyWallpapers";
 import {
   getAdjacentWorks,
-  getGallerySeries,
+  getGalleryNavSeries,
   getWorkBySeriesAndCode,
 } from "@/lib/works";
 
@@ -122,7 +123,7 @@ export default async function WorkDetailPage({
 
   // Catalog data (cached) — fast, forms the static shell.
   const [seriesOptions, adjacent, wallpaperPack] = await Promise.all([
-    getGallerySeries(),
+    getGalleryNavSeries(),
     getAdjacentWorks(series, work.sequenceNumber),
     getPublishedWallpaperPack(
       work.seriesSlug,
@@ -188,11 +189,21 @@ export default async function WorkDetailPage({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background lg:overflow-hidden">
       <div className="flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative h-[58vh] shrink-0 bg-surface/30 lg:h-auto lg:min-h-0">
-          <EpisodeDetailImage
-            candidates={imageCandidates}
-            alt={work.title}
-            imagineUrl={imagineUrl}
-          />
+          {currentVariant.videoUrl ? (
+            <MotionDetailVideo
+              key={currentVariant.id}
+              src={currentVariant.videoUrl}
+              poster={imageCandidates[0] ?? null}
+              title={work.title}
+              hasAudio={currentVariant.videoHasAudio}
+            />
+          ) : (
+            <EpisodeDetailImage
+              candidates={imageCandidates}
+              alt={work.title}
+              imagineUrl={imagineUrl}
+            />
+          )}
 
           {/* Save button overlaid at the top-right of the image */}
           <div className="absolute right-3 top-14 z-20 sm:right-4">
@@ -368,6 +379,7 @@ export default async function WorkDetailPage({
                   : undefined
               }
               workTitle={work.title}
+              isVideo={Boolean(currentVariant.videoUrl)}
             />
 
             <Suspense fallback={null}>

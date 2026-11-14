@@ -1,6 +1,7 @@
 "use client";
 
 import { useLanguage, type Language } from "@/context/LanguageContext";
+import { PillSelectChevron, PILL_SELECT_CLASS } from "@/components/PillSelect";
 
 const COPY: Record<
   Language,
@@ -23,19 +24,19 @@ export function SortToggle({ sort, onSortChange }: SortToggleProps) {
   const t = COPY[lang];
 
   return (
-    <label className="inline-flex items-center gap-2 text-xs text-muted">
-      <span>{t.label}</span>
+    <span className="relative inline-flex shrink-0">
       <select
         aria-label={t.label}
         value={sort}
         onChange={(event) =>
           onSortChange(event.target.value as "newest" | "oldest")
         }
-        className="h-10 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:bg-surface-hover"
+        className={PILL_SELECT_CLASS}
       >
         <option value="newest">{t.newest}</option>
         <option value="oldest">{t.oldest}</option>
       </select>
-    </label>
+      <PillSelectChevron />
+    </span>
   );
 }

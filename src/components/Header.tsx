@@ -194,7 +194,7 @@ export function Header() {
   }, [menuOpen]);
 
   return (
-    <header className={`fixed top-0 z-50 w-full transition-colors ${isHome ? "" : "border-b border-border bg-background/80 backdrop-blur-md"}`}>
+    <header className={`fixed top-0 z-50 w-full transition-colors ${isHome ? "" : "border-b border-border bg-background"}`}>
       <div className="grid h-14 grid-cols-[1fr_auto_1fr] items-center px-4">
         {/* Left: user menu or login */}
         <div className="flex items-center">

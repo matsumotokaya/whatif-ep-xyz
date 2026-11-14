@@ -11,7 +11,7 @@ export const SPECS = {
 export const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 export function validateIdentity(value) {
-  if (!value || value.version !== 1 || !['episode', 'reel', 'experiment', 'remix'].includes(value.series)
+  if (!value || value.version !== 1 || !['episode', 'motion', 'experiment', 'remix'].includes(value.series)
     || !Number.isSafeInteger(value.workNumber) || value.workNumber < 1
     || !Number.isSafeInteger(value.variant) || value.variant < 1) {
     throw new Error('Invalid package identity (version, series, workNumber, variant).');

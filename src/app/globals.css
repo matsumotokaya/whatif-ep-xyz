@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eeeeee;
+  --background: #ffffff;
   --foreground: #111111;
   --surface: #ffffff;
   --surface-hover: #f0f0f0;
@@ -425,4 +425,33 @@ body {
 .tab-indicator {
   transition: transform var(--duration-normal) var(--ease-out-expo),
               width var(--duration-normal) var(--ease-out-expo);
+}
+
+/* ─── Gallery masonry (Pinterest-style) ───
+   Rows are 1/50 of a column width and the gap is 4% of a column width, all in
+   container units, so a card's row span (computed from its aspect ratio in
+   WorkGallery.tsx) is independent of the viewport. Sparse auto-placement then
+   puts each card in the column that frees up first. Keep 50 and 0.04 in sync
+   with ROW_UNITS_PER_COLUMN / GAP_UNITS. */
+.gallery-masonry {
+  container-type: inline-size;
+}
+.gallery-masonry-grid {
+  --gallery-cols: 3;
+  --gallery-gap-ratio: 0.04;
+  --gallery-col: calc(
+    100cqw / (var(--gallery-cols) + var(--gallery-gap-ratio) * (var(--gallery-cols) - 1))
+  );
+  display: grid;
+  grid-template-columns: repeat(var(--gallery-cols), minmax(0, 1fr));
+  grid-auto-rows: calc(var(--gallery-col) / 50);
+  column-gap: calc(var(--gallery-col) * var(--gallery-gap-ratio));
+  row-gap: 0;
+  align-items: start;
+}
+@media (min-width: 768px) {
+  .gallery-masonry-grid { --gallery-cols: 4; }
+}
+@media (min-width: 1024px) {
+  .gallery-masonry-grid { --gallery-cols: 5; }
 }

@@ -4,7 +4,7 @@ import type { DefaultImage } from '../types/image-library';
 
 export const WORK_SERIES_OPTIONS = [
   { value: 'episode', label: 'Episode' },
-  { value: 'reel', label: 'Reel' },
+  { value: 'motion', label: 'Motion' },
   { value: 'experiment', label: 'Experiment' },
   { value: 'remix', label: 'Remix' },
 ] as const;

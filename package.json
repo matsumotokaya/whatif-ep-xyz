@@ -13,6 +13,7 @@
     "test:gallery:production": "GALLERY_TEST_BASE_URL=https://whatif-ep.xyz playwright test",
     "check:m5-redirects": "node scripts/check-m5-redirects.mjs",
     "backfill:gallery-thumbs": "node --env-file=.env.r2backfill.local scripts/backfill-gallery-thumbnails.mjs",
+    "motion": "node --env-file=.env.r2backfill.local scripts/motion.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

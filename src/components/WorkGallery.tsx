@@ -14,11 +14,22 @@ interface WorkGalleryProps {
   purchasedCodes?: Set<string>;
 }
 
-// 60 is divisible by every responsive column count (3, 4, and 5), so splitting
-// the grid does not create partial rows or alter the visual card order.
+// Cards are rendered in chunks of 60 so React can skip unchanged chunks when a
+// page is appended. Chunks use `display: contents`, so every card still lives
+// in the one masonry grid below and the layout flows across chunk boundaries.
 const GALLERY_RENDER_CHUNK_SIZE = 60;
-const GRID_CLASS_NAME =
-  "grid grid-cols-3 gap-1.5 sm:gap-2 md:grid-cols-4 md:gap-3 lg:grid-cols-5";
+
+// Pinterest-style masonry without measuring in JS: grid rows are 1/ROW_UNITS
+// of a column width (see .gallery-masonry in globals.css), so a card's row
+// span depends only on its aspect ratio. CSS auto-placement then drops each
+// card into the column that frees up first — the same order as Pinterest — and
+// it renders correctly on the server at every breakpoint.
+const ROW_UNITS_PER_COLUMN = 50;
+const GAP_UNITS = 2; // must match --gallery-gap-ratio (2 / 50 = 0.04)
+
+function rowSpan(aspectRatio: number): number {
+  return Math.ceil(ROW_UNITS_PER_COLUMN / aspectRatio) + GAP_UNITS;
+}
 
 const GalleryCard = memo(function GalleryCard({
   work,
@@ -35,7 +46,7 @@ const GalleryCard = memo(function GalleryCard({
       data-work-id={work.id}
       data-work-code={work.displayCode}
       data-work-sequence={work.sequenceNumber}
-
+      style={{ gridRowEnd: `span ${rowSpan(work.aspectRatio)}` }}
     >
       <WorkCard work={work} purchased={purchased} eager={index < 5} />
     </div>
@@ -55,7 +66,7 @@ const GalleryChunk = memo(
     purchasedCodes,
   }: GalleryChunkProps) {
     return (
-      <div className={`gallery-card-chunk ${GRID_CLASS_NAME}`}>
+      <div className="contents">
         {works.map((work, index) => (
           <GalleryCard
             key={work.id}
@@ -98,7 +109,8 @@ export function WorkGallery({
 
   return (
     <div data-gallery-grid>
-      <div className="flex flex-col gap-1.5 sm:gap-2 md:gap-3">
+      <div className="gallery-masonry">
+        <div className="gallery-masonry-grid">
         {chunks.map((chunk, chunkIndex) => {
           const startIndex = chunkIndex * GALLERY_RENDER_CHUNK_SIZE;
           return (
@@ -110,6 +122,7 @@ export function WorkGallery({
             />
           );
         })}
+        </div>
       </div>
 
       <div

@@ -37,13 +37,13 @@ export interface EpisodeRow {
 
 export type GallerySeriesSlug =
   | "episode"
-  | "reel"
+  | "motion"
   | "experiment"
   | "remix";
 
 export type WorkStatus = "draft" | "published" | "archived";
 export type WorkVariantStatus = "ready" | "preparing" | "hidden";
-export type WorkVariantType = "image" | "scene" | "angle" | "edit";
+export type WorkVariantType = "image" | "scene" | "angle" | "edit" | "video";
 export type WorkOfferType =
   | "wallpaper"
   | "imagine_starter"
@@ -107,6 +107,12 @@ export interface WorkVariant {
   // Lightweight credited feed thumbnail (Content Factory feed_thumb output).
   // Null when no published feed_thumb exists for this variant.
   feedThumbUrl?: string | null;
+  /** Silent full-size MP4 for Motion works (public URL). Null for still images. */
+  videoUrl: string | null;
+  /** Silent small MP4 autoplayed on gallery cards. */
+  videoPreviewUrl: string | null;
+  /** True when videoUrl keeps its soundtrack (detail page offers unmute). */
+  videoHasAudio: boolean;
   offers: WorkOffer[];
 }
 
@@ -164,6 +170,30 @@ export interface WorkListItem {
   imageCandidates: string[];
   hasWallpaperOffer: boolean;
   hasStarterOffer: boolean;
+  /**
+   * Card width / height. From the primary variant's stored dimensions; 4/5
+   * when unknown (legacy list thumbnails are normalized to 4:5).
+   */
+  aspectRatio: number;
+  /**
+   * Present only for works with more than one ready variant: one entry per
+   * variant (primary first) so the card can show a Pinterest-style carousel.
+   */
+  slides?: WorkCardSlide[];
+  /** Present when the primary variant is a video (Motion series). */
+  video?: WorkCardVideo;
+}
+
+export interface WorkCardVideo {
+  /** Small silent MP4 for muted in-view autoplay. */
+  previewUrl: string;
+  posterUrl: string | null;
+}
+
+export interface WorkCardSlide {
+  variantNumber: number;
+  /** Image fallback chain for this variant, lightest first. */
+  candidates: string[];
 }
 
 export interface WorkListPage {
@@ -249,6 +279,9 @@ export interface WorkVariantRow {
   is_primary: boolean;
   created_at: string;
   updated_at: string;
+  video_storage_key: string | null;
+  video_preview_storage_key: string | null;
+  video_has_audio: boolean | null;
 }
 
 export interface WorkOfferRow {
