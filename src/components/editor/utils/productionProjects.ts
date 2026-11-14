@@ -985,3 +985,67 @@ export async function updateProductionProjectWorkMetadata(params: {
     throw error;
   }
 }
+
+/**
+ * Move one project of a work to `targetNumber` (1-based) and renumber the
+ * work's other variants around it (insert semantics: no duplicates, the rest
+ * shift by one). Drafts and published variants are renumbered together.
+ *
+ * The current order is read from the database (not the possibly partial list
+ * on screen) and the whole renumbering runs in one Postgres function
+ * (`reorder_production_variants`), which locks the work's rows and rejects a
+ * stale project set, so concurrent edits cannot produce duplicate numbers.
+ */
+export async function moveProductionProjectVariant(params: {
+  projectId: string;
+  workSeriesSlug: string;
+  workNumber: number;
+  targetNumber: number;
+}): Promise<void> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('production_projects')
+    .select('id, variant_number')
+    .eq('project_type', 'variant_pack')
+    .eq('work_series_slug', params.workSeriesSlug)
+    .eq('work_number', params.workNumber)
+    .order('variant_number', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const ordered = ((data ?? []) as Array<{ id: string; variant_number: number }>).map((row) => row.id);
+  const fromIndex = ordered.indexOf(params.projectId);
+  if (fromIndex === -1) {
+    throw new Error('This project no longer exists. Reload the list.');
+  }
+
+  const toIndex = Math.max(0, Math.min(ordered.length - 1, params.targetNumber - 1));
+  if (fromIndex === toIndex) {
+    return;
+  }
+
+  ordered.splice(fromIndex, 1);
+  ordered.splice(toIndex, 0, params.projectId);
+
+  const { error: rpcError } = await supabase.rpc('reorder_production_variants', {
+    p_series_slug: params.workSeriesSlug,
+    p_work_number: params.workNumber,
+    p_project_ids: ordered,
+  });
+
+  if (rpcError) {
+    if (rpcError.code === 'PGRST202') {
+      throw new Error('reorder_production_variants is not installed yet. Apply supabase/migrations/20261114_reorder_production_variants.sql.');
+    }
+    throw rpcError;
+  }
+
+  // Best-effort: expire Gallery caches so card slides and feed images agree.
+  try {
+    await fetch('/api/admin/gallery/revalidate', { method: 'POST', credentials: 'same-origin' });
+  } catch {
+    // Caches expire on their own (≤1h); the reorder itself already succeeded.
+  }
+}

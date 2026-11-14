@@ -25,7 +25,11 @@ import {
   publishProductionProject,
 } from '../utils/productionOutputBuilder';
 import { parseTagInput } from '../utils/libraryAssets';
-import { deleteProductionProject, updateProductionProjectWorkMetadata } from '../utils/productionProjects';
+import {
+  deleteProductionProject,
+  moveProductionProjectVariant,
+  updateProductionProjectWorkMetadata,
+} from '../utils/productionProjects';
 import type { ProductionProjectBannerRole, ProductionProjectSummary, ProductionProjectStatus } from '../types/production-project';
 
 const PROJECT_LIMIT = 60;
@@ -317,7 +321,7 @@ export function FactoryProjectManager() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, profile, loading, profileLoading } = useAuth();
-  const [pendingByProject, setPendingByProject] = useState<Record<string, 'publish' | 'delete' | 'save' | undefined>>({});
+  const [pendingByProject, setPendingByProject] = useState<Record<string, 'publish' | 'delete' | 'save' | 'reorder' | undefined>>({});
   const [messageByProject, setMessageByProject] = useState<Record<string, string | undefined>>({});
   const [errorByProject, setErrorByProject] = useState<Record<string, string | undefined>>({});
   const {
@@ -351,6 +355,62 @@ export function FactoryProjectManager() {
       return compareByNumber(a, b, sortOrder);
     });
   }, [projects, statusFilter, sortOrder]);
+
+  // Variant count per work across every loaded status, for the 枝番 selector.
+  const variantCountByWork = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of projects) {
+      const key = `${entry.project.work_series_slug}:${entry.project.work_number}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [projects]);
+
+  const handleMoveVariant = async (entry: ProductionProjectSummary, targetNumber: number) => {
+    if (targetNumber === entry.project.variant_number) return;
+    const code = entry.project.work_display_code;
+    const isPublished = entry.project.status === 'published';
+    const confirmed = window.confirm(
+      `${code}-${entry.project.variant_number} を ${code}-${targetNumber} に移動します。` +
+        '同じ作品のほかの画像の番号は繰り上げ／繰り下げされます。' +
+        (isPublished ? '\n公開済みの画像も含め、ギャラリーの表示順と ?variant= の URL が変わります。' : ''),
+    );
+    if (!confirmed) return;
+
+    setPendingByProject((prev) => ({ ...prev, [entry.project.id]: 'reorder' }));
+    setErrorByProject((prev) => ({ ...prev, [entry.project.id]: undefined }));
+    setMessageByProject((prev) => ({ ...prev, [entry.project.id]: undefined }));
+
+    try {
+      await moveProductionProjectVariant({
+        projectId: entry.project.id,
+        workSeriesSlug: entry.project.work_series_slug,
+        workNumber: entry.project.work_number,
+        targetNumber,
+      });
+      await invalidateBannerCollectionQueries(queryClient);
+      await invalidateProductionProjectQueries(queryClient);
+      setMessageByProject((prev) => ({
+        ...prev,
+        [entry.project.id]: `枝番を ${targetNumber} に変更しました。`,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'message' in error
+            ? String((error as { message: unknown }).message)
+            : '枝番の変更に失敗しました。';
+      setErrorByProject((prev) => ({
+        ...prev,
+        [entry.project.id]: message.includes('stale_project_list') || message.includes('project list is stale')
+          ? '一覧が古くなっています。再読み込みしてからもう一度お試しください。'
+          : message,
+      }));
+    } finally {
+      setPendingByProject((prev) => ({ ...prev, [entry.project.id]: undefined }));
+    }
+  };
 
   // Snapshot the visible targets: publishing can remove cards from Draft.
   const handleBulk = async () => {
@@ -654,6 +714,10 @@ export function FactoryProjectManager() {
               const pendingAction = pendingByProject[entry.project.id];
               const isPublished = entry.project.status === 'published';
               const isPending = !!pendingAction || !!bulkAction;
+              const variantCount = Math.max(
+                variantCountByWork.get(`${entry.project.work_series_slug}:${entry.project.work_number}`) ?? 1,
+                entry.project.variant_number ?? 1,
+              );
 
               return (
                 <section
@@ -667,6 +731,25 @@ export function FactoryProjectManager() {
                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses(entry.project.status)}`}>
                           {statusLabel(entry.project.status)}
                         </span>
+                        {variantCount > 1 && (
+                          <label className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                            枝番
+                            <select
+                              aria-label={`${title} の枝番`}
+                              value={entry.project.variant_number}
+                              disabled={isPending}
+                              onChange={(event) => void handleMoveVariant(entry, Number(event.target.value))}
+                              className="rounded-md border border-gray-700 bg-[#111111] px-2 py-1 text-sm tabular-nums text-gray-100 disabled:opacity-50"
+                            >
+                              {Array.from({ length: variantCount }, (_, index) => index + 1).map((number) => (
+                                <option key={number} value={number}>
+                                  {number}
+                                </option>
+                              ))}
+                            </select>
+                            {pendingAction === 'reorder' && <span className="text-gray-500">変更中…</span>}
+                          </label>
+                        )}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400">
                         <span className="tabular-nums">
