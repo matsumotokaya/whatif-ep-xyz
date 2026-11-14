@@ -38,8 +38,7 @@ export interface EpisodeRow {
 export type GallerySeriesSlug =
   | "episode"
   | "motion"
-  | "experiment"
-  | "remix";
+  | "experiment";
 
 export type WorkStatus = "draft" | "published" | "archived";
 export type WorkVariantStatus = "ready" | "preparing" | "hidden";

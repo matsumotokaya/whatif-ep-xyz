@@ -419,6 +419,8 @@ export default async function WorkDetailPage({
               }
               workTitle={work.title}
               isVideo={Boolean(currentVariant.videoUrl)}
+              // Only Content Factory (Episode) works get IMAGINE templates.
+              showImaginePending={work.seriesSlug === "episode"}
             />
 
             <Suspense fallback={null}>

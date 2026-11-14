@@ -610,7 +610,7 @@ const _cachedCardsByIds = unstable_cache(
     await attachCardVariantExtras(seriesSlug, items);
     return items;
   },
-  ["works:cards-by-ids:v1"],
+  ["works:cards-by-ids:v2"],
   { tags: ["works", "work_tags", "production"], revalidate: 300 }
 );
 
@@ -1054,6 +1054,16 @@ async function attachCardVariantExtras(seriesSlug: string, items: WorkListItem[]
   for (const item of items) {
     const primary = variantsByWorkId.get(item.id)?.[0];
     if (primary) item.aspectRatio = cardAspectRatio(primary.width, primary.height);
+    // Series outside Content Factory (Experiment, ...) have no feed_thumb and
+    // no gallery-thumbs backfill: their registered thumbnail is the list image.
+    if (
+      primary?.thumbnail_storage_key &&
+      !item.feedThumbUrl &&
+      seriesSlug !== "episode" &&
+      !primary.video_preview_storage_key
+    ) {
+      item.feedThumbUrl = primary.thumbnail_storage_key;
+    }
     const previewUrl = primary?.video_preview_storage_key ?? primary?.video_storage_key ?? null;
     if (!primary || !previewUrl) continue;
     const posterUrl = primary.thumbnail_storage_key ?? primary.original_storage_key ?? null;
@@ -1148,7 +1158,7 @@ async function loadWorkCardsPageBySeries(
 
 const _cachedWorkCardsPageBySeries = unstable_cache(
   loadWorkCardsPageBySeries,
-  ["works:gallery-card-page:v4"],
+  ["works:gallery-card-page:v5"],
   {
     tags: ["works", "work_tags", "production"],
     revalidate: 300,

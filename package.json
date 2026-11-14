@@ -14,6 +14,7 @@
     "check:m5-redirects": "node scripts/check-m5-redirects.mjs",
     "backfill:gallery-thumbs": "node --env-file=.env.r2backfill.local scripts/backfill-gallery-thumbnails.mjs",
     "motion": "node --env-file=.env.r2backfill.local scripts/motion.mjs",
+    "still": "node --env-file=.env.r2backfill.local scripts/still.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

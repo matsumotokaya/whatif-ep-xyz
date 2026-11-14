@@ -140,6 +140,8 @@ interface WorkDetailActionsProps {
   workTitle: string;
   /** Motion (video) works have no IMAGINE template or still download. */
   isVideo?: boolean;
+  /** Show the "Edit illustration (coming)" placeholder when no template exists. */
+  showImaginePending?: boolean;
 }
 
 export function WorkDetailActions({
@@ -153,6 +155,7 @@ export function WorkDetailActions({
   wallpaperStateUrl,
   workTitle,
   isVideo = false,
+  showImaginePending = true,
 }: WorkDetailActionsProps) {
   const { profile } = useAuth();
   const { lang } = useLanguage();
@@ -201,7 +204,7 @@ export function WorkDetailActions({
             <SparklesIcon className="h-4 w-4" />
             {t.editIllustration}
           </a>
-        ) : isVideo ? null : (
+        ) : isVideo || !showImaginePending ? null : (
           <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted">
             <SparklesIcon className="h-4 w-4" />
             {t.editIllustrationPending}

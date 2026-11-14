@@ -6,7 +6,6 @@ export const WORK_SERIES_OPTIONS = [
   { value: 'episode', label: 'Episode' },
   { value: 'motion', label: 'Motion' },
   { value: 'experiment', label: 'Experiment' },
-  { value: 'remix', label: 'Remix' },
 ] as const;
 
 export const OFFICIAL_ASSET_ROLE_OPTIONS = [

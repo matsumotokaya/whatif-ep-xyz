@@ -48,6 +48,10 @@ For wallpaper asset preparation, Content Factory registration, or resuming this 
 
 過去のリール動画をギャラリーの Motion シリーズへ登録するときは `docs/MOTION.md` を読む。
 
+## Experiment (still image) workflow
+
+Episode 以外の静止画（Experiment シリーズ、旧 Remix を含む）を登録するときは `docs/EXPERIMENT.md` を読む。
+
 ## Content Factory pending handoff
 
 下書きの枝番・投稿順変更の未実装依頼は `docs/FACTORY_ORDER_HANDOFF.md` を読む。プロジェクト再開時に引き継ぎ対象として確認する。
