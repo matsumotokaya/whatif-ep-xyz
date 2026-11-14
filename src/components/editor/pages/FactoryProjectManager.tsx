@@ -326,7 +326,7 @@ export function FactoryProjectManager() {
     error,
   } = useRecentProductionProjects(PROJECT_LIMIT, !!user && profile?.role === 'admin');
   const [statusFilter, setStatusFilter] = useState<ProductionProjectStatus | 'all'>('draft');
-  const [bulkAction, setBulkAction] = useState<'publish' | 'export' | null>(null);
+  const [bulkAction, setBulkAction] = useState<'publish' | null>(null);
   const [bulkMessage, setBulkMessage] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('registered_latest');
 
@@ -353,28 +353,28 @@ export function FactoryProjectManager() {
   }, [projects, statusFilter, sortOrder]);
 
   // Snapshot the visible targets: publishing can remove cards from Draft.
-  const handleBulk = async (action: 'publish' | 'export') => {
+  const handleBulk = async () => {
     if (bulkAction || Object.values(pendingByProject).some(Boolean)) return;
     const targets = [...visibleProjects];
     if (!targets.length) return;
-    if (action === 'publish' && !window.confirm(`表示中の${targets.length}件をすべて公開しますか？`)) return;
-    setBulkAction(action);
+    if (!window.confirm(`表示中の${targets.length}件をすべて公開しますか？`)) return;
+    setBulkAction('publish');
     let completed = 0;
     try {
       for (const entry of targets) {
-        setBulkMessage(`${action === 'publish' ? '公開' : '書き出し'}中 ${completed + 1}/${targets.length}`);
+        setBulkMessage(`公開中 ${completed + 1}/${targets.length}`);
         setErrorByProject(prev => ({ ...prev, [entry.project.id]: undefined }));
         try {
           await buildProductionOutputs(entry);
-          if (action === 'publish') await publishProductionProject(entry);
+          await publishProductionProject(entry);
           completed++;
-          setMessageByProject(prev => ({ ...prev, [entry.project.id]: action === 'publish' ? '公開しました。' : '各サイズを書き出しました。' }));
+          setMessageByProject(prev => ({ ...prev, [entry.project.id]: '公開しました。' }));
         } catch (error) {
           setErrorByProject(prev => ({ ...prev, [entry.project.id]: error instanceof Error ? error.message : '処理に失敗しました。' }));
           throw error;
         }
       }
-      setBulkMessage(`${completed}件の${action === 'publish' ? '公開' : '書き出し'}が完了しました。`);
+      setBulkMessage(`${completed}件の公開が完了しました。`);
     } catch {
       setBulkMessage(`${completed}/${targets.length}件完了。エラーが発生したため停止しました。各カードの結果を確認してください。`);
     } finally {
@@ -523,13 +523,10 @@ export function FactoryProjectManager() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-gray-300">表示中の {visibleProjects.length} 件が対象です（最大 {PROJECT_LIMIT} 件）。</p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={!!bulkAction || Object.values(pendingByProject).some(Boolean)} onClick={() => void handleBulk('export')}
-                  className="rounded-lg border border-gray-600 px-3 py-2 text-sm text-gray-100 disabled:opacity-50">すべて書き出す</button>
-                <button type="button" disabled={!!bulkAction || Object.values(pendingByProject).some(Boolean)} onClick={() => void handleBulk('publish')}
+                <button type="button" disabled={!!bulkAction || Object.values(pendingByProject).some(Boolean)} onClick={() => void handleBulk()}
                   className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white disabled:opacity-50">すべてPublish</button>
               </div>
             </div>
-            <p className="mt-2 text-xs text-gray-400">書き出しは壁紙・Feed等の出力を生成します。公開はPublishで行います。</p>
             <p role="status" className="mt-2 text-sm text-gray-200">{bulkMessage}</p>
           </div>
         )}
