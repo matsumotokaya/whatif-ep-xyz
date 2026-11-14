@@ -31,6 +31,7 @@ export function useEntranceAnimation({
   const animationTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const restoreNodesRef = useRef<(() => void) | null>(null);
   const hasStartedRef = useRef(false);
+  const finishedForExportRef = useRef(false);
 
   // Cleanup all tweens and timers
   const cleanup = useCallback(() => {
@@ -49,6 +50,14 @@ export function useEntranceAnimation({
     restoreNodesRef.current = null;
   }, []);
 
+  // Exports are synchronous: finish the visual effect before reading pixels.
+  // The ref also prevents pending readiness frames/effects from restarting it.
+  const finishForExport = useCallback(() => {
+    finishedForExportRef.current = true;
+    cleanup();
+    setPhase('complete');
+  }, [cleanup]);
+
   // Transition to loading when enabled and elements exist
   useEffect(() => {
     if (!enabled || elements.length === 0) {
@@ -58,7 +67,7 @@ export function useEntranceAnimation({
       return;
     }
 
-    if (hasStartedRef.current) return;
+    if (hasStartedRef.current || finishedForExportRef.current) return;
     hasStartedRef.current = true;
     queueMicrotask(() => setPhase('loading'));
 
@@ -77,7 +86,7 @@ export function useEntranceAnimation({
 
   // Check if all images are loaded
   useEffect(() => {
-    if (phase !== 'loading') return;
+    if (phase !== 'loading' || finishedForExportRef.current) return;
 
     // No images — go straight to animating
     if (totalImageCount === 0) {
@@ -93,10 +102,11 @@ export function useEntranceAnimation({
 
   // Run entrance animation
   useEffect(() => {
-    if (phase !== 'animating') return;
+    if (phase !== 'animating' || finishedForExportRef.current) return;
 
     let rafId: number | undefined;
     const animate = () => {
+      if (finishedForExportRef.current) return;
       const nodesMap = canvasRef.current?.getNodesMap();
       if (!nodesMap || nodesMap.size === 0) {
         // Retry the readiness check itself; setting the same phase does not render.
@@ -186,9 +196,10 @@ export function useEntranceAnimation({
   useEffect(() => {
     if (!enabled) {
       hasStartedRef.current = false;
+      finishedForExportRef.current = false;
       cleanup();
     }
   }, [enabled, cleanup]);
 
-  return { phase };
+  return { phase, finishForExport };
 }

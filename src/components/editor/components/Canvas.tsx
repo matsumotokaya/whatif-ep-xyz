@@ -43,6 +43,7 @@ interface CanvasProps {
   onElementsUpdate?: (ids: string[], updateFn: (element: CanvasElement) => Partial<CanvasElement>) => void;
   onImageDrop?: (file: File, width: number, height: number) => void;
   onImageLoad?: (id: string, status: 'loaded' | 'error') => void;
+  onBeforeExport?: () => void;
   entranceAnimationPhase?: 'idle' | 'loading' | 'animating' | 'complete';
   textPlacementMode?: boolean;
   onPlaceText?: (x: number, y: number) => string;
@@ -100,7 +101,7 @@ const TEXT_PLACEMENT_CURSOR = (() => {
 })();
 
 export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
-  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
+  { template, elements, scale = 0.5, canvasColor, fileName = 'artwork-01.png', onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, onBeforeExport, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
   ref
 ) {
   const { t } = useTranslation('editor');
@@ -392,6 +393,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   useImperativeHandle(ref, () => ({
     exportImage: () => {
+      onBeforeExport?.();
       if (!stageRef.current) {
         console.error('Export failed: stageRef is null');
         return '';
@@ -470,6 +472,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       return dataURL;
     },
     exportFullresPreview: () => {
+      onBeforeExport?.();
       if (!stageRef.current) {
         console.error('Fullres preview export failed: stageRef is null');
         return '';
@@ -526,6 +529,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       }
     },
     exportThumbnail: () => {
+      onBeforeExport?.();
       if (!stageRef.current) {
         console.error('Thumbnail export failed: stageRef is null');
         return '';
@@ -599,7 +603,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           requestAnimationFrame(() => resolve());
         });
       }),
-  }), [scale, selectedElementIds, isEditing, template.width, template.height]);
+  }), [scale, selectedElementIds, isEditing, template.width, template.height, onBeforeExport]);
 
   // Update individual transformers and reset multi-drag when selection changes
   useEffect(() => {

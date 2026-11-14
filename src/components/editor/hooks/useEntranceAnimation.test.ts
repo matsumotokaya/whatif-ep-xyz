@@ -45,9 +45,9 @@ function AnimationHarness() {
     getNodesMap: () => nodesMap,
     getLayerNode: () => ({ batchDraw }),
   } as unknown as CanvasRef };
-  useEntranceAnimation({ elements, canvasRef, imageLoadStatus: new Map(), totalImageCount: 3, enabled: true });
+  const { finishForExport } = useEntranceAnimation({ elements, canvasRef, imageLoadStatus: new Map(), totalImageCount: 3, enabled: true });
   const runAnimation = harness.effects[2];
-  return { nodes, runAnimation, batchDraw };
+  return { nodes, runAnimation, batchDraw, finishForExport };
 }
 
 beforeEach(() => {
@@ -76,6 +76,33 @@ describe('entrance animation completion and interruption', () => {
     if (typeof cancel === 'function') cancel();
     expect(harness.destroy).toHaveBeenCalledTimes(1);
     expect(nodes.map(node => node.opacity())).toEqual([1, 0.4, 1]);
+    runAnimation();
+    vi.advanceTimersByTime(1000);
+    expect(nodes.map(node => node.opacity())).toEqual([1, 0.4, 1]);
+    expect(nodes.map(node => node.y())).toEqual([0, 100, 200]);
+  });
+});
+
+
+describe('export during entrance animation', () => {
+  it('finishes stalled and staggered nodes before pixels are captured', () => {
+    const { nodes, runAnimation, finishForExport } = AnimationHarness();
+    runAnimation();
+    vi.advanceTimersByTime(1);
+    expect(nodes.map(node => node.opacity())).toEqual([0, 0, 0]);
+    finishForExport();
+    // Preserve intentional transparency, not a blanket opacity=1.
+    expect(nodes.map(node => node.opacity())).toEqual([1, 0.4, 1]);
+    expect(nodes.map(node => node.y())).toEqual([0, 100, 200]);
+    runAnimation(); // A queued effect must not restart the fade.
+    vi.advanceTimersByTime(1000);
+    expect(nodes.map(node => node.opacity())).toEqual([1, 0.4, 1]);
+    expect(nodes.map(node => node.y())).toEqual([0, 100, 200]);
+  });
+
+  it('prevents animation from starting when export happens first', () => {
+    const { nodes, runAnimation, finishForExport } = AnimationHarness();
+    finishForExport();
     runAnimation();
     vi.advanceTimersByTime(1000);
     expect(nodes.map(node => node.opacity())).toEqual([1, 0.4, 1]);

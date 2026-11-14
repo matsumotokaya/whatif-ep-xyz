@@ -178,7 +178,7 @@ export const BannerEditor = () => {
     });
   }, []);
 
-  const { phase: animationPhase } = useEntranceAnimation({
+  const { phase: animationPhase, finishForExport } = useEntranceAnimation({
     elements,
     canvasRef: canvasRef as RefObject<CanvasRef | null>,
     imageLoadStatus,
@@ -1966,6 +1966,7 @@ export const BannerEditor = () => {
           onImageDrop={handleImageDrop}
           onImageLoad={handleImageLoad}
           entranceAnimationPhase={animationPhase}
+          onBeforeExport={finishForExport}
           textPlacementMode={textPlacementMode}
           onPlaceText={handleCanvasPlaceText}
           onEditingChange={setIsCanvasEditing}

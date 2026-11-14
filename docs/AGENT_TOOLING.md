@@ -32,6 +32,10 @@ Codexでは有効化・接続確認済み。Claudeでは同じ共有ランチャ
 
 ## Vercel
 
+### 通常のリリース（2026-11-14ユーザー指定）
+
+`origin/main` へのpushでVercelの自動デプロイが走る。通常のコード修正のリリースにVercel MCP接続は不要。ユーザーがリリースを指示した場合は、関連チェックとリモートmainとの差分を確認し、対象変更をcommitしてmainへpushする。Vercelの設定変更・デプロイ状況の調査など、サービス自体を操作するときは下記の接続確認を行う。push成功と本番デプロイ完了は区別して報告する。作品のPublishはコードのリリースとは別操作。
+
 - Team: `kaya-matsumotos-projects`
 - Team ID: `team_kV7X8asP6ThcbNj4UTaWNIz9`
 - Project: `whatif-ep-xyz`
