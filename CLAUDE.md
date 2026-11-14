@@ -7,8 +7,8 @@ WHATIF EP digital art gallery（本番: https://whatif-ep.xyz）。**作品ハ�
 Next.js 16 + Tailwind CSS v4 + Vercel + Supabase + Cloudflare R2。
 **IMAGINE はこの Next.js アプリへ統合済み**。エディタ実装は `src/components/editor/`、入口は `/imagine` と `/edit`。旧独立アプリは停止済みで、開発・修正は本リポジトリで行う。
 
-外部サービスのMCP／CLI接続先とセッション開始時チェックは `docs/AGENT_TOOLING.md` を正本とする。
-Stripe、Vercel、Supabaseを扱う前に同文書を確認する。
+共通ルールは `~/AGENTS.md` と `~/playbooks/` が正本で、ここにはプロジェクト固有のことだけを書く（分担は AGENTS.md 冒頭）。
+このプロジェクトの外部サービス接続先は `docs/AGENT_TOOLING.md`。Stripe、Vercel、Supabaseを扱う前に同文書を確認する。
 
 ## Tech Stack
 - **Framework**: Next.js 16 (App Router, `src/`)
@@ -60,8 +60,8 @@ Premium判定の三層（機能アクセス / 課金表示 / Stripe整合）と�
 - 開始は `src/app/api/works/[series]/[code]/wallpaper/checkout/route.ts`。
 
 ## Supabase（DB操作の注意）
-- **MCP は read-only**。スキーマ変更/バックフィルの DDL/DML は**SQLを提示してユーザーが手動実行**。
-- `auth.users` と `public.users(user_id)` を区別（親 `/Users/kaya.matsumoto/CLAUDE.md` のルールに従う）。
+- MCP の書き込み可否と書き込み前の手順は `~/playbooks/mcp-servers.md`、`auth.users` と `public.users` の区別などの規約は `~/playbooks/supabase.md` が正本（ここで断定しない）。決済まわりは上の「決済まわりに触れる前に」が優先。
+- マイグレーションは `supabase/migrations/` に置く。
 - 現行の画像参照・配信構成は `README.md` と `src/lib/asset.ts` / `src/lib/asset-url.ts` を参照する。移行履歴は `docs/archive/M3_ASSET_KEY_PLAN.md` と `docs/archive/CUTOVER_MILESTONES.md`。旧移行計画の未完了記述を現在の実測状態として扱わない。
 - バックフィルには本リポジトリの gitignored `.env.r2backfill.local` を使う（`package.json` の `backfill:gallery-thumbs`）。通常の `.env.local` とバケット権限が異なるため混用しない。秘密値はコミットしない。
 

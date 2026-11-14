@@ -1,3 +1,10 @@
+# WHATIF EP Gallery (whatif-ep-xyz)
+
+## 共通ルールとの分担
+
+- エージェント共通のルールは `~/AGENTS.md`、ツール・外部サービスの知識は `~/playbooks/` が正本。
+- このファイルと `CLAUDE.md` / `docs/` には**このプロジェクト固有のことだけ**を書く。共通の内容をここへ複製しない。古い複製を見つけたら、共通側へ寄せてここは参照に置き換える。
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
@@ -9,32 +16,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Start: `npm run dev`
 - Local URL: http://localhost:3710
 - Port 3710 is fixed via `-p 3710` in package.json to avoid conflicts with other projects
+- `src/app/globals.css` の変更や DB を直接書き換えた後に表示が変わらない時は、dev サーバーを止めて `.next` を消してから再起動する（Turbopack の CSS とデータキャッシュが残る。2026-11-14 に3回発生）
 
 ## External service tooling
 
-- Before Stripe, Vercel, or Supabase work, read `docs/AGENT_TOOLING.md` and run its session-start checks.
-- The guide is shared with Claude Code through `CLAUDE.md`; keep connection IDs and status in that single document.
-- Prefer the correctly scoped MCP/app for Stripe, Vercel, Supabase, and other external services whenever it can materially improve investigation, verification, deployment, or operations.
-- At the start of work that needs an external service, first inspect the current tool list and make one safe read-only connection check. Do not infer installation state from whether an install dialog appears.
-- If the required MCP/app is missing, disabled, unauthenticated, or connected to the wrong account/project/mode, stop that external-service step and clearly ask the user to install, enable, authenticate, reconnect, or start a new session as appropriate.
-- Do not repeatedly prompt installation after a tool is already present and a read-only call succeeds. Newly added MCP servers may require a new Codex session before their tools appear.
-- Do not silently fall back to a different account, generic MCP, local substitute, or weaker integration. Explain any CLI fallback and its authentication scope before using it.
+- MCP の使い方（接続確認・フォールバック禁止・書き込み前の承認）は `~/playbooks/mcp-servers.md`、Supabase の規約は `~/playbooks/supabase.md` が正本。
+- このプロジェクトの接続先（Supabase / Vercel / Stripe の ID とアカウント）は `docs/AGENT_TOOLING.md`。Stripe・Vercel・Supabase を扱う前に読む。
 
 ## Supabase project routing
 
-- This WHATIF repository uses the **BANALIST** Supabase project.
-- Project ref: `rgqduwojvylkulhyodqg`.
-- Use only the project-scoped MCP server `supabase_banalist` for Supabase schema,
-  data, SQL, migration, advisor, or log work in this repository.
-- Never infer the Supabase project from the repository or product name. In
-  particular, do not use `supabase_logos`, `supabase_watchme`, a generic
-  `supabase`, or any other Supabase MCP for this repository.
-- Before every Supabase read or SQL operation, call
-  `supabase_banalist.get_project_url` and require the exact URL
-  `https://rgqduwojvylkulhyodqg.supabase.co`.
-- Before a write, verify the URL again, review the exact SQL or migration, and
-  obtain explicit user authorization. If the URL differs, stop without reading
-  or writing data.
+- このリポジトリは **BANALIST**（`rgqduwojvylkulhyodqg`）。MCP は `supabase_banalist` だけを使う（`supabase_logos` / `supabase_watchme` などリポジトリ名から推測した別 MCP は使わない）。
+- 接続確認・書き込み可否・書き込み前の手順は `~/playbooks/mcp-servers.md` の Supabase 節に従う（書き込み可否はここで断定しない）。
+- 決済まわりの DB 変更だけはプロジェクト固有ルールが優先（`CLAUDE.md`「決済まわりに触れる前に」）。
 
 ## URLs (keep this section up to date)
 
@@ -46,6 +39,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Wallpaper maintenance workflow
 
 For wallpaper asset preparation, Content Factory registration, or resuming this workflow, read `docs/WALLPAPER_CLI.md` first. It contains the user-approved composition reference, completed episodes, remaining candidates, and the required handoff before publishing.
+
+## Recommend (default gallery mode)
+
+ギャラリー先頭の Recommend（指定ユーザーの保存作品）の仕組みと、使うユーザーの変え方は `docs/RECOMMEND.md`。
+
+## Motion (short video) workflow
+
+過去のリール動画をギャラリーの Motion シリーズへ登録するときは `docs/MOTION.md` を読む。
 
 ## Content Factory pending handoff
 

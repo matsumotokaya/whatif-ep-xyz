@@ -1,8 +1,9 @@
 # WHATIF 外部サービス接続ガイド
 
-最終確認: 2026-08-08
+最終確認: 2026-11-14
 
-この文書はClaude CodeとCodexで共有する、WHATIFの外部サービス接続の正本とする。
+この文書はClaude CodeとCodexで共有する、WHATIFの外部サービス**接続先**の正本とする。
+MCP の一般的な使い方（接続確認・フォールバック禁止・書き込み可否と承認）は `~/playbooks/mcp-servers.md` が正本で、ここには複製しない。
 接続先や開始時チェックは共有するが、ClaudeとCodexは別のOAuthクライアントなので、
 MCP／プラグインのOAuth認証情報そのものは各クライアントで一度ずつ承認する。
 
@@ -11,9 +12,6 @@ MCP／プラグインのOAuth認証情報そのものは各クライアントで
 1. **MCP／プラグイン**: クライアントごとにインストール・OAuth承認状態を持つ。
 2. **CLI**: 同じMacの設定をClaudeとCodexから共有できる。
 3. **プロジェクト設定**: 接続先、ID、検証手順を本書と各エージェント設定で共有する。
-
-MCPが利用可能なセッションではMCPを優先する。MCPが見えない場合に、インストール済みと
-推測して操作を続けない。ツール一覧と認証状態を確認し、必要なら新しいセッションを開始する。
 
 ## Supabase
 
@@ -27,8 +25,7 @@ MCPが利用可能なセッションではMCPを優先する。MCPが見えな�
 Codexでは有効化・接続確認済み。Claudeでは同じ共有ランチャーが登録済みだが、初回利用時に
 ローカルMCP実行の承認が必要になる場合がある。
 
-セッション最初のSupabase操作前に、必ず `get_project_url` を呼び、上記URLとの完全一致を
-確認する。別のSupabase MCPへフォールバックしない。
+接続確認と書き込み可否は `~/playbooks/mcp-servers.md` の Supabase 節に従う。
 
 ## Vercel
 
@@ -90,4 +87,4 @@ Stripe CLIの存在と、Codex／ClaudeのStripe MCPインストールは別物�
 1. Supabase: `supabase_banalist` が存在し、project URLが完全一致する。
 2. Vercel: Vercelツールが存在し、TeamとProject IDが一致する。
 3. Stripe: Stripeツールが存在し、対象アカウントとtest/liveモードが一致する。
-4. 使えない接続がある場合は、CLIへ黙って切り替えず、使用する経路と認証状態をユーザーへ報告する。
+4. 使えない接続がある場合の扱いは `~/AGENTS.md` / `~/playbooks/mcp-servers.md` に従う（CLIへ黙って切り替えない）。
