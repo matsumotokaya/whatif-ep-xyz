@@ -27,8 +27,20 @@ const GALLERY_RENDER_CHUNK_SIZE = 60;
 const ROW_UNITS_PER_COLUMN = 50;
 const GAP_UNITS = 2; // must match --gallery-gap-ratio (2 / 50 = 0.04)
 
-function rowSpan(aspectRatio: number): number {
-  return Math.ceil(ROW_UNITS_PER_COLUMN / aspectRatio) + GAP_UNITS;
+// Feature cards: the first card and then every FEATURE_EVERY-th card span two
+// columns (2 columns + the gap between them). Placement is left to CSS
+// auto-placement, so small gaps can appear around them — accepted by design
+// (2026-11-14): the loose, puzzle-like rhythm matters more than exact fit.
+const FEATURE_EVERY = 9;
+
+function isFeatureCard(index: number): boolean {
+  return index % FEATURE_EVERY === 0;
+}
+
+function rowSpan(aspectRatio: number, columns: 1 | 2): number {
+  // Card width in column units: 1, or 2 + one gap (2 + 0.04).
+  const width = columns === 2 ? 2 + GAP_UNITS / ROW_UNITS_PER_COLUMN : 1;
+  return Math.ceil((ROW_UNITS_PER_COLUMN * width) / aspectRatio) + GAP_UNITS;
 }
 
 const GalleryCard = memo(function GalleryCard({
@@ -40,13 +52,18 @@ const GalleryCard = memo(function GalleryCard({
   purchased: boolean;
   index: number;
 }) {
+  const feature = isFeatureCard(index);
   return (
     <div
       data-card
+      data-feature={feature || undefined}
       data-work-id={work.id}
       data-work-code={work.displayCode}
       data-work-sequence={work.sequenceNumber}
-      style={{ gridRowEnd: `span ${rowSpan(work.aspectRatio)}` }}
+      style={{
+        gridRowEnd: `span ${rowSpan(work.aspectRatio, feature ? 2 : 1)}`,
+        ...(feature ? { gridColumnEnd: "span 2" } : {}),
+      }}
     >
       <WorkCard work={work} purchased={purchased} eager={index < 5} />
     </div>
