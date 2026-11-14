@@ -326,6 +326,8 @@ export function FactoryProjectManager() {
     error,
   } = useRecentProductionProjects(PROJECT_LIMIT, !!user && profile?.role === 'admin');
   const [statusFilter, setStatusFilter] = useState<ProductionProjectStatus | 'all'>('draft');
+  const [bulkAction, setBulkAction] = useState<'publish' | 'export' | null>(null);
+  const [bulkMessage, setBulkMessage] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('registered_latest');
 
   // Only offer status chips that actually exist in the loaded projects.
@@ -349,6 +351,40 @@ export function FactoryProjectManager() {
       return compareByNumber(a, b, sortOrder);
     });
   }, [projects, statusFilter, sortOrder]);
+
+  // Snapshot the visible targets: publishing can remove cards from Draft.
+  const handleBulk = async (action: 'publish' | 'export') => {
+    if (bulkAction || Object.values(pendingByProject).some(Boolean)) return;
+    const targets = [...visibleProjects];
+    if (!targets.length) return;
+    if (action === 'publish' && !window.confirm(`表示中の${targets.length}件をすべて公開しますか？`)) return;
+    setBulkAction(action);
+    let completed = 0;
+    try {
+      for (const entry of targets) {
+        setBulkMessage(`${action === 'publish' ? '公開' : '書き出し'}中 ${completed + 1}/${targets.length}`);
+        setErrorByProject(prev => ({ ...prev, [entry.project.id]: undefined }));
+        try {
+          await buildProductionOutputs(entry);
+          if (action === 'publish') await publishProductionProject(entry);
+          completed++;
+          setMessageByProject(prev => ({ ...prev, [entry.project.id]: action === 'publish' ? '公開しました。' : '各サイズを書き出しました。' }));
+        } catch (error) {
+          setErrorByProject(prev => ({ ...prev, [entry.project.id]: error instanceof Error ? error.message : '処理に失敗しました。' }));
+          throw error;
+        }
+      }
+      setBulkMessage(`${completed}件の${action === 'publish' ? '公開' : '書き出し'}が完了しました。`);
+    } catch {
+      setBulkMessage(`${completed}/${targets.length}件完了。エラーが発生したため停止しました。各カードの結果を確認してください。`);
+    } finally {
+      try {
+        await invalidateProductionProjectQueries(queryClient);
+      } finally {
+        setBulkAction(null);
+      }
+    }
+  };
 
   const handlePublish = async (entry: ProductionProjectSummary) => {
     setPendingByProject((prev) => ({ ...prev, [entry.project.id]: 'publish' }));
@@ -482,6 +518,22 @@ export function FactoryProjectManager() {
           </div>
         </div>
 
+        {!isLoading && !error && visibleProjects.length > 0 && (
+          <div className="mb-5 rounded-xl border border-gray-800 bg-[#171717] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-gray-300">表示中の {visibleProjects.length} 件が対象です（最大 {PROJECT_LIMIT} 件）。</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={!!bulkAction || Object.values(pendingByProject).some(Boolean)} onClick={() => void handleBulk('export')}
+                  className="rounded-lg border border-gray-600 px-3 py-2 text-sm text-gray-100 disabled:opacity-50">すべて書き出す</button>
+                <button type="button" disabled={!!bulkAction || Object.values(pendingByProject).some(Boolean)} onClick={() => void handleBulk('publish')}
+                  className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white disabled:opacity-50">すべてPublish</button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-400">書き出しは壁紙・Feed等の出力を生成します。公開はPublishで行います。</p>
+            <p role="status" className="mt-2 text-sm text-gray-200">{bulkMessage}</p>
+          </div>
+        )}
+
         {!isLoading && !error && projects.length > 0 && (
           <div className="mb-6 flex flex-col gap-3 border-b border-gray-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
@@ -604,7 +656,7 @@ export function FactoryProjectManager() {
               const title = entry.project.title ?? `${entry.project.work_series_slug} ${entry.project.work_display_code}-${entry.project.variant_number}`;
               const pendingAction = pendingByProject[entry.project.id];
               const isPublished = entry.project.status === 'published';
-              const isPending = !!pendingAction;
+              const isPending = !!pendingAction || !!bulkAction;
 
               return (
                 <section
@@ -634,6 +686,16 @@ export function FactoryProjectManager() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
+                        onClick={() => void handleDelete(entry)}
+                        disabled={isPending}
+                        className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm font-medium text-red-100 transition-colors hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {pendingAction === 'delete'
+                          ? 'Deleting...'
+                          : 'Delete Project'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void handlePublish(entry)}
                         disabled={isPending}
                         className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
@@ -643,16 +705,6 @@ export function FactoryProjectManager() {
                           : isPublished
                             ? 'Republish'
                             : t('banner:factoryPublish')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(entry)}
-                        disabled={isPending}
-                        className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm font-medium text-red-100 transition-colors hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {pendingAction === 'delete'
-                          ? 'Deleting...'
-                          : 'Delete Project'}
                       </button>
                     </div>
                   </div>

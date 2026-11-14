@@ -46,3 +46,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Wallpaper maintenance workflow
 
 For wallpaper asset preparation, Content Factory registration, or resuming this workflow, read `docs/WALLPAPER_CLI.md` first. It contains the user-approved composition reference, completed episodes, remaining candidates, and the required handoff before publishing.
+
+## Content Factory pending handoff
+
+下書きの枝番・投稿順変更の未実装依頼は `docs/FACTORY_ORDER_HANDOFF.md` を読む。プロジェクト再開時に引き継ぎ対象として確認する。
