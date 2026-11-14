@@ -252,7 +252,9 @@ export function WorkCard({ work, purchased = false, style, eager = false }: Work
             </div>
           )}
 
-          <div className={`absolute right-2 top-2 ${REVEAL_CLASS}`}>
+          {/* z-20: stays above the full-height carousel arrows, which would
+              otherwise swallow taps on the save button in this corner. */}
+          <div className={`absolute right-2 top-2 z-20 ${REVEAL_CLASS}`}>
             <SaveButton workId={work.id} size="card" />
           </div>
 
