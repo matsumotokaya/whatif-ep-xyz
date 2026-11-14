@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { EpisodeDetailImage } from "@/components/EpisodeDetailImage";
 import { MotionDetailVideo } from "@/components/MotionDetailVideo";
+import { WorkDetailCarousel, type WorkDetailSlide } from "@/components/WorkDetailCarousel";
 import { WorkDetailActions } from "@/components/WorkDetailActions";
 import { GallerySeriesSelect } from "@/components/GallerySeriesSelect";
 import {
@@ -169,6 +170,34 @@ export default async function WorkDetailPage({
     imagineOffer?.targetUrl
   );
 
+  // Carousel slides: every displayable variant, in the gallery card order
+  // (primary first, then sort order), each with its own IMAGINE destination.
+  const slideVariants = work.variants
+    .filter((variant) => variant.status !== "hidden" && variant.originalStorageKey)
+    .sort(
+      (a, b) =>
+        Number(b.isPrimary) - Number(a.isPrimary) ||
+        a.sortOrder - b.sortOrder ||
+        a.variantNumber - b.variantNumber
+    );
+  const slides: WorkDetailSlide[] = slideVariants.map((variant) => {
+    const offer =
+      variant.offers.find((item) => item.offerType === "imagine_starter") ??
+      work.offers.find((item) => item.offerType === "imagine_starter") ??
+      null;
+    return {
+      variantNumber: variant.variantNumber,
+      candidates: getVariantDetailImageCandidates(variant),
+      imagineUrl: resolveReadyOfferUrl(offer?.status, offer?.targetUrl),
+      videoUrl: variant.videoUrl,
+      videoHasAudio: variant.videoHasAudio,
+    };
+  });
+  const activeSlideIndex = Math.max(
+    0,
+    slideVariants.findIndex((variant) => variant.id === currentVariant.id)
+  );
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CreativeWork",
@@ -189,7 +218,15 @@ export default async function WorkDetailPage({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background lg:overflow-hidden">
       <div className="flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="relative h-[58vh] shrink-0 bg-surface/30 lg:h-auto lg:min-h-0">
-          {currentVariant.videoUrl ? (
+          {slides.length > 1 ? (
+            <WorkDetailCarousel
+              key={work.id}
+              slides={slides}
+              activeIndex={activeSlideIndex}
+              title={work.title}
+              basePath={`/works/${work.seriesSlug}/${work.displayCode}`}
+            />
+          ) : currentVariant.videoUrl ? (
             <MotionDetailVideo
               key={currentVariant.id}
               src={currentVariant.videoUrl}
@@ -234,11 +271,12 @@ export default async function WorkDetailPage({
                 </span>
               )}
 
+              {/* Back to the Works top (Recommend), not the work's own series. */}
               <Link
-                href={`/works/${work.seriesSlug}`}
+                href="/works/recommend"
                 className="btn-press inline-flex items-center justify-center rounded-full border border-border bg-background/70 px-4 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-foreground backdrop-blur-sm transition-colors hover:bg-surface-hover"
               >
-                Gallery
+                Works
               </Link>
 
               {adjacent.next ? (
@@ -304,12 +342,13 @@ export default async function WorkDetailPage({
                 </div>
               )}
 
-              {work.variants.length > 1 && (
+              {slideVariants.length > 1 && (
                 <div className="mt-6">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Variants</p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {work.variants
-                      .filter((variant) => variant.status !== "hidden")
+                    {/* Same list as the carousel: variants without an image
+                        yet (still preparing) would 404. */}
+                    {slideVariants
                       .map((variant) => {
                         const active = variant.id === currentVariant.id;
                         return (

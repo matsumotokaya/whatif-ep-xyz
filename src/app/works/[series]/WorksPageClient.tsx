@@ -585,7 +585,7 @@ function WorksPageInner({
 
       {/* Compact summary — scrolls away with the page. */}
       <div className="mb-4 mt-3 flex flex-wrap items-baseline gap-x-2 text-sm">
-        <h1 className="font-semibold text-foreground">Gallery</h1>
+        <h1 className="font-semibold text-foreground">Works</h1>
         <span aria-hidden="true" className="text-muted">·</span>
         <h2 className="text-muted">{seriesName}</h2>
         <span aria-hidden="true" className="text-muted">·</span>

@@ -11,6 +11,8 @@ interface EpisodeDetailImageProps {
   // When present, the artwork itself becomes a shortcut into the IMAGINE editor
   // (same destination as the violet "Edit illustration" button). Drives traffic.
   imagineUrl?: string | null;
+  /** Load eagerly (default). Off-screen carousel slides pass false. */
+  priority?: boolean;
 }
 
 const COPY: Record<
@@ -63,6 +65,7 @@ export function EpisodeDetailImage({
   candidates,
   alt,
   imagineUrl,
+  priority = true,
 }: EpisodeDetailImageProps) {
   const { lang } = useLanguage();
   const t = COPY[lang];
@@ -106,7 +109,8 @@ export function EpisodeDetailImage({
         unoptimized
         sizes="(min-width: 1024px) calc(100vw - 360px), 100vw"
         className="object-contain object-top p-2 sm:p-4 lg:p-8"
-        priority
+        priority={priority}
+        loading={priority ? undefined : "lazy"}
         onError={() => {
           setIndex((current) => current + 1);
         }}
