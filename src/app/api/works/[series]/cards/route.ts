@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getWorkCardsPageBySeries,
+  RECOMMEND_SLUG,
   WORKS_MAX_PAGE_SIZE,
   WORKS_PAGE_SIZE,
 } from "@/lib/works";
@@ -53,7 +54,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   return NextResponse.json(page, {
     headers: {
-      "Cache-Control": idsParam
+      // Recommend follows the curator's saves live (its card data is cached
+      // server-side), so it must not be held at the CDN.
+      "Cache-Control": idsParam || series === RECOMMEND_SLUG
         ? "private, no-store"
         : "public, max-age=0, s-maxage=300, stale-while-revalidate=3600",
       "Server-Timing": `gallery-data;dur=${(

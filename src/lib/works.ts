@@ -538,60 +538,85 @@ export const getGallerySeries = cache(_cachedGallerySeries);
 export const RECOMMEND_SLUG = "recommend";
 const RECOMMEND_NAME = "Recommend";
 
-type RecommendedWorkRef = { id: string; seriesSlug: string };
+type RecommendedWorkRef = { id: string; seriesSlug: string; savedAt: number };
 
-const _cachedRecommendedWorkRefs = unstable_cache(
-  async (): Promise<RecommendedWorkRef[]> => {
-    const supabase = createAdminClient();
-    if (!supabase) return [];
+// Read fresh on every request (one small indexed query) and deduplicated per
+// request with React cache(), so the page, its count and every "load more"
+// call see the same, current list. A time-based cache here made instances
+// disagree (page 1 from an old list, page 2 from a new one).
+const loadRecommendedWorkRefs = cache(async (): Promise<RecommendedWorkRef[]> => {
+  const supabase = createAdminClient();
+  if (!supabase) return [];
 
-    const { data: setting, error: settingError } = await supabase
-      .from("site_settings")
-      .select("value")
-      .eq("key", "recommend_curator_user_id")
-      .maybeSingle();
-    if (settingError) {
-      console.error(`Failed to read recommend curator: ${settingError.message}`);
-      return [];
+  const { data: setting, error: settingError } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "recommend_curator_user_id")
+    .maybeSingle();
+  if (settingError) {
+    console.error(`Failed to read recommend curator: ${settingError.message}`);
+    return [];
+  }
+  const value = (setting as { value: unknown } | null)?.value;
+  const curatorId = typeof value === "string" ? value : null;
+  if (!curatorId) return [];
+
+  // Newest save first. Only published works in public series are shown.
+  const { data, error } = await supabase
+    .from("work_saves")
+    .select("work_id, created_at, works!inner(status, work_series!inner(slug, is_public))")
+    .eq("user_id", curatorId)
+    .eq("works.status", "published")
+    .eq("works.work_series.is_public", true)
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error(`Failed to load recommended works: ${error.message}`);
+    return [];
+  }
+
+  type Row = {
+    work_id: string;
+    created_at: string;
+    works: { work_series: { slug: string } | { slug: string }[] } | { work_series: { slug: string } }[];
+  };
+  const refs: RecommendedWorkRef[] = [];
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const work = Array.isArray(row.works) ? row.works[0] : row.works;
+    const series = Array.isArray(work?.work_series) ? work.work_series[0] : work?.work_series;
+    if (series?.slug) {
+      refs.push({ id: row.work_id, seriesSlug: series.slug, savedAt: Date.parse(row.created_at) });
     }
-    const value = (setting as { value: unknown } | null)?.value;
-    const curatorId = typeof value === "string" ? value : null;
-    if (!curatorId) return [];
+  }
+  return refs;
+});
 
-    // Newest save first. Only published works in public series are shown.
-    const { data, error } = await supabase
-      .from("work_saves")
-      .select("work_id, created_at, works!inner(status, work_series!inner(slug, is_public))")
-      .eq("user_id", curatorId)
-      .eq("works.status", "published")
-      .eq("works.work_series.is_public", true)
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error(`Failed to load recommended works: ${error.message}`);
-      return [];
-    }
-
-    type Row = {
-      work_id: string;
-      works: { work_series: { slug: string } | { slug: string }[] } | { work_series: { slug: string } }[];
-    };
-    const refs: RecommendedWorkRef[] = [];
-    for (const row of (data ?? []) as unknown as Row[]) {
-      const work = Array.isArray(row.works) ? row.works[0] : row.works;
-      const series = Array.isArray(work?.work_series) ? work.work_series[0] : work?.work_series;
-      if (series?.slug) refs.push({ id: row.work_id, seriesSlug: series.slug });
-    }
-    return refs;
+// Card rows are the expensive part (RPC + variant extras); cache them per
+// exact id set. The key is the sorted ids, so a given page's cards are reused
+// across visitors while the curated order itself stays live.
+const _cachedCardsByIds = unstable_cache(
+  async (seriesSlug: string, ids: string[]): Promise<WorkListItem[]> => {
+    const rows = await callGalleryRpc<GalleryWorkCardRow[]>("get_gallery_work_cards_page", {
+      p_series_slug: seriesSlug,
+      p_sort: "newest",
+      p_limit: ids.length,
+      p_cursor_sequence: null,
+      p_range_start: null,
+      p_range_end: null,
+      p_tag_slug: null,
+      p_wallpaper_only: false,
+      p_ids: ids,
+    });
+    const items = rows.map(mapGalleryWorkCardRow);
+    await attachCardVariantExtras(seriesSlug, items);
+    return items;
   },
-  ["works:recommended-refs:v1"],
-  // Saves are written from the browser (no server hook to revalidate), so keep
-  // this short: a curator's new save shows up within 2 minutes.
-  { tags: ["works", "recommend"], revalidate: 120 }
+  ["works:cards-by-ids:v1"],
+  { tags: ["works", "work_tags", "production"], revalidate: 300 }
 );
 
 /** Gallery mode selector entries: Recommend first, then the public series. */
 export async function getGalleryNavSeries(): Promise<GallerySeries[]> {
-  const [series, refs] = await Promise.all([getGallerySeries(), _cachedRecommendedWorkRefs()]);
+  const [series, refs] = await Promise.all([getGallerySeries(), loadRecommendedWorkRefs()]);
   return [
     {
       id: RECOMMEND_SLUG,
@@ -610,16 +635,23 @@ export async function getGalleryNavSeries(): Promise<GallerySeries[]> {
 async function loadRecommendedCardsPage(
   options: NormalizedWorkCardsPageOptions
 ): Promise<WorkListPage> {
-  let refs = await _cachedRecommendedWorkRefs();
-  if (options.sort === "oldest") refs = [...refs].reverse();
+  let refs = await loadRecommendedWorkRefs();
+  const oldest = options.sort === "oldest";
+  if (oldest) refs = [...refs].reverse();
   if (options.ids !== null) {
     const allowed = new Set(options.ids);
     refs = refs.filter((ref) => allowed.has(ref.id));
   }
+  const total = refs.length;
 
-  // Cursor = offset into the curated list (series cursors are sequence numbers).
-  const offset = Math.max(0, options.cursor ?? 0);
-  const pageRefs = refs.slice(offset, offset + options.limit);
+  // Keyset cursor = saved-at (ms) of the last card already shown. Unlike an
+  // offset it stays correct when the curator saves something mid-scroll.
+  const cursor = options.cursor;
+  const remaining =
+    cursor === null
+      ? refs
+      : refs.filter((ref) => (oldest ? ref.savedAt > cursor : ref.savedAt < cursor));
+  const pageRefs = remaining.slice(0, options.limit);
 
   const idsBySeries = new Map<string, string[]>();
   for (const ref of pageRefs) {
@@ -628,24 +660,10 @@ async function loadRecommendedCardsPage(
     idsBySeries.set(ref.seriesSlug, bucket);
   }
 
-  // Reuse the per-series card RPC (≤ limit ids per call) and the same per-card
-  // extras, then restore the curated order.
   const itemsById = new Map<string, WorkListItem>();
   await Promise.all(
     [...idsBySeries].map(async ([seriesSlug, ids]) => {
-      const rows = await callGalleryRpc<GalleryWorkCardRow[]>("get_gallery_work_cards_page", {
-        p_series_slug: seriesSlug,
-        p_sort: "newest",
-        p_limit: ids.length,
-        p_cursor_sequence: null,
-        p_range_start: null,
-        p_range_end: null,
-        p_tag_slug: null,
-        p_wallpaper_only: false,
-        p_ids: ids,
-      });
-      const items = rows.map(mapGalleryWorkCardRow);
-      await attachCardVariantExtras(seriesSlug, items);
+      const items = await _cachedCardsByIds(seriesSlug, [...ids].sort());
       for (const item of items) itemsById.set(item.id, item);
     })
   );
@@ -653,13 +671,13 @@ async function loadRecommendedCardsPage(
   const items = pageRefs
     .map((ref) => itemsById.get(ref.id))
     .filter((item): item is WorkListItem => Boolean(item));
-  const hasMore = offset + options.limit < refs.length;
+  const hasMore = remaining.length > pageRefs.length;
   return {
     items,
-    total: refs.length,
+    total,
     limit: options.limit,
     hasMore,
-    nextCursor: hasMore ? offset + options.limit : null,
+    nextCursor: hasMore ? pageRefs[pageRefs.length - 1].savedAt : null,
   };
 }
 
@@ -937,7 +955,7 @@ export async function getWorkFilterMetaBySeries(
 ): Promise<WorkFilterMeta> {
   if (seriesSlug === RECOMMEND_SLUG) {
     // Cross-series: number ranges and series tags do not apply.
-    const refs = await _cachedRecommendedWorkRefs();
+    const refs = await loadRecommendedWorkRefs();
     return { total: refs.length, maxSequence: 0, tagFilters: [] };
   }
   return _cachedWorkFilterMetaBySeries(seriesSlug);

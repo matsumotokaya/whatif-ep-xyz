@@ -408,7 +408,9 @@ function WorksPageInner({
         ? "text-foreground after:opacity-100"
         : "text-foreground/60 after:opacity-0 hover:text-foreground"
     );
-  const isFiltered = total !== filterMeta.total;
+  // "n / total" only while a filter is active; otherwise just the live count.
+  const isFiltered =
+    savedOnly || wallpaperOnly || selectedTagId !== null || selectedRange !== null;
 
   return (
     <div data-gallery-root data-gallery-total={total}>
