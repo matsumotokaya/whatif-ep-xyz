@@ -2,10 +2,9 @@ import type { Language } from "@/context/LanguageContext";
 
 export type SharedHeaderLanguage = Language;
 export type SharedNavItemKey =
-  | "episodes"
-  | "imagine"
+  | "works"
+  | "templates"
   | "club"
-  | "store"
   | "about";
 export type SharedAccountItemKey =
   | "account"
@@ -16,15 +15,18 @@ export type SharedAccountItemKey =
   | "addEpisode"
   | "logout";
 
+// Menu (2026-11-14): Works = the gallery (all series), Design Templates = the
+// IMAGINE editor entry (/imagine). The external Store link lives in the footer.
 export const sharedNavItems: Array<{
   key: SharedNavItemKey;
   href: string;
+  /** Path prefix that marks the item active (defaults to href). */
+  activePrefix?: string;
   external?: boolean;
 }> = [
-  { key: "episodes", href: "/works/recommend" },
-  { key: "imagine", href: "/imagine" },
+  { key: "works", href: "/works/recommend", activePrefix: "/works" },
+  { key: "templates", href: "/imagine" },
   { key: "club", href: "/the-club" },
-  { key: "store", href: "https://whatif.stores.jp", external: true },
   { key: "about", href: "/about" },
 ];
 
@@ -103,30 +105,26 @@ export const sharedChromeCopy: Record<
   },
 };
 
+// Menu labels are the same English names in every language (2026-11-14).
 export const sharedNavCopy: Record<
   SharedHeaderLanguage,
   Record<SharedNavItemKey, { label: string; description: string }>
 > = {
   en: {
-    episodes: {
-      label: "EPISODES",
+    works: {
+      label: "WORKS",
       description:
-        "A gallery of WHATIF artworks shared on Instagram and Threads. Selected images are available for download.",
+        "A gallery of WHATIF artworks and short videos shared on Instagram and Threads. Selected images are available for download.",
     },
-    imagine: {
-      label: "/IMAGINE",
+    templates: {
+      label: "DESIGN TEMPLATES",
       description:
-        "A free design site where you can create illustrations from 99% complete design kits. Build original designs using WHATIF artwork assets.",
+        "Free design templates built from WHATIF artwork. Start from a 99% complete design and make it your own.",
     },
     club: {
       label: "THE CLUB",
       description:
         "A members-only wallpaper download service for Instagram subscription members. Accounts are now shared with Imagine, and paid Imagine users get unlimited wallpaper downloads.",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "Shop fashion items like T-shirts and sweatshirts featuring WHATIF artwork, plus downloadable items such as wallpapers and digital books.",
     },
     about: {
       label: "ABOUT",
@@ -135,25 +133,20 @@ export const sharedNavCopy: Record<
     },
   },
   ja: {
-    episodes: {
-      label: "エピソード",
+    works: {
+      label: "WORKS",
       description:
-        "Instagram と Threads で公開している WHATIF のアートワークギャラリーです。一部画像はダウンロードできます。",
+        "Instagram と Threads で公開している WHATIF のアートワークとショート動画のギャラリーです。一部画像はダウンロードできます。",
     },
-    imagine: {
-      label: "Imagine",
+    templates: {
+      label: "DESIGN TEMPLATES",
       description:
-        "99%完成済みのデザインキットから自由にイラストを作れる無料デザインサイトです。WHATIFのアートワーク素材でオリジナルデザインを作成できます。",
+        "WHATIF のアートワークで作られた無料のデザインテンプレートです。99%完成済みのデザインから、自分だけのデザインに仕上げられます。",
     },
     club: {
-      label: "ザ・クラブ",
+      label: "THE CLUB",
       description:
         "会員制の壁紙ダウンロードサービスです。Instagramサブスク会員向けプランに加え、Imagineとのアカウント共有に対応しています。Imagine有料プランなら壁紙をダウンロードし放題です。",
-    },
-    store: {
-      label: "ストア",
-      description:
-        "WHATIFアートワークを使ったTシャツやスウェットなどのファッションアイテムに加え、壁紙や電子書籍などのダウンロード商品も購入できます。",
     },
     about: {
       label: "ABOUT",
@@ -162,25 +155,20 @@ export const sharedNavCopy: Record<
     },
   },
   "zh-CN": {
-    episodes: {
-      label: "EPISODES",
+    works: {
+      label: "WORKS",
       description:
-        "在 Instagram 与 Threads 上发布的 WHATIF 作品画廊。部分图片可供下载。",
+        "在 Instagram 与 Threads 上发布的 WHATIF 作品与短视频画廊。部分图片可供下载。",
     },
-    imagine: {
-      label: "/IMAGINE",
+    templates: {
+      label: "DESIGN TEMPLATES",
       description:
-        "可从 99% 完成的设计套件自由创作插画的免费设计网站。使用 WHATIF 作品素材打造原创设计。",
+        "以 WHATIF 作品制作的免费设计模板。从 99% 完成的设计开始，打造属于你的设计。",
     },
     club: {
       label: "THE CLUB",
       description:
         "面向 Instagram 订阅会员的会员制壁纸下载服务。账号现已与 Imagine 互通，Imagine 付费用户可无限下载壁纸。",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "选购采用 WHATIF 作品的 T 恤、卫衣等时尚单品，以及壁纸、电子书等可下载商品。",
     },
     about: {
       label: "ABOUT",
@@ -189,25 +177,20 @@ export const sharedNavCopy: Record<
     },
   },
   "zh-TW": {
-    episodes: {
-      label: "EPISODES",
+    works: {
+      label: "WORKS",
       description:
-        "在 Instagram 與 Threads 上發布的 WHATIF 作品藝廊。部分圖片可供下載。",
+        "在 Instagram 與 Threads 上發布的 WHATIF 作品與短影片藝廊。部分圖片可供下載。",
     },
-    imagine: {
-      label: "/IMAGINE",
+    templates: {
+      label: "DESIGN TEMPLATES",
       description:
-        "可從 99% 完成的設計套件自由創作插畫的免費設計網站。使用 WHATIF 作品素材打造原創設計。",
+        "以 WHATIF 作品製作的免費設計範本。從 99% 完成的設計開始，打造屬於你的設計。",
     },
     club: {
       label: "THE CLUB",
       description:
         "面向 Instagram 訂閱會員的會員制桌布下載服務。帳號現已與 Imagine 互通，Imagine 付費使用者可無限下載桌布。",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "選購採用 WHATIF 作品的 T 恤、衛衣等時尚單品，以及桌布、電子書等可下載商品。",
     },
     about: {
       label: "ABOUT",
@@ -216,25 +199,20 @@ export const sharedNavCopy: Record<
     },
   },
   ko: {
-    episodes: {
-      label: "EPISODES",
+    works: {
+      label: "WORKS",
       description:
-        "Instagram과 Threads에 공개한 WHATIF 아트워크 갤러리입니다. 일부 이미지는 다운로드할 수 있습니다.",
+        "Instagram과 Threads에 공개한 WHATIF 아트워크와 숏폼 영상 갤러리입니다. 일부 이미지는 다운로드할 수 있습니다.",
     },
-    imagine: {
-      label: "/IMAGINE",
+    templates: {
+      label: "DESIGN TEMPLATES",
       description:
-        "99% 완성된 디자인 키트로 자유롭게 일러스트를 만들 수 있는 무료 디자인 사이트입니다. WHATIF 아트워크 소재로 오리지널 디자인을 제작하세요.",
+        "WHATIF 아트워크로 만든 무료 디자인 템플릿입니다. 99% 완성된 디자인에서 시작해 나만의 디자인으로 완성하세요.",
     },
     club: {
       label: "THE CLUB",
       description:
         "Instagram 구독 회원을 위한 회원제 배경화면 다운로드 서비스입니다. 이제 Imagine과 계정을 공유하며, Imagine 유료 회원은 배경화면을 무제한으로 다운로드할 수 있습니다.",
-    },
-    store: {
-      label: "STORE",
-      description:
-        "WHATIF 아트워크를 활용한 티셔츠, 스웨트셔츠 등 패션 아이템과 배경화면, 전자책 등 다운로드 상품을 구매할 수 있습니다.",
     },
     about: {
       label: "ABOUT",

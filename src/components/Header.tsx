@@ -295,7 +295,7 @@ export function Header() {
               <nav className="mt-12 flex flex-col">
                 {sharedNavItems.map((item, i) => {
                   const copy = sharedNavCopy[lang][item.key];
-                  const isActive = !item.external && pathname?.startsWith(item.href);
+                  const isActive = !item.external && pathname?.startsWith(item.activePrefix ?? item.href);
                   const delay = `${80 + i * 60}ms`;
 
                   if (item.external) {
