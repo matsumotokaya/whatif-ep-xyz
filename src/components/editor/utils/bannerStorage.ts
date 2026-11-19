@@ -491,7 +491,6 @@ export const bannerStorage = {
     if (useCache) {
       const cached = cacheManager.get<Banner[]>(cacheKey);
       if (cached) {
-        console.log('✅ Cache hit: banners list');
         return cached;
       }
     }
@@ -535,7 +534,6 @@ export const bannerStorage = {
     if (useCache) {
       const cached = cacheManager.get<Banner>(cacheKey);
       if (cached) {
-        console.log(`✅ Cache hit: banner ${id}`);
         return cached;
       }
     }

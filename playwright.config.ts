@@ -5,6 +5,8 @@ const externalBaseUrl = process.env.GALLERY_TEST_BASE_URL;
 // Reusing a stale dev server would make performance and hydration results invalid.
 const baseURL = externalBaseUrl ?? "http://127.0.0.1:3711";
 
+const DESKTOP_ONLY_SPECS = /editor-(studio|member)\.spec\.ts$/;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -31,8 +33,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium-mobile",
+      // The Studio editor specs need a mouse and a desktop-sized window.
+      testIgnore: DESKTOP_ONLY_SPECS,
       use: {
         ...devices["Pixel 7"],
+      },
+    },
+    {
+      name: "chromium-desktop",
+      testMatch: DESKTOP_ONLY_SPECS,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
       },
     },
   ],

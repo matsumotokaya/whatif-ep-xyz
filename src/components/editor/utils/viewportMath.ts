@@ -162,9 +162,12 @@ export function scaleToSliderValue(scale: number): number {
   return Math.log(clampViewScale(scale) / MIN_VIEW_SCALE) / LOG_SCALE_RANGE;
 }
 
+// Lands on whole percentages, so the slider can reach exactly 100% and the
+// zoom always equals what the readout shows.
 export function sliderValueToScale(value: number): number {
   const ratio = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
-  return clampViewScale(MIN_VIEW_SCALE * Math.exp(ratio * LOG_SCALE_RANGE));
+  const scale = MIN_VIEW_SCALE * Math.exp(ratio * LOG_SCALE_RANGE);
+  return clampViewScale(Math.round(scale * 100) / 100);
 }
 
 // True inside the artboard or the band of `bleed` canvas units around it. A

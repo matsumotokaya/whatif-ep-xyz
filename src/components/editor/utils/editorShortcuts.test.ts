@@ -17,11 +17,15 @@ describe('classifyShortcutFocus', () => {
     expect(classifyShortcutFocus({ tagName: 'DIV', isContentEditable: true })).toBe('text');
   });
 
-  it('treats sliders, checkboxes and buttons as controls', () => {
+  it('treats sliders, checkboxes and color inputs as controls', () => {
     expect(classifyShortcutFocus({ tagName: 'INPUT', type: 'range' })).toBe('control');
     expect(classifyShortcutFocus({ tagName: 'INPUT', type: 'checkbox' })).toBe('control');
     expect(classifyShortcutFocus({ tagName: 'INPUT', type: 'color' })).toBe('control');
-    expect(classifyShortcutFocus({ tagName: 'BUTTON' })).toBe('control');
+  });
+
+  it('treats buttons and links as buttons', () => {
+    expect(classifyShortcutFocus({ tagName: 'BUTTON' })).toBe('button');
+    expect(classifyShortcutFocus({ tagName: 'A' })).toBe('button');
   });
 
   it('treats everything else as the canvas', () => {
@@ -99,6 +103,17 @@ describe('resolveShortcut', () => {
   it('leaves the arrow keys to a focused control', () => {
     expect(resolveShortcut(key('ArrowLeft'), 'control')).toBeNull();
     expect(resolveShortcut(key('ArrowUp', { shiftKey: true }), 'control')).toBeNull();
+  });
+
+  it('still nudges and deletes while a button has focus', () => {
+    expect(resolveShortcut(key('ArrowLeft'), 'button')).toEqual({ type: 'nudge', dx: -1, dy: 0 });
+    expect(resolveShortcut(key('Delete'), 'button')).toEqual({ type: 'delete' });
+    expect(resolveShortcut(cmd('z'), 'button')).toEqual({ type: 'undo' });
+  });
+
+  it('never maps Space or Enter, so a focused button keeps them', () => {
+    expect(resolveShortcut(key(' '), 'button')).toBeNull();
+    expect(resolveShortcut(key('Enter'), 'button')).toBeNull();
   });
 
   it('ignores keys pressed during IME composition', () => {

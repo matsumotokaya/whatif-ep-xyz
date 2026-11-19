@@ -324,8 +324,24 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     if (!('fonts' in document)) return;
     const fontSet = document.fonts;
     fontSet.addEventListener('loadingdone', refreshTextMetrics);
-    return () => fontSet.removeEventListener('loadingdone', refreshTextMetrics);
-  }, [refreshTextMetrics]);
+
+    // The editor's font stylesheets are injected at runtime and can arrive
+    // after the faces were first requested, when the browser did not know
+    // them yet. Ask again whenever a stylesheet finishes loading. (`load` does
+    // not bubble, hence the capture listener.)
+    const handleResourceLoad = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLLinkElement && target.rel === 'stylesheet') {
+        void loadDocumentFonts().then(refreshTextMetrics);
+      }
+    };
+    document.addEventListener('load', handleResourceLoad, true);
+
+    return () => {
+      fontSet.removeEventListener('loadingdone', refreshTextMetrics);
+      document.removeEventListener('load', handleResourceLoad, true);
+    };
+  }, [loadDocumentFonts, refreshTextMetrics]);
 
   // --- Export ---
 
@@ -955,6 +971,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           }
 
           beginLasso(stage, pointer, e.evt.shiftKey);
+        }}
+        onMouseMove={(e) => {
+          // Show that an element can be picked up. The transformer manages the
+          // cursor over its own handles.
+          const stage = e.target.getStage();
+          if (!stage || isStoriesMode || textPlacementMode) return;
+          if (e.target !== stage && e.target.findAncestor('Transformer')) return;
+          const cursor = e.target !== stage && e.target.draggable() ? 'move' : '';
+          const container = stage.container();
+          if (container.style.cursor !== cursor) container.style.cursor = cursor;
         }}
         onTouchStart={(e) => {
           // Cancel Konva event processing during a multi-finger gesture so it

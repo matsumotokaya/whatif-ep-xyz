@@ -35,10 +35,11 @@ export interface ShortcutKeyEvent {
 
 // Where the keyboard focus is when the key arrives:
 //  - 'text'    a field the user types into; the key belongs to that field
-//  - 'control' a non-text control (slider, checkbox, button); it keeps the keys
-//              it uses itself, everything else still drives the editor
+//  - 'control' a control that uses the arrow keys itself (slider, checkbox,
+//              color input); everything else still drives the editor
+//  - 'button'  a button or link: it keeps Space and Enter, nothing else
 //  - 'canvas'  anything else
-export type ShortcutFocus = 'canvas' | 'control' | 'text';
+export type ShortcutFocus = 'canvas' | 'button' | 'control' | 'text';
 
 const NUDGE_STEP = 1;
 const NUDGE_STEP_LARGE = 10;
@@ -62,7 +63,7 @@ export function classifyShortcutFocus(target: FocusTarget | null | undefined): S
   if (tag === 'INPUT') {
     return TEXT_INPUT_TYPES.has((target.type ?? 'text').toLowerCase()) ? 'text' : 'control';
   }
-  if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return 'control';
+  if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return 'button';
   return 'canvas';
 }
 
@@ -138,7 +139,8 @@ export function resolveShortcut(event: ShortcutKeyEvent, focus: ShortcutFocus): 
   if (key === 'Escape') return { type: 'escape' };
   if (key === 'Delete' || key === 'Backspace') return { type: 'delete' };
 
-  // A focused slider or button uses the arrow keys itself.
+  // A focused slider uses the arrow keys itself. A focused button does not:
+  // after clicking a toolbar button the arrows still nudge the selection.
   if (focus === 'control') return null;
 
   const delta = arrowDelta(key, event.shiftKey ? NUDGE_STEP_LARGE : NUDGE_STEP);

@@ -44,6 +44,10 @@ type ShapeType = ShapeElement['shapeType'];
 
 const isMovable = (element: CanvasElement) => !element.locked;
 
+// Arrow-key presses closer together than this are one nudge (and one undo
+// step); a longer pause starts a new one.
+const NUDGE_SESSION_GAP_MS = 800;
+
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -78,6 +82,7 @@ export function useEditorActions({
   const [isGeneratingShadow, setIsGeneratingShadow] = useState(false);
   // Repeated pastes of the same copy fan out instead of stacking exactly.
   const pasteCountRef = useRef<{ token: string | null; count: number }>({ token: null, count: 0 });
+  const nudgeSessionRef = useRef({ id: 0, lastAt: 0 });
 
   const elementsNow = () => store.getState().elements;
   const selectedNow = () => {
@@ -317,10 +322,15 @@ export function useEditorActions({
   const nudge = useEventCallback((dx: number, dy: number) => {
     const ids = selectedNow().filter(isMovable).map((el) => el.id);
     if (ids.length === 0) return false;
-    // Holding an arrow key is one undo step per selection, not one per repeat.
+    // Holding an arrow key (or tapping it in quick succession) is one undo
+    // step, not one per key repeat.
+    const session = nudgeSessionRef.current;
+    const now = Date.now();
+    if (now - session.lastAt > NUDGE_SESSION_GAP_MS) session.id += 1;
+    session.lastAt = now;
     store.apply(
       { type: 'updateElements', ids, updateFn: (el) => ({ x: el.x + dx, y: el.y + dy }) },
-      `nudge:${ids.join(',')}`,
+      `nudge:${session.id}:${ids.join(',')}`,
     );
     return true;
   });

@@ -184,6 +184,9 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
   useEffect(() => {
     if (animationPhase === 'complete') setEntranceEnabled(false);
   }, [animationPhase]);
+  // Present once the entrance has finished and the canvas accepts input, so
+  // automation (and the e2e specs) can tell when the editor is usable.
+  const editorReady = entranceEnabled ? undefined : '';
 
   // --- Persistence ---
 
@@ -550,7 +553,7 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
     );
 
     return (
-      <div className="flex h-dvh flex-col bg-[#1e1e1e]">
+      <div className="flex h-dvh flex-col bg-[#1e1e1e]" data-editor-ready={editorReady}>
         <StoriesShell
           canvasWidth={template.width}
           canvasHeight={template.height}
@@ -629,7 +632,7 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-[#1e1e1e]">
+    <div className="flex h-dvh flex-col bg-[#1e1e1e]" data-editor-ready={editorReady}>
       <Header
         onBackToManager={handleBackToManager}
         onInternalNavigate={handleInternalNavigation}

@@ -199,6 +199,15 @@ describe('zoom slider mapping', () => {
     expect(scaleToSliderValue(0.5)).toBeCloseTo(0.5, 9);
   });
 
+  it('lands on whole percentages so 100% is reachable', () => {
+    // The track has 1000 positions; the one nearest 100% must give exactly 1.
+    const nearestPosition = Math.round(scaleToSliderValue(1) * 1000) / 1000;
+    expect(sliderValueToScale(nearestPosition)).toBe(1);
+
+    const percent = sliderValueToScale(0.3712) * 100;
+    expect(Math.abs(percent - Math.round(percent))).toBeLessThan(1e-9);
+  });
+
   it('clamps out-of-range slider input', () => {
     expect(sliderValueToScale(-3)).toBeCloseTo(MIN_VIEW_SCALE, 9);
     expect(sliderValueToScale(7)).toBeCloseTo(MAX_VIEW_SCALE, 9);

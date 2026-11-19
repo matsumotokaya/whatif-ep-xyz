@@ -64,9 +64,7 @@ export function useBanners(userId?: string | null, enabled = true) {
       if (!userId) {
         return [];
       }
-      console.log('[useBanners] 🔍 Fetching banners from database...');
       const banners = await bannerStorage.getAll(false); // Disable old cache, use React Query cache
-      console.log('[useBanners] ✅ Fetched', banners.length, 'banners');
       return banners;
     },
     enabled: enabled && !!userId,
@@ -100,10 +98,8 @@ export function useBanner(id: string | undefined) {
   return useQuery({
     queryKey: bannerKeys.detail(id || ''),
     queryFn: async () => {
-      console.log('[useBanner] Fetching banner from DB:', id);
       if (!id) return null;
       const banner = await bannerStorage.getById(id, false); // Disable old cache
-      console.log('[useBanner] Fetched banner with', banner?.elements.length, 'elements');
       return banner;
     },
     enabled: !!id,
