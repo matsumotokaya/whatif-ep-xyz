@@ -22,7 +22,7 @@ function baseShape(overrides: Partial<ShapeElement> = {}): ShapeElement {
 
 function baseText(overrides: Partial<TextElement> & { strokeOnly?: boolean } = {}): TextElement {
   const { strokeOnly, ...rest } = overrides;
-  const el: any = {
+  const el: Record<string, unknown> = {
     id: 'text-1',
     type: 'text',
     x: 0,
@@ -42,7 +42,7 @@ function baseText(overrides: Partial<TextElement> & { strokeOnly?: boolean } = {
   if (strokeOnly !== undefined) {
     el.strokeOnly = strokeOnly;
   }
-  return el as TextElement;
+  return el as unknown as TextElement;
 }
 
 function baseImage(overrides: Partial<ImageElement> = {}): ImageElement {
@@ -100,7 +100,7 @@ describe('migrateElements', () => {
     expect(result.visible).toBe(true);
     expect(result.locked).toBe(false);
     // legacy property must be preserved, not deleted, per spec
-    expect((result as any).strokeOnly).toBe(true);
+    expect(result.strokeOnly).toBe(true);
   });
 
   it('derives text fill/stroke from strokeOnly=false', () => {
@@ -108,7 +108,7 @@ describe('migrateElements', () => {
     const [result] = migrateElements([text]) as TextElement[];
     expect(result.fillEnabled).toBe(true);
     expect(result.strokeEnabled).toBe(false);
-    expect((result as any).strokeOnly).toBe(false);
+    expect(result.strokeOnly).toBe(false);
   });
 
   it('defaults text fillEnabled to true when strokeOnly is undefined', () => {
@@ -116,7 +116,7 @@ describe('migrateElements', () => {
     const [result] = migrateElements([text]) as TextElement[];
     expect(result.fillEnabled).toBe(true);
     expect(result.strokeEnabled).toBe(false);
-    expect((result as any).strokeOnly).toBeUndefined();
+    expect(result.strokeOnly).toBeUndefined();
   });
 
   it('does not overwrite existing text fill/stroke/letterSpacing properties', () => {

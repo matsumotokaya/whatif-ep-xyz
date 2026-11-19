@@ -2,16 +2,19 @@ import { useEffect, useState } from 'react';
 import type { CanvasElement, TextElement, ShapeElement, ImageElement, Template } from '../../types/template';
 import type { AnimationPhase } from '../../hooks/useEntranceAnimation';
 
+import { useTranslation } from 'react-i18next';
+
 interface LoadingOverlayProps {
   elements: CanvasElement[];
   template: Template;
   scale: number;
   phase: AnimationPhase;
   canvasColor: string;
+  // Position of the artboard's top-left corner inside the parent, which the
+  // overlay covers completely.
+  originX: number;
+  originY: number;
 }
-
-import { BLEED } from '../../utils/canvasGeometry';
-import { useTranslation } from 'react-i18next';
 
 function getElementBounds(el: CanvasElement): { x: number; y: number; width: number; height: number } {
   if (el.type === 'shape') {
@@ -29,7 +32,7 @@ function getElementBounds(el: CanvasElement): { x: number; y: number; width: num
   return { x: text.x, y: text.y, width: estimatedWidth, height: estimatedHeight };
 }
 
-export function LoadingOverlay({ elements, template, scale, phase, canvasColor }: LoadingOverlayProps) {
+export function LoadingOverlay({ elements, template, scale, phase, canvasColor, originX, originY }: LoadingOverlayProps) {
   const { t } = useTranslation('common');
   const [hasFadedOut, setHasFadedOut] = useState(false);
   const isFadingOut = phase === 'animating';
@@ -44,15 +47,10 @@ export function LoadingOverlay({ elements, template, scale, phase, canvasColor }
 
   if (!isVisible) return null;
 
-  const stageWidth = (template.width + BLEED * 2) * scale;
-  const stageHeight = (template.height + BLEED * 2) * scale;
-
   return (
     <div
       className="absolute inset-0 z-10 pointer-events-none"
       style={{
-        width: stageWidth,
-        height: stageHeight,
         transition: isFadingOut ? 'opacity 400ms ease-out' : undefined,
         opacity: isFadingOut ? 0 : 1,
       }}
@@ -64,8 +62,8 @@ export function LoadingOverlay({ elements, template, scale, phase, canvasColor }
       <div
         className="absolute overflow-hidden"
         style={{
-          left: BLEED * scale,
-          top: BLEED * scale,
+          left: originX,
+          top: originY,
           width: template.width * scale,
           height: template.height * scale,
           background: canvasColor,

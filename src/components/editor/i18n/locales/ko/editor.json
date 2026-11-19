@@ -122,6 +122,10 @@
     "error": "저장 오류",
     "retry": "재시도"
   },
+  "history": {
+    "undo": "실행 취소",
+    "redo": "다시 실행"
+  },
   "dragToReorder": "드래그하여 순서 변경",
   "layerVisibility": {
     "show": "표시",

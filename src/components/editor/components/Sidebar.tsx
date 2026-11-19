@@ -33,6 +33,8 @@ interface SidebarProps {
   canvasWidth: number;
   canvasHeight: number;
   onSelectColor: (color: string) => void;
+  // The color picker interaction ended; record the background change.
+  onColorInteractionEnd?: () => void;
   onCanvasSizeChange: (width: number, height: number) => void;
   onAddText: () => void;
   textPlacementMode?: boolean;
@@ -196,6 +198,7 @@ export const Sidebar = ({
   canvasWidth,
   canvasHeight,
   onSelectColor,
+  onColorInteractionEnd,
   onCanvasSizeChange,
   onAddText,
   onAddShape,
@@ -314,7 +317,7 @@ export const Sidebar = ({
           {/* Background section */}
           <div className="flex flex-col items-center gap-2 min-w-[240px] max-w-[240px] px-3">
             <h3 className="text-[10px] font-semibold text-gray-400 uppercase">{t('page.backgroundColor')}</h3>
-            <ColorSelector selectedColor={canvasColor} onColorChange={onSelectColor} showInput={true} />
+            <ColorSelector selectedColor={canvasColor} onColorChange={onSelectColor} onInteractionEnd={onColorInteractionEnd} showInput={true} />
           </div>
         </div>
 
@@ -421,7 +424,7 @@ export const Sidebar = ({
                 </div>
                 <div>
                   <h3 className="text-xs text-gray-500 mb-2">{t('page.backgroundColor')}</h3>
-                  <ColorSelector selectedColor={canvasColor} onColorChange={onSelectColor} showInput={true} />
+                  <ColorSelector selectedColor={canvasColor} onColorChange={onSelectColor} onInteractionEnd={onColorInteractionEnd} showInput={true} />
                 </div>
               </div>
             </div>

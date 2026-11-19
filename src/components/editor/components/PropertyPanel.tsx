@@ -484,6 +484,7 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onInteractionEnd
                       step="1"
                       value={shapeElement.strokeWidth}
                       onChange={(e) => onStrokeWidthChange(Number(e.target.value))}
+                      {...rangeInteractionProps}
                       className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
                     <span className="text-xs font-medium text-gray-300 w-10 text-right">

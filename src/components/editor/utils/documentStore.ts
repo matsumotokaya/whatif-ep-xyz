@@ -178,4 +178,32 @@ export class DocumentStore {
     this.state = next;
     this.listeners.forEach((listener) => listener());
   };
+
+  // Apply one or more commands as a single undo step.
+  apply(commands: Command | Command[], coalesceKey?: string): void {
+    this.dispatch({ type: 'commands', commands: Array.isArray(commands) ? commands : [commands], coalesceKey });
+  }
+
+  // Apply commands as a live preview (slider drag, pinch). Nothing is recorded
+  // until commitPreview().
+  preview(commands: Command | Command[]): void {
+    this.dispatch({ type: 'commands', commands: Array.isArray(commands) ? commands : [commands], transient: true });
+  }
+
+  // Record everything previewed since the last undo step as one step.
+  commitPreview(): void {
+    this.dispatch({ type: 'commitTransient' });
+  }
+
+  setCanvasColor(color: string, options: { transient?: boolean } = {}): void {
+    this.dispatch({ type: 'canvasColor', color, transient: options.transient });
+  }
+
+  undo(): void {
+    this.dispatch({ type: 'undo' });
+  }
+
+  redo(): void {
+    this.dispatch({ type: 'redo' });
+  }
 }

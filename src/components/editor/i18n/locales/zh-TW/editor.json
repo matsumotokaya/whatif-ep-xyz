@@ -122,6 +122,10 @@
     "error": "儲存失敗",
     "retry": "重試"
   },
+  "history": {
+    "undo": "復原",
+    "redo": "重做"
+  },
   "dragToReorder": "拖曳排序",
   "layerVisibility": {
     "show": "顯示",

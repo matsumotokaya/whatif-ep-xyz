@@ -1,37 +1,74 @@
+import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ViewportStore } from '../utils/viewportStore';
+import { MAX_VIEW_SCALE, MIN_VIEW_SCALE, scaleToSliderValue, sliderValueToScale } from '../utils/viewportMath';
 
 interface BottomBarProps {
-  zoom: number;
-  onZoomChange: (zoom: number) => void;
-  onResetView?: () => void;
+  viewportStore: ViewportStore;
   onExport: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   saveStatus?: 'saved' | 'saving' | 'unsaved' | 'error';
-  lastSaveError?: string | null;
   onRetry?: () => void;
-  minZoom?: number;
-  maxZoom?: number;
 }
 
+// The slider works in thousandths of its (logarithmic) track.
+const SLIDER_STEPS = 1000;
+
 export const BottomBar = ({
-  zoom,
-  onZoomChange,
-  onResetView,
+  viewportStore,
   onExport,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   saveStatus = 'saved',
   onRetry,
-  minZoom = 5,
-  maxZoom = 200,
 }: BottomBarProps) => {
   const { t } = useTranslation(['editor', 'common']);
+  // Subscribes here so that zooming re-renders this bar, not the whole editor.
+  const getScale = () => viewportStore.getState().view.scale;
+  const scale = useSyncExternalStore(viewportStore.subscribe, getScale, getScale);
+
+  const historyButtonClass =
+    'size-8 flex items-center justify-center rounded transition-colors text-gray-400 hover:bg-[#333333] disabled:opacity-35 disabled:hover:bg-transparent';
+
   return (
     <div className="bg-[#1a1a1a] border-t border-[#2b2b2b] overflow-x-auto overflow-y-hidden pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-between px-3 md:px-6 h-14 md:h-16 min-w-max">
-        {/* Zoom controls */}
         <div className="flex items-center gap-2 md:gap-4">
+          {/* Undo / redo - desktop (the mobile layout has its own floating button) */}
+          <div className="hidden md:flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className={historyButtonClass}
+              title={t('editor:history.undo')}
+              aria-label={t('editor:history.undo')}
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">undo</span>
+            </button>
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={!canRedo}
+              className={historyButtonClass}
+              title={t('editor:history.redo')}
+              aria-label={t('editor:history.redo')}
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">redo</span>
+            </button>
+          </div>
+
+          {/* Zoom controls */}
           <div className="flex items-center gap-1.5 md:gap-3">
             <button
-              onClick={() => onZoomChange(Math.max(minZoom, zoom - 10))}
-              className="size-7 md:size-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+              onClick={() => viewportStore.zoomStep(-1)}
+              disabled={scale <= MIN_VIEW_SCALE}
+              className="size-7 md:size-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0 disabled:opacity-35"
               aria-label="Zoom out"
             >
               <svg className="w-3 h-3 md:w-4 md:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,17 +79,19 @@ export const BottomBar = ({
             {/* Range slider - desktop only */}
             <input
               type="range"
-              min={minZoom}
-              max={maxZoom}
-              value={zoom}
-              onChange={(e) => onZoomChange(Number(e.target.value))}
+              min={0}
+              max={SLIDER_STEPS}
+              value={Math.round(scaleToSliderValue(scale) * SLIDER_STEPS)}
+              onChange={(e) => viewportStore.zoomTo(sliderValueToScale(Number(e.target.value) / SLIDER_STEPS))}
               className="hidden md:block w-24 md:w-32 h-1 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
               aria-label="Canvas zoom"
+              aria-valuetext={`${Math.round(scale * 100)}%`}
             />
 
             <button
-              onClick={() => onZoomChange(Math.min(maxZoom, zoom + 10))}
-              className="size-7 md:size-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+              onClick={() => viewportStore.zoomStep(1)}
+              disabled={scale >= MAX_VIEW_SCALE}
+              className="size-7 md:size-8 flex items-center justify-center hover:bg-[#333333] rounded transition-colors flex-shrink-0 disabled:opacity-35"
               aria-label="Zoom in"
             >
               <svg className="w-3 h-3 md:w-4 md:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,21 +99,19 @@ export const BottomBar = ({
               </svg>
             </button>
 
-            <span className="text-xs md:text-sm text-gray-400 font-medium min-w-[2.5rem] md:min-w-[3rem] text-center">
-              {zoom}%
+            <span className="text-xs md:text-sm text-gray-400 font-medium min-w-[2.5rem] md:min-w-[3rem] text-center tabular-nums">
+              {Math.round(scale * 100)}%
             </span>
           </div>
 
-          {onResetView && (
-            <button
-              onClick={onResetView}
-              className="px-2 py-1 text-xs md:text-sm text-gray-400 hover:bg-[#333333] rounded transition-colors flex-shrink-0"
-              title="Fit canvas to screen"
-              aria-label="Fit canvas to screen"
-            >
-              Fit
-            </button>
-          )}
+          <button
+            onClick={() => viewportStore.fit()}
+            className="px-2 py-1 text-xs md:text-sm text-gray-400 hover:bg-[#333333] rounded transition-colors flex-shrink-0"
+            title="Fit canvas to screen"
+            aria-label="Fit canvas to screen"
+          >
+            Fit
+          </button>
         </div>
 
         <div className="flex-1" />

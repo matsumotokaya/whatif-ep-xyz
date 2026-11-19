@@ -204,6 +204,8 @@ export const Header = ({ onBackToManager, onInternalNavigate, bannerName, banner
       {isMenuOpen &&
         createPortal(
           <div
+            role="dialog"
+            aria-modal="true"
             className={cn(
               'fixed inset-0 z-[110] overflow-y-auto bg-[#111111]',
               isMenuClosing ? 'menu-overlay-exit' : 'menu-overlay-enter'

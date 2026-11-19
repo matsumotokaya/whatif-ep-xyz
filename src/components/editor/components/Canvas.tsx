@@ -43,7 +43,7 @@ export interface CanvasViewport {
   originY: number;
 }
 
-interface CanvasProps {
+export interface CanvasProps {
   template: Template;
   elements: CanvasElement[];
   scale?: number;
@@ -63,6 +63,9 @@ interface CanvasProps {
   onPlaceText?: (x: number, y: number) => string;
   onEditingChange?: (isEditing: boolean) => void;
   onBackgroundTouchStart?: (clientX: number, clientY: number) => void;
+  // Studio viewport only: the primary button went down on empty space beyond
+  // the bleed band, where a drag pans the view instead of drawing a marquee.
+  onBackgroundPanStart?: (clientX: number, clientY: number) => void;
   onTransformingChange?: (isTransforming: boolean) => void;
   // 'studio' (default) keeps the full desktop interaction set. 'stories' is
   // the constrained mobile mode: selection frame without resize/rotate
@@ -98,6 +101,9 @@ export interface CanvasRef {
   exportThumbnail: () => string;
   getNodesMap: () => Map<string, Konva.Node>;
   getLayerNode: () => Konva.Layer | null;
+  // True while an element is being dragged: the canvas then shows positions
+  // the document does not have yet.
+  isDragging: () => boolean;
   // Resolves once the canvas shows the latest document with its web fonts
   // applied (or the font wait has run out). Await this before a synchronous
   // export so `toDataURL()` never snapshots a stale frame or a fallback font.
@@ -122,6 +128,9 @@ const THUMBNAIL_WIDTH = 400;
 const SNAP_SCREEN_PX = 6;
 // A marquee smaller than this on both axes is a click, not a selection.
 const LASSO_MIN_PX = 5;
+// A press that travels further than this before release is a drag of some
+// kind (marquee, view pan), not a click on the background.
+const CLICK_TRAVEL_TOLERANCE_PX = 4;
 // Smallest box (screen px) a transform may shrink a node to; keeps a resize
 // from collapsing an element into something that cannot be grabbed again.
 const MIN_TRANSFORM_BOX_PX = 4;
@@ -191,7 +200,7 @@ interface LassoSession {
 }
 
 export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
-  { template, elements, scale = 0.5, canvasColor, viewport, onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, onBeforeExport, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
+  { template, elements, scale = 0.5, canvasColor, viewport, onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, onBeforeExport, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onBackgroundPanStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
   ref
 ) {
   const { t } = useTranslation('editor');
@@ -211,6 +220,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   const dragSessionRef = useRef<DragSession | null>(null);
   const lassoRef = useRef<LassoSession | null>(null);
   const lassoCleanupRef = useRef<(() => void) | null>(null);
+  // Where the current press on empty stage started, in page coordinates.
+  const stagePressRef = useRef<{ x: number; y: number } | null>(null);
 
   // Stage layout: either the Studio viewport or the fixed artboard + bleed box.
   const originX = viewport ? viewport.originX : BLEED * scale;
@@ -320,24 +331,30 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   const exportArtboard = useEventCallback((options: { mimeType: string; quality: number; outputWidth: number }): string => {
     onBeforeExport?.();
+    const stage = stageRef.current;
     const layer = contentLayerRef.current;
-    if (!layer) return '';
+    if (!stage || !layer) return '';
 
     // The text being edited inline is hidden on the canvas; it still belongs
     // in the exported image.
     const hiddenForEditing = editingId ? nodesRef.current.get(editingId) : undefined;
     hiddenForEditing?.visible(true);
 
+    // Render from a canonical view (artboard at the origin, 1 canvas unit per
+    // pixel) rather than from the current zoom and pan. The image is then
+    // identical whatever the view is: no resampling of shapes drawn through
+    // Konva's buffer canvas at a fractional offset, and no clipping when the
+    // artboard origin is scrolled off-screen.
+    const view = { x: stage.x(), y: stage.y(), scaleX: stage.scaleX(), scaleY: stage.scaleY() };
+    stage.setAttrs({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+
     try {
-      // Synchronous draw() (not the throttled batchDraw) so the layer bitmap
-      // is current before it is read.
-      layer.draw();
       return layer.toDataURL({
-        x: originX,
-        y: originY,
-        width: template.width * scale,
-        height: template.height * scale,
-        pixelRatio: options.outputWidth / (template.width * scale),
+        x: 0,
+        y: 0,
+        width: template.width,
+        height: template.height,
+        pixelRatio: options.outputWidth / template.width,
         mimeType: options.mimeType,
         quality: options.quality,
       });
@@ -345,10 +362,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       console.error('Canvas export failed:', error);
       return '';
     } finally {
-      if (hiddenForEditing) {
-        hiddenForEditing.visible(false);
-        layer.batchDraw();
-      }
+      stage.setAttrs(view);
+      hiddenForEditing?.visible(false);
     }
   });
 
@@ -366,6 +381,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     exportThumbnail: () => exportArtboard({ mimeType: 'image/jpeg', quality: 0.7, outputWidth: THUMBNAIL_WIDTH }),
     getNodesMap: () => nodesRef.current,
     getLayerNode: () => contentLayerRef.current,
+    isDragging: () => Konva.isDragging(),
     whenReadyForExport,
   }), [exportArtboard, template.width, whenReadyForExport]);
 
@@ -894,8 +910,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           // Only the empty stage counts as background. (A shape is never the
           // background, whatever its fill.)
           if (!stage || e.target !== stage || !isPrimaryButton(e.evt)) return;
-          // The mouseup that ends a marquee also produces this click.
-          if (lassoRef.current?.moved) return;
+          // The release that ends a marquee or a view pan also produces a
+          // click; only a press that stayed in place is one.
+          const press = stagePressRef.current;
+          stagePressRef.current = null;
+          const release = e.evt as MouseEvent;
+          if (
+            press
+            && Math.hypot(release.clientX - press.x, release.clientY - press.y) > CLICK_TRAVEL_TOLERANCE_PX
+          ) {
+            return;
+          }
 
           // Text placement mode: place text at click position
           if (textPlacementMode && onPlaceText) {
@@ -917,13 +942,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           // interaction (multi-select is not part of the Stories feature set).
           const stage = e.target.getStage();
           if (!stage || e.target !== stage || !isPrimaryButton(e.evt)) return;
+          stagePressRef.current = { x: e.evt.clientX, y: e.evt.clientY };
           if (isEditing || textPlacementMode || isStoriesMode) return;
 
           const pointer = stage.getPointerPosition();
           if (!pointer) return;
           // In the Studio viewport, empty space beyond the bleed band pans the
-          // view (handled by the host) instead of starting a marquee.
-          if (viewport && !isInsideBleedZone(pointerToCanvas(pointer), template, BLEED)) return;
+          // view instead of starting a marquee.
+          if (viewport && !isInsideBleedZone(pointerToCanvas(pointer), template, BLEED)) {
+            onBackgroundPanStart?.(e.evt.clientX, e.evt.clientY);
+            return;
+          }
 
           beginLasso(stage, pointer, e.evt.shiftKey);
         }}

@@ -25,7 +25,7 @@ export function migrateElements(elements: CanvasElement[]): CanvasElement[] {
     if (el.type === 'text') {
       const text = el as TextElement;
       // Migrate old strokeOnly property to new structure
-      const strokeOnly = (text as any).strokeOnly;
+      const strokeOnly = text.strokeOnly;
       return {
         ...text,
         fillEnabled: text.fillEnabled !== undefined ? text.fillEnabled : (strokeOnly === undefined ? true : !strokeOnly),

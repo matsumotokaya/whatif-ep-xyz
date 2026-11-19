@@ -367,7 +367,7 @@ export const ImageLibraryModal = ({ isOpen, onClose, onSelectImage, initialTab =
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       <div className="relative bg-[#1a1a1a] rounded-lg shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col mx-4">

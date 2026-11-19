@@ -122,6 +122,10 @@
     "error": "保存エラー",
     "retry": "再試行"
   },
+  "history": {
+    "undo": "元に戻す",
+    "redo": "やり直す"
+  },
   "dragToReorder": "ドラッグして並び替え",
   "layerVisibility": {
     "show": "表示",

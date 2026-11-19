@@ -74,18 +74,14 @@ export function useStoriesMode(): boolean {
   const [searchParams] = useSearchParams();
   const storiesParam = searchParams.get('stories');
 
-  const [override, setOverride] = useState<boolean | null>(readStoredOverride);
+  // The query parameter wins while it is present; once navigation has dropped
+  // it, the value it stored for this session still applies.
   useEffect(() => {
-    if (storiesParam === '1') {
-      window.sessionStorage.setItem(STORIES_OVERRIDE_SESSION_KEY, '1');
-      setOverride(true);
-    } else if (storiesParam === '0') {
-      window.sessionStorage.setItem(STORIES_OVERRIDE_SESSION_KEY, '0');
-      setOverride(false);
-    } else {
-      setOverride(readStoredOverride());
+    if (storiesParam === '1' || storiesParam === '0') {
+      window.sessionStorage.setItem(STORIES_OVERRIDE_SESSION_KEY, storiesParam);
     }
   }, [storiesParam]);
+  const override = storiesParam === '1' ? true : storiesParam === '0' ? false : readStoredOverride();
 
   const [isPhone, setIsPhone] = useState<boolean>(detectPhone);
   useEffect(() => {

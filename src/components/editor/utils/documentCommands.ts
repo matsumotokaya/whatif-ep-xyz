@@ -1,4 +1,4 @@
-import type { CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
+import type { CanvasElement } from '../types/template';
 
 // Pure command layer for the canvas document. Each Command describes one
 // mutation intent; applyCommand turns it into a brand-new elements array
@@ -23,19 +23,7 @@ export type Command =
 function applyUpdateElement(elements: CanvasElement[], id: string, updates: Partial<CanvasElement>): CanvasElement[] {
   return elements.map((el) => {
     if (el.id !== id) return el;
-    // Type-safe merge based on element type (mirrors the original
-    // useElementOperations.updateElement branching exactly, including the
-    // "as X" casts for TS narrowing).
-    if (el.type === 'text' && updates.type === 'text') {
-      return { ...el, ...updates } as TextElement;
-    } else if (el.type === 'shape' && updates.type === 'shape') {
-      return { ...el, ...updates } as ShapeElement;
-    } else if (el.type === 'image' && updates.type === 'image') {
-      return { ...el, ...updates } as ImageElement;
-    } else {
-      // For updates without a type change
-      return { ...el, ...updates } as CanvasElement;
-    }
+    return { ...el, ...updates } as CanvasElement;
   });
 }
 

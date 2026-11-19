@@ -15,7 +15,7 @@ interface StoriesSheetProps {
 
 export const StoriesSheet = ({ title, onClose, children }: StoriesSheetProps) => {
   return (
-    <div className="fixed inset-0 z-[90]">
+    <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true">
       {/* Backdrop: tap outside the panel dismisses */}
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 

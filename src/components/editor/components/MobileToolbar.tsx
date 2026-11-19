@@ -15,6 +15,8 @@ import { arrayMove } from '@dnd-kit/sortable';
 interface MobileToolbarProps {
   canvasColor: string;
   onSelectColor: (color: string) => void;
+  // The color picker interaction ended; record the background change.
+  onColorInteractionEnd?: () => void;
   onAddText: () => void;
   onAddShape: (shapeType: 'rectangle' | 'triangle' | 'star' | 'circle' | 'heart') => void;
   onAddImage: (src: string, width: number, height: number) => void;
@@ -35,6 +37,7 @@ type DrawerType = 'tool' | 'layer' | null;
 export const MobileToolbar = ({
   canvasColor,
   onSelectColor,
+  onColorInteractionEnd,
   onAddText,
   onAddShape,
   onAddImage,
@@ -165,7 +168,7 @@ export const MobileToolbar = ({
                   <label className="block text-xs font-medium text-gray-300 mb-2">
                     {t('page.backgroundColor')}
                   </label>
-                  <ColorSelector selectedColor={canvasColor} onColorChange={onSelectColor} showInput={true} />
+                  <ColorSelector selectedColor={canvasColor} onColorChange={onSelectColor} onInteractionEnd={onColorInteractionEnd} showInput={true} />
                 </div>
               </div>
             )}

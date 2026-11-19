@@ -98,7 +98,7 @@ export const StoriesTextEditor = ({ initial, onDone, onCancel }: StoriesTextEdit
   const handleDone = () => onDone({ text, fontFamily, fill, fontSize });
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true">
       {/* Visible box: offset/sized to the visual viewport so the tool block
           sits right above the soft keyboard. */}
       <div

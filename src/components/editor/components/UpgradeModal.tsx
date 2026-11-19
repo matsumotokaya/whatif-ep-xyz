@@ -38,7 +38,7 @@ export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
         {/* Header with gradient */}
         <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 p-6 text-center">

@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { resolveElementSrc } from '@/lib/asset';
 import { useEditorImage } from '../../hooks/useEditorImage';
 import type { CanvasElement, ImageElement } from '../../types/template';
-import { BLEED } from '../../utils/canvasGeometry';
 
 function ImageStatus({ element, index }: { element: ImageElement; index: number }) {
   const { t } = useTranslation('common');
@@ -26,13 +25,14 @@ function ImageStatus({ element, index }: { element: ImageElement; index: number 
 
 // DOM feedback stays out of canvas exports and survives the entrance animation.
 // Mounting here also starts image requests while the lazy canvas chunk loads.
-export function ImageLoadFeedback({ elements, scale, width, height }: {
-  elements: CanvasElement[]; scale: number; width: number; height: number;
+// `originX`/`originY` locate the artboard's top-left corner inside the parent.
+export function ImageLoadFeedback({ elements, scale, width, height, originX, originY }: {
+  elements: CanvasElement[]; scale: number; width: number; height: number; originX: number; originY: number;
 }) {
   return (
     <div role="status" aria-live="polite" aria-atomic="true"
       className="pointer-events-none absolute z-20 flex flex-col items-start gap-1 overflow-y-auto p-2"
-      style={{ left: BLEED * scale, top: BLEED * scale, maxWidth: width * scale, maxHeight: height * scale }}>
+      style={{ left: originX, top: originY, maxWidth: width * scale, maxHeight: height * scale }}>
       {elements.filter((el): el is ImageElement => el.type === 'image' && (el.visible ?? true))
         .map((element, index) => <ImageStatus key={element.id} element={element} index={index + 1} />)}
     </div>

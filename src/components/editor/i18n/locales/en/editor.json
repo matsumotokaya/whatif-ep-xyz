@@ -122,6 +122,10 @@
     "error": "Save error",
     "retry": "Retry"
   },
+  "history": {
+    "undo": "Undo",
+    "redo": "Redo"
+  },
   "dragToReorder": "Drag to reorder",
   "layerVisibility": {
     "show": "Show",
