@@ -279,6 +279,11 @@ export function useEditorActions({
     return true;
   };
 
+  // Paste the editor's own element copy (context menu), without consulting
+  // the system clipboard: reading it outside a paste event asks for permission.
+  const pasteCopiedElements = useEventCallback(() => pasteElements());
+  const hasCopiedElements = () => (readElementClipboard()?.elements.length ?? 0) > 0;
+
   const pasteImages = async (files: File[]) => {
     for (const file of files) {
       try {
@@ -499,6 +504,14 @@ export function useEditorActions({
     if (locked) setSelection(selectedElementIds.filter((selectedId) => selectedId !== id));
   });
 
+  // Lock or unlock the whole selection. Locking releases it: a locked element
+  // cannot be manipulated on the canvas.
+  const setSelectionLocked = useEventCallback((locked: boolean) => {
+    if (selectedElementIds.length === 0) return;
+    store.apply({ type: 'updateElements', ids: selectedElementIds, updateFn: () => ({ locked }) });
+    if (locked) setSelection([]);
+  });
+
   const toggleVisibility = useEventCallback((id: string) => {
     const element = elementsNow().find((el) => el.id === id);
     if (!element) return;
@@ -584,6 +597,8 @@ export function useEditorActions({
     copy,
     cut,
     paste,
+    pasteCopiedElements,
+    hasCopiedElements,
     duplicate,
     deleteSelected,
     deleteElement,
@@ -621,6 +636,7 @@ export function useEditorActions({
     changeShadowOpacity,
     changeImageBlur,
     toggleLock,
+    setSelectionLocked,
     toggleVisibility,
     previewCanvasColor,
     setCanvasColor,

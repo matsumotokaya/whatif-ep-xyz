@@ -87,6 +87,7 @@
     "moveDown": "Move Down",
     "width": "Width",
     "height": "Height",
+    "rotation": "Rotation",
     "delete": "Delete",
     "fontCategories": {
       "latinSans": "Latin Sans Serif",
@@ -126,6 +127,12 @@
     "undo": "Undo",
     "redo": "Redo"
   },
+  "clipboard": {
+    "copy": "Copy",
+    "cut": "Cut",
+    "paste": "Paste"
+  },
+  "selectAll": "Select all",
   "dragToReorder": "Drag to reorder",
   "layerVisibility": {
     "show": "Show",

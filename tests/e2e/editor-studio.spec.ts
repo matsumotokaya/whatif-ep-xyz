@@ -300,3 +300,60 @@ test.describe('output', () => {
     await expect(page.getByText('Text Size').filter({ visible: true })).toBeVisible();
   });
 });
+
+test.describe('precision and menus', () => {
+  test('typed position, size, rotation and font size are applied exactly', async ({ page }) => {
+    await openGuestEditor(page);
+    const view = await studioView(page);
+    await page.mouse.click(canvasPoint(view, 250, 700).x, canvasPoint(view, 250, 700).y);
+
+    const panel = page.locator('aside').filter({ visible: true }).last();
+    await panel.getByLabel('X', { exact: true }).fill('40');
+    await panel.getByLabel('X', { exact: true }).press('Enter');
+    await panel.getByLabel('W', { exact: true }).fill('512');
+    await panel.getByLabel('W', { exact: true }).press('Tab');
+    await panel.getByLabel('Rotation').fill('15');
+    await panel.getByLabel('Rotation').press('Enter');
+    await expect.poll(async () => await savedElement(page, 'rect')).toMatchObject({ x: 40, width: 512, rotation: 15 });
+
+    // Arrow keys step the focused field, not the element on the canvas.
+    await panel.getByLabel('Y', { exact: true }).focus();
+    await page.keyboard.press('Shift+ArrowUp');
+    await expect.poll(async () => (await savedElement(page, 'rect'))?.y).toBe(610);
+    expect((await savedElement(page, 'rect'))?.x).toBe(40);
+
+    // Each typed value is its own undo step.
+    await page.mouse.click(view.left + 6, view.top + 6);
+    await page.keyboard.press(`${modifier}+z`);
+    await expect.poll(async () => (await savedElement(page, 'rect'))?.y).toBe(600);
+  });
+
+  test('right-click opens a menu for the element under the pointer', async ({ page }) => {
+    await openGuestEditor(page);
+    const view = await studioView(page);
+    const onCircle = canvasPoint(view, 750, 680);
+
+    await page.mouse.click(onCircle.x, onCircle.y, { button: 'right' });
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    await menu.getByRole('menuitem', { name: 'Duplicate' }).click();
+    await expect(menu).toBeHidden();
+    await expect.poll(async () => (await savedDesign(page)).elements.length).toBe(4);
+    expect((await savedDesign(page)).elements[3]).toMatchObject({ type: 'shape', shapeType: 'circle', x: 620, y: 620 });
+
+    // Escape closes the menu without touching the selection.
+    await page.mouse.click(onCircle.x, onCircle.y, { button: 'right' });
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.keyboard.press('Delete');
+    await expect.poll(async () => (await savedDesign(page)).elements.length).toBe(3);
+
+    // Locking from the menu releases the element; it can no longer be dragged.
+    const onRect = canvasPoint(view, 250, 700);
+    await page.mouse.click(onRect.x, onRect.y, { button: 'right' });
+    await menu.getByRole('menuitem', { name: 'Lock' }).click();
+    await dragMouse(page, onRect, { x: onRect.x + 80, y: onRect.y });
+    await expect.poll(async () => await savedElement(page, 'rect')).toMatchObject({ locked: true, x: 100 });
+  });
+});

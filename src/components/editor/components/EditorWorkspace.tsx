@@ -3,7 +3,7 @@ import { useNavigate } from '@/components/editor/lib/router';
 import { useTranslation } from 'react-i18next';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
-import { PropertyPanel } from './PropertyPanel';
+import { PropertyPanel, type ElementGeometryUpdate } from './PropertyPanel';
 import { BottomBar } from './BottomBar';
 import { MobileToolbar } from './MobileToolbar';
 import { SaveAsTemplateModal } from './SaveAsTemplateModal';
@@ -11,6 +11,7 @@ import { ImageLibraryModal } from './ImageLibraryModal';
 import { GuestLimitModal } from './GuestLimitModal';
 import { EditorStage } from './EditorStage';
 import { EditorToasts } from './EditorToasts';
+import { EditorContextMenu, type ContextMenuItem } from './EditorContextMenu';
 import { LazyCanvas } from './LazyCanvas';
 import { ImageLoadFeedback } from './canvas/ImageLoadFeedback';
 import { LoadingOverlay } from './canvas/LoadingOverlay';
@@ -77,7 +78,7 @@ const MIN_EXPORT_DATA_URL_LENGTH = 100;
 export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
-  const { t } = useTranslation(['common', 'message', 'banner', 'auth']);
+  const { t } = useTranslation(['common', 'message', 'banner', 'auth', 'editor']);
   // Stories mode: the phone-dedicated shell (or forced via ?stories=1).
   const storiesMode = useStoriesMode();
 
@@ -144,6 +145,7 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
   const [showSaveAsTemplateModal, setShowSaveAsTemplateModal] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const canvasRef = useRef<CanvasRef>(null);
   const isTransformingRef = useRef(false);
@@ -424,6 +426,56 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
     return actions.placeText(x, y);
   });
 
+  const handleCanvasContextMenu = useEventCallback((position: { clientX: number; clientY: number }) => {
+    setContextMenu({ x: position.clientX, y: position.clientY });
+  });
+  const closeContextMenu = useEventCallback(() => setContextMenu(null));
+
+  // Right-click menu: actions on the selection, then paste / select all.
+  const buildContextMenu = (): ContextMenuItem[][] => {
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+    const hint = (key: string, shift = false) => (isMac ? `${shift ? '⇧' : ''}⌘${key}` : `Ctrl+${shift ? 'Shift+' : ''}${key}`);
+    const hasSelection = selectedElements.length > 0;
+    const allLocked = hasSelection && selectedElements.every((element) => element.locked);
+
+    const onSelection: ContextMenuItem[] = hasSelection
+      ? [
+          { key: 'copy', label: t('editor:clipboard.copy'), hint: hint('C'), onSelect: actions.copy },
+          { key: 'cut', label: t('editor:clipboard.cut'), hint: hint('X'), disabled: allLocked, onSelect: actions.cut },
+          { key: 'duplicate', label: t('common:button.duplicate'), hint: hint('D'), onSelect: actions.duplicate },
+          { key: 'delete', label: t('common:button.delete'), hint: isMac ? '⌫' : 'Del', disabled: allLocked, onSelect: actions.deleteSelected },
+        ]
+      : [];
+    const order: ContextMenuItem[] = hasSelection
+      ? [
+          { key: 'forward', label: t('editor:properties.moveUp'), hint: hint(']'), onSelect: actions.bringForward },
+          { key: 'backward', label: t('editor:properties.moveDown'), hint: hint('['), onSelect: actions.sendBackward },
+          { key: 'front', label: t('editor:properties.bringToFront'), hint: hint(']', true), onSelect: actions.bringToFront },
+          { key: 'back', label: t('editor:properties.sendToBack'), hint: hint('[', true), onSelect: actions.sendToBack },
+        ]
+      : [];
+    const lock: ContextMenuItem[] = hasSelection
+      ? [
+          {
+            key: 'lock',
+            label: allLocked ? t('editor:unlock') : t('editor:lock'),
+            onSelect: () => actions.setSelectionLocked(!allLocked),
+          },
+        ]
+      : [];
+    const general: ContextMenuItem[] = [
+      {
+        key: 'paste',
+        label: t('editor:clipboard.paste'),
+        hint: hint('V'),
+        disabled: !actions.hasCopiedElements(),
+        onSelect: actions.pasteCopiedElements,
+      },
+      { key: 'selectAll', label: t('editor:selectAll'), hint: hint('A'), onSelect: actions.selectAll },
+    ];
+    return [onSelection, order, lock, general];
+  };
+
   // Props every canvas mount shares. The two shells render exclusively, so
   // the Konva stage is only ever mounted once.
   const canvasProps: Omit<CanvasProps, 'scale' | 'viewport' | 'interactionMode'> = {
@@ -444,6 +496,10 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
     onEditingChange: setIsCanvasEditing,
     onTransformingChange: handleTransformingChange,
   };
+
+  const handleGeometryChange = useEventCallback((updates: ElementGeometryUpdate) => {
+    if (singleSelected) actions.updateElement(singleSelected.id, updates);
+  });
 
   const propertyPanelProps = {
     selectedElement: singleSelected,
@@ -476,6 +532,7 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
     selectedElements,
     onCenterHorizontal: actions.centerHorizontal,
     onCenterVertical: actions.centerVertical,
+    onGeometryChange: handleGeometryChange,
   };
 
   const sharedOverlays = (
@@ -701,6 +758,7 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
 
         <EditorStage
           {...canvasProps}
+          onContextMenu={handleCanvasContextMenu}
           viewportStore={viewportStore}
           canvasRef={canvasRef}
           panMode={panMode}
@@ -757,6 +815,10 @@ export function EditorWorkspace({ source, returnTo }: EditorWorkspaceProps) {
         saveStatus={saveStatus}
         onRetry={handleSave}
       />
+
+      {contextMenu && (
+        <EditorContextMenu x={contextMenu.x} y={contextMenu.y} groups={buildContextMenu()} onClose={closeContextMenu} />
+      )}
 
       <SaveAsTemplateModal
         isOpen={showSaveAsTemplateModal}

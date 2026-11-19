@@ -87,6 +87,7 @@
     "moveDown": "向后移动",
     "width": "宽度",
     "height": "高度",
+    "rotation": "旋转",
     "delete": "删除",
     "fontCategories": {
       "latinSans": "🔤 拉丁无衬线",
@@ -126,6 +127,12 @@
     "undo": "撤销",
     "redo": "重做"
   },
+  "clipboard": {
+    "copy": "复制",
+    "cut": "剪切",
+    "paste": "粘贴"
+  },
+  "selectAll": "全选",
   "dragToReorder": "拖动排序",
   "layerVisibility": {
     "show": "显示",

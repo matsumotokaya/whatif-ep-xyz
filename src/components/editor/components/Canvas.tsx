@@ -66,6 +66,9 @@ export interface CanvasProps {
   // Studio viewport only: the primary button went down on empty space beyond
   // the bleed band, where a drag pans the view instead of drawing a marquee.
   onBackgroundPanStart?: (clientX: number, clientY: number) => void;
+  // The secondary button was pressed on the canvas (Studio only). The element
+  // under the pointer, if any, is already part of the selection.
+  onContextMenu?: (position: { clientX: number; clientY: number }) => void;
   onTransformingChange?: (isTransforming: boolean) => void;
   // 'studio' (default) keeps the full desktop interaction set. 'stories' is
   // the constrained mobile mode: selection frame without resize/rotate
@@ -200,7 +203,7 @@ interface LassoSession {
 }
 
 export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
-  { template, elements, scale = 0.5, canvasColor, viewport, onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, onBeforeExport, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onBackgroundPanStart, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
+  { template, elements, scale = 0.5, canvasColor, viewport, onTextChange, selectedElementIds = [], onSelectElement, onElementUpdate, onElementsUpdate, onImageDrop, onImageLoad, onBeforeExport, entranceAnimationPhase, textPlacementMode, onPlaceText, onEditingChange, onBackgroundTouchStart, onBackgroundPanStart, onContextMenu, onTransformingChange, interactionMode = 'studio', onElementTransientUpdate, onInteractionCommit, onStoriesDragStateChange, onStoriesDeleteElement, storiesTrashRef, onStoriesTextEdit, storiesTextEditActive = false },
   ref
 ) {
   const { t } = useTranslation('editor');
@@ -971,6 +974,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           }
 
           beginLasso(stage, pointer, e.evt.shiftKey);
+        }}
+        onContextMenu={(e) => {
+          if (!onContextMenu || isStoriesMode || isEditing || textPlacementMode) return;
+          // Replace the browser menu with the editor's own.
+          e.evt.preventDefault();
+          onContextMenu({ clientX: e.evt.clientX, clientY: e.evt.clientY });
         }}
         onMouseMove={(e) => {
           // Show that an element can be picked up. The transformer manages the

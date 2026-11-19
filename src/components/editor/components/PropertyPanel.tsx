@@ -1,9 +1,19 @@
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CanvasElement, TextElement, ShapeElement } from '../types/template';
 import { ColorSelector } from './ColorSelector';
 import { FontSelector } from './FontSelector';
 import { MobileSheet } from './MobileSheet';
+import { NumberField } from './NumberField';
+
+// Exact position, size and rotation of the selected element.
+export interface ElementGeometryUpdate {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+}
 
 interface PropertyPanelProps {
   selectedElement: CanvasElement | null;
@@ -49,10 +59,12 @@ interface PropertyPanelProps {
   selectedElements?: CanvasElement[];
   onCenterHorizontal?: () => void;
   onCenterVertical?: () => void;
+  // Typed-in position / size / rotation for a single selected element.
+  onGeometryChange?: (updates: ElementGeometryUpdate) => void;
 }
 
 
-export const PropertyPanel = ({ selectedElement, onColorChange, onInteractionEnd, onFontChange, onSizeChange, onWeightChange, onLetterSpacingChange, onLineHeightChange, onAlignChange, onOpacityChange, onBringToFront, onSendToBack, isMobile = false, onClose, onDelete, onFillEnabledChange, onStrokeChange, onStrokeWidthChange, onStrokeEnabledChange, onShadowEnabledChange, onShadowColorChange, onShadowBlurChange, onShadowOffsetXChange, onShadowOffsetYChange, onShadowOpacityChange, onImageBlurChange, onGenerateShadow, isGeneratingShadow, onFitToCanvas, selectedCount = 0, selectedElements = [], onCenterHorizontal, onCenterVertical }: PropertyPanelProps) => {
+export const PropertyPanel = ({ selectedElement, onColorChange, onInteractionEnd, onFontChange, onSizeChange, onWeightChange, onLetterSpacingChange, onLineHeightChange, onAlignChange, onOpacityChange, onBringToFront, onSendToBack, isMobile = false, onClose, onDelete, onFillEnabledChange, onStrokeChange, onStrokeWidthChange, onStrokeEnabledChange, onShadowEnabledChange, onShadowColorChange, onShadowBlurChange, onShadowOffsetXChange, onShadowOffsetYChange, onShadowOpacityChange, onImageBlurChange, onGenerateShadow, isGeneratingShadow, onFitToCanvas, selectedCount = 0, selectedElements = [], onCenterHorizontal, onCenterVertical, onGeometryChange }: PropertyPanelProps) => {
   const { t } = useTranslation('editor');
   const interactionEndedRef = useRef(false);
   const beginInteraction = () => {
@@ -87,11 +99,35 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onInteractionEnd
     return t('properties.fontWeights.black');
   };
 
+  // Minimum element size, matching what a resize on the canvas allows.
+  const MIN_SIZE = 5;
+  const geometryFields: ReactNode =
+    selectedElement && onGeometryChange && !isMobile ? (
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <NumberField label="X" value={selectedElement.x} onCommit={(x) => onGeometryChange({ x })} />
+        <NumberField label="Y" value={selectedElement.y} onCommit={(y) => onGeometryChange({ y })} />
+        {selectedElement.type !== 'text' && (
+          <>
+            <NumberField label="W" value={selectedElement.width} min={MIN_SIZE} onCommit={(width) => onGeometryChange({ width })} />
+            <NumberField label="H" value={selectedElement.height} min={MIN_SIZE} onCommit={(height) => onGeometryChange({ height })} />
+          </>
+        )}
+        <NumberField
+          label={t('properties.rotation')}
+          value={selectedElement.rotation ?? 0}
+          suffix="°"
+          className="col-span-2"
+          onCommit={(rotation) => onGeometryChange({ rotation })}
+        />
+      </div>
+    ) : null;
+
   const alignmentControls = (onCenterHorizontal || onCenterVertical) && selectedCount >= 1 ? (
     <div className={isMobile ? 'mb-2' : 'mb-4'}>
       <label className="block text-xs font-medium text-gray-300 mb-2">
         {t('properties.alignment')}
       </label>
+      {geometryFields}
       <div className="grid grid-cols-2 gap-2">
         {onCenterHorizontal && (
           <button
@@ -314,9 +350,25 @@ export const PropertyPanel = ({ selectedElement, onColorChange, onInteractionEnd
               {...rangeInteractionProps}
               className="flex-1 h-1.5 bg-[#444444] rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
-            <span className="text-xs font-medium text-gray-300 w-14 text-right truncate shrink-0">
-              {Math.round(textElement.fontSize)}px
-            </span>
+            {isMobile ? (
+              <span className="text-xs font-medium text-gray-300 w-14 text-right truncate shrink-0">
+                {Math.round(textElement.fontSize)}px
+              </span>
+            ) : (
+              // The slider spans 12-2000px in a narrow track; exact sizes are typed.
+              <NumberField
+                label=""
+                value={textElement.fontSize}
+                min={10}
+                max={5000}
+                suffix="px"
+                className="w-20 shrink-0"
+                onCommit={(size) => {
+                  onSizeChange(size);
+                  onInteractionEnd?.();
+                }}
+              />
+            )}
           </div>
         </div>
       )}
