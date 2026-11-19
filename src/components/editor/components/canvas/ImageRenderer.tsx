@@ -6,16 +6,9 @@ import type { ImageElement } from '../../types/template';
 import { resolveElementSrc } from '@/lib/asset';
 import { elementNodeProps, elementShadowProps, type ElementNodeHandlers } from './elementNode';
 
-const alphaPremultiplyFilter = (imageData: ImageData) => {
-  const { data } = imageData;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3] / 255;
-    data[i] = Math.round(data[i] * alpha);
-    data[i + 1] = Math.round(data[i + 1] * alpha);
-    data[i + 2] = Math.round(data[i + 2] * alpha);
-  }
-};
+// Stable identity: react-konva re-applies a filters array whenever it is a new one.
+const BLUR_FILTERS = [Konva.Filters.Blur];
+const NO_FILTERS: typeof BLUR_FILTERS = [];
 
 interface ImageRendererProps {
   imageElement: ImageElement;
@@ -65,7 +58,7 @@ const ImageRendererComponent = ({ imageElement, handlers, onImageLoad }: ImageRe
       {...elementNodeProps(imageElement, handlers)}
       {...elementShadowProps(imageElement)}
       image={image || undefined}
-      filters={(imageElement.blurRadius ?? 0) > 0 ? [alphaPremultiplyFilter, Konva.Filters.Blur] : []}
+      filters={(imageElement.blurRadius ?? 0) > 0 ? BLUR_FILTERS : NO_FILTERS}
       blurRadius={imageElement.blurRadius ?? 0}
       x={imageElement.x}
       y={imageElement.y}
