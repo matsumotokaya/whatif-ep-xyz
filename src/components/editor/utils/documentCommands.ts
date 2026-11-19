@@ -3,15 +3,21 @@ import type { CanvasElement, TextElement, ShapeElement, ImageElement } from '../
 // Pure command layer for the canvas document. Each Command describes one
 // mutation intent; applyCommand turns it into a brand-new elements array
 // without mutating the input array or any input element object. This is what
-// lets useHistory store raw array references in its undo/redo stacks instead
-// of deep-cloning on every push (structural sharing).
+// lets the undo history store raw array references instead of deep-cloning on
+// every push (structural sharing).
 export type Command =
   | { type: 'updateElement'; id: string; updates: Partial<CanvasElement> }
   | { type: 'updateElements'; ids: string[]; updateFn: (element: CanvasElement) => Partial<CanvasElement> }
   | { type: 'deleteElements'; ids: string[] }
   | { type: 'addElement'; element: CanvasElement }
+  | { type: 'addElements'; elements: CanvasElement[] }
+  // Insert directly below `beforeId` in z-order. Falls back to the top of the
+  // stack when the anchor no longer exists.
+  | { type: 'insertElementsBelow'; elements: CanvasElement[]; beforeId: string }
   | { type: 'bringToFront'; ids: string[] }
   | { type: 'sendToBack'; ids: string[] }
+  | { type: 'bringForward'; ids: string[] }
+  | { type: 'sendBackward'; ids: string[] }
   | { type: 'reorderElements'; elements: CanvasElement[] };
 
 function applyUpdateElement(elements: CanvasElement[], id: string, updates: Partial<CanvasElement>): CanvasElement[] {
@@ -49,28 +55,50 @@ function applyDeleteElements(elements: CanvasElement[], ids: string[]): CanvasEl
   return elements.filter((el) => !ids.includes(el.id));
 }
 
-function applyAddElement(elements: CanvasElement[], element: CanvasElement): CanvasElement[] {
-  return [...elements, element];
+function applyInsertElementsBelow(
+  elements: CanvasElement[],
+  inserted: CanvasElement[],
+  beforeId: string
+): CanvasElement[] {
+  const anchorIndex = elements.findIndex((el) => el.id === beforeId);
+  if (anchorIndex < 0) return [...elements, ...inserted];
+  return [...elements.slice(0, anchorIndex), ...inserted, ...elements.slice(anchorIndex)];
 }
 
+// Front/back moves keep the selected elements' relative z-order: selecting the
+// upper element first must not flip it below the lower one.
 function applyBringToFront(elements: CanvasElement[], ids: string[]): CanvasElement[] {
-  const selectedElements = ids
-    .map((id) => elements.find((el) => el.id === id))
-    .filter((el): el is CanvasElement => el !== undefined);
-  const remainingElements = elements.filter((el) => !ids.includes(el.id));
-  return [...remainingElements, ...selectedElements];
+  const selected = elements.filter((el) => ids.includes(el.id));
+  const remaining = elements.filter((el) => !ids.includes(el.id));
+  return [...remaining, ...selected];
 }
 
 function applySendToBack(elements: CanvasElement[], ids: string[]): CanvasElement[] {
-  const selectedElements = ids
-    .map((id) => elements.find((el) => el.id === id))
-    .filter((el): el is CanvasElement => el !== undefined);
-  const remainingElements = elements.filter((el) => !ids.includes(el.id));
-  return [...selectedElements, ...remainingElements];
+  const selected = elements.filter((el) => ids.includes(el.id));
+  const remaining = elements.filter((el) => !ids.includes(el.id));
+  return [...selected, ...remaining];
 }
 
-function applyReorderElements(newOrder: CanvasElement[]): CanvasElement[] {
-  return newOrder;
+// One step up: each selected element swaps with the nearest unselected element
+// above it. Iterating from the top keeps a selected run moving as one block.
+function applyBringForward(elements: CanvasElement[], ids: string[]): CanvasElement[] {
+  const result = [...elements];
+  for (let i = result.length - 2; i >= 0; i--) {
+    if (ids.includes(result[i].id) && !ids.includes(result[i + 1].id)) {
+      [result[i], result[i + 1]] = [result[i + 1], result[i]];
+    }
+  }
+  return result;
+}
+
+function applySendBackward(elements: CanvasElement[], ids: string[]): CanvasElement[] {
+  const result = [...elements];
+  for (let i = 1; i < result.length; i++) {
+    if (ids.includes(result[i].id) && !ids.includes(result[i - 1].id)) {
+      [result[i], result[i - 1]] = [result[i - 1], result[i]];
+    }
+  }
+  return result;
 }
 
 // Pure reducer: elements + command -> new elements array. Never mutates
@@ -84,16 +112,53 @@ export function applyCommand(elements: CanvasElement[], command: Command): Canva
     case 'deleteElements':
       return applyDeleteElements(elements, command.ids);
     case 'addElement':
-      return applyAddElement(elements, command.element);
+      return [...elements, command.element];
+    case 'addElements':
+      return [...elements, ...command.elements];
+    case 'insertElementsBelow':
+      return applyInsertElementsBelow(elements, command.elements, command.beforeId);
     case 'bringToFront':
       return applyBringToFront(elements, command.ids);
     case 'sendToBack':
       return applySendToBack(elements, command.ids);
+    case 'bringForward':
+      return applyBringForward(elements, command.ids);
+    case 'sendBackward':
+      return applySendBackward(elements, command.ids);
     case 'reorderElements':
-      return applyReorderElements(command.elements);
+      return command.elements;
     default: {
       const _exhaustive: never = command;
       return _exhaustive;
     }
   }
+}
+
+function shallowEqualElement(a: CanvasElement, b: CanvasElement): boolean {
+  if (a === b) return true;
+  const aRecord = a as unknown as Record<string, unknown>;
+  const bRecord = b as unknown as Record<string, unknown>;
+  const aKeys = Object.keys(aRecord);
+  if (aKeys.length !== Object.keys(bRecord).length) return false;
+  return aKeys.every((key) => Object.is(aRecord[key], bRecord[key]));
+}
+
+// Restore reference equality for everything a command left unchanged in value.
+// Commands always allocate (map/spread), so "set x to the value it already
+// has" would otherwise look like an edit: a redundant undo step, a redundant
+// autosave and a re-render of that element. Returns `previous` itself when the
+// whole document is unchanged.
+export function reconcileElements(previous: CanvasElement[], next: CanvasElement[]): CanvasElement[] {
+  if (previous === next) return previous;
+
+  const previousById = new Map(previous.map((el) => [el.id, el]));
+  let identical = previous.length === next.length;
+  const reconciled = next.map((el, index) => {
+    const before = previousById.get(el.id);
+    const kept = before && shallowEqualElement(before, el) ? before : el;
+    if (kept !== previous[index]) identical = false;
+    return kept;
+  });
+
+  return identical ? previous : reconciled;
 }

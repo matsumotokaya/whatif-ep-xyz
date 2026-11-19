@@ -693,7 +693,7 @@ export const BannerEditor = () => {
       return { thumbnailDataURL: undefined, fullresDataURL: undefined };
     }
 
-    await canvas.waitForNextRender();
+    await canvas.whenReadyForExport();
 
     const rawThumbnail = canvas.exportThumbnail();
     const rawFullres = canvas.exportFullresPreview();
@@ -1957,7 +1957,6 @@ export const BannerEditor = () => {
           elements={elements}
           scale={canvasScale}
           canvasColor={canvasColor}
-          fileName={`${banner.name}.png`}
           onTextChange={handleTextChange}
           selectedElementIds={selectedElementIds}
           onSelectElement={handleSelectElement}

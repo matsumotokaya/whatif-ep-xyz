@@ -1,5 +1,6 @@
-import type { Banner, CanvasElement, ShapeElement, TextElement } from '../types/template';
+import type { Banner, ShapeElement } from '../types/template';
 import { resolveElementSrc } from '@/lib/asset';
+import { ensureTextFonts, konvaFontStyle } from './textFont';
 
 const THUMBNAIL_WIDTH = 400;
 const THUMBNAIL_QUALITY = 0.7;
@@ -20,37 +21,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error(`Failed to load a banner image for preview rendering.`));
     image.src = src;
   });
-}
-
-function textFontStyle(element: TextElement): 'bold' | 'lighter' | 'normal' {
-  if (element.fontWeight >= 700) return 'bold';
-  if (element.fontWeight <= 300) return 'lighter';
-  return 'normal';
-}
-
-export function textFontSpec(element: TextElement): string {
-  return `${textFontStyle(element)} ${element.fontSize}px ${element.fontFamily}`;
-}
-
-async function ensureTextFonts(elements: CanvasElement[]): Promise<void> {
-  if (!('fonts' in document)) return;
-
-  // Pass the actual text: web fonts split by unicode-range (every Japanese
-  // Google Font) only fetch the subsets covering the sample text, and the
-  // default sample is a single space, so CJK glyphs would fall back silently.
-  // Load the face Konva will actually request (fontStyle maps weights
-  // coarsely, e.g. 900 -> bold = 700), not the stored numeric weight.
-  const textBySpec = new Map<string, string>();
-  for (const element of elements) {
-    if (element.type !== 'text') continue;
-    const spec = textFontSpec(element);
-    textBySpec.set(spec, (textBySpec.get(spec) ?? '') + element.text);
-  }
-
-  await Promise.allSettled(
-    [...textBySpec].map(([font, text]) => document.fonts.load(font, text || ' ')),
-  );
-  await document.fonts.ready;
 }
 
 function shapeCommonProps(shape: ShapeElement) {
@@ -159,7 +129,7 @@ export async function renderBannerPreviewAssets(
           letterSpacing: element.letterSpacing ?? 0,
           lineHeight: element.lineHeight ?? 1,
           align: element.align ?? 'left',
-          fontStyle: textFontStyle(element),
+          fontStyle: konvaFontStyle(element.fontWeight),
           fill: element.fillEnabled ? element.fill : 'transparent',
           stroke: element.strokeEnabled ? element.stroke : undefined,
           strokeWidth: element.strokeEnabled ? element.strokeWidth : 0,

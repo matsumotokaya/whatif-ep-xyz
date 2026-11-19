@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyCommand, type Command } from './documentCommands';
+import { applyCommand, reconcileElements, type Command } from './documentCommands';
 import type { CanvasElement, TextElement, ShapeElement, ImageElement } from '../types/template';
 
 function makeText(overrides: Partial<TextElement> = {}): TextElement {
@@ -190,19 +190,19 @@ describe('applyCommand', () => {
   });
 
   describe('bringToFront', () => {
-    it('moves selected elements to the end, preserving the order given in ids (not original order)', () => {
+    it('moves selected elements to the end, keeping their relative z-order', () => {
       const a = makeText({ id: 'a' });
       const b = makeShape({ id: 'b' });
       const c = makeImage({ id: 'c' });
       const elements: CanvasElement[] = [a, b, c];
 
-      // ids given in reverse order relative to original array
+      // Selection order must not decide stacking: `a` was below `c` and stays below it.
       const result = applyCommand(elements, { type: 'bringToFront', ids: ['c', 'a'] });
 
-      expect(result.map((el) => el.id)).toEqual(['b', 'c', 'a']);
+      expect(result.map((el) => el.id)).toEqual(['b', 'a', 'c']);
       expect(result[0]).toBe(b);
-      expect(result[1]).toBe(c);
-      expect(result[2]).toBe(a);
+      expect(result[1]).toBe(a);
+      expect(result[2]).toBe(c);
     });
 
     it('handles an empty ids array (order unchanged)', () => {
@@ -223,18 +223,18 @@ describe('applyCommand', () => {
   });
 
   describe('sendToBack', () => {
-    it('moves selected elements to the start, preserving the order given in ids', () => {
+    it('moves selected elements to the start, keeping their relative z-order', () => {
       const a = makeText({ id: 'a' });
       const b = makeShape({ id: 'b' });
       const c = makeImage({ id: 'c' });
       const elements: CanvasElement[] = [a, b, c];
 
-      const result = applyCommand(elements, { type: 'sendToBack', ids: ['c', 'a'] });
+      const result = applyCommand(elements, { type: 'sendToBack', ids: ['c', 'b'] });
 
-      expect(result.map((el) => el.id)).toEqual(['c', 'a', 'b']);
-      expect(result[0]).toBe(c);
-      expect(result[1]).toBe(a);
-      expect(result[2]).toBe(b);
+      expect(result.map((el) => el.id)).toEqual(['b', 'c', 'a']);
+      expect(result[0]).toBe(b);
+      expect(result[1]).toBe(c);
+      expect(result[2]).toBe(a);
     });
 
     it('handles an empty ids array (order unchanged)', () => {
@@ -243,6 +243,68 @@ describe('applyCommand', () => {
       const elements: CanvasElement[] = [a, b];
       const result = applyCommand(elements, { type: 'sendToBack', ids: [] });
       expect(result.map((el) => el.id)).toEqual(['a', 'b']);
+    });
+  });
+
+  describe('addElements', () => {
+    it('appends every element in the given order', () => {
+      const a = makeText({ id: 'a' });
+      const b = makeShape({ id: 'b' });
+      const c = makeImage({ id: 'c' });
+      const result = applyCommand([a], { type: 'addElements', elements: [b, c] });
+      expect(result).toEqual([a, b, c]);
+    });
+  });
+
+  describe('insertElementsBelow', () => {
+    it('inserts directly below the anchor element', () => {
+      const a = makeText({ id: 'a' });
+      const b = makeShape({ id: 'b' });
+      const shadow = makeImage({ id: 'shadow' });
+      const result = applyCommand([a, b], { type: 'insertElementsBelow', elements: [shadow], beforeId: 'b' });
+      expect(result.map((el) => el.id)).toEqual(['a', 'shadow', 'b']);
+    });
+
+    it('falls back to the top of the stack when the anchor is gone', () => {
+      const a = makeText({ id: 'a' });
+      const shadow = makeImage({ id: 'shadow' });
+      const result = applyCommand([a], { type: 'insertElementsBelow', elements: [shadow], beforeId: 'missing' });
+      expect(result.map((el) => el.id)).toEqual(['a', 'shadow']);
+    });
+  });
+
+  describe('bringForward / sendBackward', () => {
+    const ids = (elements: CanvasElement[]) => elements.map((el) => el.id);
+    const stack = () => [
+      makeShape({ id: 'a' }),
+      makeShape({ id: 'b' }),
+      makeShape({ id: 'c' }),
+      makeShape({ id: 'd' }),
+    ] as CanvasElement[];
+
+    it('moves one element a single step up', () => {
+      expect(ids(applyCommand(stack(), { type: 'bringForward', ids: ['b'] }))).toEqual(['a', 'c', 'b', 'd']);
+    });
+
+    it('moves one element a single step down', () => {
+      expect(ids(applyCommand(stack(), { type: 'sendBackward', ids: ['c'] }))).toEqual(['a', 'c', 'b', 'd']);
+    });
+
+    it('moves an adjacent selection as one block', () => {
+      expect(ids(applyCommand(stack(), { type: 'bringForward', ids: ['a', 'b'] }))).toEqual(['c', 'a', 'b', 'd']);
+      expect(ids(applyCommand(stack(), { type: 'sendBackward', ids: ['c', 'd'] }))).toEqual(['a', 'c', 'd', 'b']);
+    });
+
+    it('leaves the order unchanged at the end of the stack', () => {
+      expect(ids(applyCommand(stack(), { type: 'bringForward', ids: ['d'] }))).toEqual(['a', 'b', 'c', 'd']);
+      expect(ids(applyCommand(stack(), { type: 'sendBackward', ids: ['a'] }))).toEqual(['a', 'b', 'c', 'd']);
+      expect(ids(applyCommand(stack(), { type: 'bringForward', ids: ['c', 'd'] }))).toEqual(['a', 'b', 'c', 'd']);
+    });
+
+    it('does not mutate the input array', () => {
+      const elements = stack();
+      applyCommand(elements, { type: 'bringForward', ids: ['a'] });
+      expect(ids(elements)).toEqual(['a', 'b', 'c', 'd']);
     });
   });
 
@@ -258,5 +320,61 @@ describe('applyCommand', () => {
       expect(result).toBe(newOrder);
       expect(result.map((el) => el.id)).toEqual(['b', 'a']);
     });
+  });
+});
+
+describe('reconcileElements', () => {
+  it('returns the previous array when nothing changed in value', () => {
+    const a = makeText({ id: 'a' });
+    const b = makeShape({ id: 'b' });
+    const previous: CanvasElement[] = [a, b];
+    const next = applyCommand(previous, { type: 'updateElement', id: 'a', updates: { x: a.x } });
+
+    expect(next).not.toBe(previous);
+    expect(reconcileElements(previous, next)).toBe(previous);
+  });
+
+  it('keeps the previous object for value-equal elements and the new one otherwise', () => {
+    const a = makeText({ id: 'a' });
+    const b = makeShape({ id: 'b' });
+    const previous: CanvasElement[] = [a, b];
+    const next = applyCommand(previous, {
+      type: 'updateElements',
+      ids: ['a', 'b'],
+      updateFn: (el) => (el.id === 'a' ? { x: 42 } : { x: el.x }),
+    });
+
+    const reconciled = reconcileElements(previous, next);
+    expect(reconciled).not.toBe(previous);
+    expect(reconciled[0]).toBe(next[0]);
+    expect(reconciled[0].x).toBe(42);
+    expect(reconciled[1]).toBe(b);
+  });
+
+  it('treats a reorder as a change even though every element is unchanged', () => {
+    const a = makeText({ id: 'a' });
+    const b = makeShape({ id: 'b' });
+    const previous: CanvasElement[] = [a, b];
+    const reconciled = reconcileElements(previous, [b, a]);
+    expect(reconciled).not.toBe(previous);
+    expect(reconciled).toEqual([b, a]);
+    expect(reconciled[0]).toBe(b);
+  });
+
+  it('treats additions and removals as changes', () => {
+    const a = makeText({ id: 'a' });
+    const b = makeShape({ id: 'b' });
+    const single: CanvasElement[] = [a];
+    const pair: CanvasElement[] = [a, b];
+    expect(reconcileElements(single, [a, b])).toEqual([a, b]);
+    expect(reconcileElements(pair, [a])).toEqual([a]);
+    expect(reconcileElements(pair, [a])).not.toBe(pair);
+  });
+
+  it('notices a property that was added or removed', () => {
+    const a = makeText({ id: 'a' });
+    const withRotation = { ...a, rotation: 0 };
+    expect(reconcileElements([a], [withRotation])[0]).toBe(withRotation);
+    expect(reconcileElements([withRotation], [a])[0]).toBe(a);
   });
 });

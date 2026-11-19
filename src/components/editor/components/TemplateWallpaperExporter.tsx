@@ -68,6 +68,8 @@ export const TemplateWallpaperExporter = ({
 
     const timeoutId = window.setTimeout(async () => {
       try {
+        // Images are in; the web fonts the template uses may still be loading.
+        await canvasRef.current?.whenReadyForExport();
         const dataURL = canvasRef.current?.exportImage() || '';
         if (!dataURL || dataURL.length < 100) {
           throw new Error('Template image generation failed');

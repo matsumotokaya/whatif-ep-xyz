@@ -1,10 +1,10 @@
-import { useRef, useEffect, memo } from 'react';
+import { useRef, useEffect, memo, useCallback } from 'react';
 import Konva from 'konva';
 import { useEditorImage } from '../../hooks/useEditorImage';
 import { Image as KonvaImage } from 'react-konva';
 import type { ImageElement } from '../../types/template';
 import { resolveElementSrc } from '@/lib/asset';
-import { readNodeTransform, resetNodeScale, buildImageTransformUpdates } from '../../utils/konvaCommit';
+import { elementNodeProps, elementShadowProps, type ElementNodeHandlers } from './elementNode';
 
 const alphaPremultiplyFilter = (imageData: ImageData) => {
   const { data } = imageData;
@@ -19,54 +19,27 @@ const alphaPremultiplyFilter = (imageData: ImageData) => {
 
 interface ImageRendererProps {
   imageElement: ImageElement;
-  isShiftPressed: boolean;
-  isMultiDragging: boolean;
-  isMultiSelected: boolean;
-  onSelect: (id: string, event: Konva.KonvaEventObject<MouseEvent | Event>) => void;
-  onUpdate?: (id: string, updates: Partial<ImageElement>) => void;
-  onDragStart?: (id: string, event: Konva.KonvaEventObject<DragEvent>) => void;
-  onDragMove?: (id: string, event: Konva.KonvaEventObject<DragEvent>) => void;
-  onDragEnd?: (id: string, event: Konva.KonvaEventObject<DragEvent>) => boolean;
-  nodeRef: (node: Konva.Image | null, id: string) => void;
+  handlers: ElementNodeHandlers;
   onImageLoad?: (id: string, status: 'loaded' | 'error') => void;
 }
 
-const ImageRendererComponent = ({
-  imageElement,
-  isShiftPressed,
-  isMultiDragging,
-  isMultiSelected,
-  onSelect,
-  onUpdate,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
-  nodeRef,
-  onImageLoad,
-}: ImageRendererProps) => {
-  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
-  const lockAxisRef = useRef<'x' | 'y' | null>(null);
+const ImageRendererComponent = ({ imageElement, handlers, onImageLoad }: ImageRendererProps) => {
+  const { id } = imageElement;
   const localNodeRef = useRef<Konva.Image | null>(null);
-
-  const resolveLockAxis = (currentPos: { x: number; y: number }, startPos: { x: number; y: number }) => {
-    const dx = Math.abs(currentPos.x - startPos.x);
-    const dy = Math.abs(currentPos.y - startPos.y);
-    if (dx === dy) return null;
-    // dx >= dy means horizontal movement, so lock Y (fixed Y-axis)
-    return dx >= dy ? 'y' : 'x';
-  };
-
-  const resetDragState = () => {
-    dragStartPosRef.current = null;
-    lockAxisRef.current = null;
-  };
+  const setNode = useCallback(
+    (node: Konva.Image | null) => {
+      localNodeRef.current = node;
+      handlers.registerNode(id, node);
+    },
+    [handlers, id],
+  );
 
   const resolvedSrc = resolveElementSrc(imageElement.src);
   const { image, status } = useEditorImage(resolvedSrc);
 
   useEffect(() => {
-    if (status !== 'loading') onImageLoad?.(imageElement.id, status);
-  }, [imageElement.id, onImageLoad, status]);
+    if (status !== 'loading') onImageLoad?.(id, status);
+  }, [id, onImageLoad, status]);
 
   useEffect(() => {
     const node = localNodeRef.current;
@@ -88,10 +61,9 @@ const ImageRendererComponent = ({
 
   return (
     <KonvaImage
-      ref={(node) => {
-        localNodeRef.current = node;
-        nodeRef(node, imageElement.id);
-      }}
+      ref={setNode}
+      {...elementNodeProps(imageElement, handlers)}
+      {...elementShadowProps(imageElement)}
       image={image || undefined}
       filters={(imageElement.blurRadius ?? 0) > 0 ? [alphaPremultiplyFilter, Konva.Filters.Blur] : []}
       blurRadius={imageElement.blurRadius ?? 0}
@@ -99,79 +71,10 @@ const ImageRendererComponent = ({
       y={imageElement.y}
       width={imageElement.width}
       height={imageElement.height}
-      shadowEnabled={imageElement.shadowEnabled ?? false}
-      shadowColor={imageElement.shadowColor ?? '#000000'}
-      shadowBlur={imageElement.shadowBlur ?? 4}
-      shadowOffsetX={imageElement.shadowOffsetX ?? 2}
-      shadowOffsetY={imageElement.shadowOffsetY ?? 2}
-      shadowOpacity={imageElement.shadowOpacity ?? 0.5}
       rotation={imageElement.rotation || 0}
       opacity={imageElement.opacity ?? 1}
-      visible={imageElement.visible ?? true}
-      draggable={!imageElement.locked && (imageElement.visible ?? true)}
-      listening={!imageElement.locked && (imageElement.visible ?? true)}
-      onMouseDown={(e) => onSelect(imageElement.id, e)}
-      onTouchStart={(e) => onSelect(imageElement.id, e)}
-      onTap={(e) => onSelect(imageElement.id, e)}
-      onDragStart={(e) => {
-        dragStartPosRef.current = e.target.getAbsolutePosition();
-        lockAxisRef.current = null;
-        onDragStart?.(imageElement.id, e);
-      }}
-      dragBoundFunc={(pos) => {
-        if (isMultiDragging || !dragStartPosRef.current) {
-          return pos;
-        }
-
-        if (!isShiftPressed) {
-          lockAxisRef.current = null;
-          return pos;
-        }
-
-        const startPos = dragStartPosRef.current;
-
-        if (!lockAxisRef.current) {
-          lockAxisRef.current = resolveLockAxis(pos, startPos);
-        }
-
-        if (!lockAxisRef.current) {
-          return pos;
-        }
-
-        return lockAxisRef.current === 'x'
-          ? { x: startPos.x, y: pos.y }
-          : { x: pos.x, y: startPos.y };
-      }}
-      onDragMove={(e) => {
-        onDragMove?.(imageElement.id, e);
-      }}
-      onDragEnd={(e) => {
-        const handled = onDragEnd?.(imageElement.id, e);
-        resetDragState();
-        if (!handled && onUpdate) {
-          onUpdate(imageElement.id, {
-            x: e.target.x(),
-            y: e.target.y(),
-          });
-        }
-      }}
-      onTransformEnd={(e) => {
-        // Skip when multi-selected — group Transformer handles batch update
-        if (isMultiSelected) return;
-
-        // Read node transform, then reset scale so it folds into width/height
-        const node = e.target;
-        const t = readNodeTransform(node);
-        resetNodeScale(node);
-
-        if (onUpdate) {
-          // Size source is the node itself (matches pre-refactor behavior)
-          onUpdate(imageElement.id, buildImageTransformUpdates({ width: t.width, height: t.height }, t));
-        }
-      }}
     />
   );
 };
 
-// Compare callbacks as well as visual props, so edits never retain stale handlers.
 export const ImageRenderer = memo(ImageRendererComponent);

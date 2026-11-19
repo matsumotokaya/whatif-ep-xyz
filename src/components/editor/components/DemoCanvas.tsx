@@ -248,6 +248,7 @@ export const DemoCanvas = ({ scale = 0.45 }: DemoCanvasProps) => {
 
   const handleExport = async () => {
     if (!canvasRef.current) return;
+    await canvasRef.current.whenReadyForExport();
     const dataURL = canvasRef.current.exportImage();
     if (!dataURL || dataURL.length < 100) {
       alert(t('message:error.imageGenerationFailed'));

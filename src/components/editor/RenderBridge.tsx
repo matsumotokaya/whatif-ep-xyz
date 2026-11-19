@@ -10,7 +10,8 @@
 import { useEffect, useState } from 'react';
 import { useEditorFonts } from './lib/fonts';
 import { migrateElements } from './utils/elementMigration';
-import { renderBannerPreviewAssets, textFontSpec } from './utils/bannerPreviewRenderer';
+import { renderBannerPreviewAssets } from './utils/bannerPreviewRenderer';
+import { textFontSpec } from './utils/textFont';
 import { ALL_SIZE_PRESETS, DEFAULT_SIZES } from './utils/sizeCategories';
 import type { CanvasElement, Template, TextElement } from './types/template';
 
