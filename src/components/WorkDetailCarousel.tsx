@@ -8,7 +8,6 @@ import { MotionDetailVideo } from "@/components/MotionDetailVideo";
 export interface WorkDetailSlide {
   variantNumber: number;
   candidates: string[];
-  imagineUrl: string | null;
   videoUrl: string | null;
   videoHasAudio: boolean;
 }
@@ -21,6 +20,10 @@ interface WorkDetailCarouselProps {
   /** Base path of the work, e.g. /works/episode/0473. */
   basePath: string;
 }
+
+// How long the page render of a replace this carousel made is recognised as
+// its own echo rather than navigation.
+const OWN_REQUEST_TTL_MS = 5000;
 
 function Chevron({ direction }: { direction: "left" | "right" }) {
   return (
@@ -40,8 +43,10 @@ function Chevron({ direction }: { direction: "left" | "right" }) {
  *
  * The side panel (wallpaper offer, download, IMAGINE CTA) is rendered by the
  * server for one variant, so a settled slide change replaces ?variant= in the
- * URL. The component itself keeps its scroll position across that re-render
- * and only scrolls when the variant changes from outside (the Variants pills).
+ * URL. That replace re-renders the page, and its result can arrive after the
+ * user has already moved on, so a variant this carousel requested itself is
+ * never treated as navigation: only a variant changed from outside (the
+ * Variants pills) scrolls the track.
  */
 export function WorkDetailCarousel({ slides, activeIndex, title, basePath }: WorkDetailCarouselProps) {
   const router = useRouter();
@@ -49,6 +54,11 @@ export function WorkDetailCarousel({ slides, activeIndex, title, basePath }: Wor
   const [index, setIndex] = useState(activeIndex);
   const indexRef = useRef(activeIndex);
   const settleTimer = useRef<number | null>(null);
+  // Slide the URL currently asks for (or will, once a pending replace lands).
+  const urlIndexRef = useRef(activeIndex);
+  // Slides this carousel put in the URL recently, with the time of the
+  // request. A superseded replace may never render, so entries expire.
+  const ownRequests = useRef(new Map<number, number>());
 
   // Start on the server-selected slide without animating.
   useEffect(() => {
@@ -57,8 +67,13 @@ export function WorkDetailCarousel({ slides, activeIndex, title, basePath }: Wor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Follow external navigation (Variants pills / back button).
+  // Follow external navigation (Variants pills / back button). The echo of a
+  // replace this carousel made is not navigation, even if it arrives late.
   useEffect(() => {
+    const requestedAt = ownRequests.current.get(activeIndex);
+    ownRequests.current.delete(activeIndex);
+    if (requestedAt !== undefined && Date.now() - requestedAt < OWN_REQUEST_TTL_MS) return;
+    urlIndexRef.current = activeIndex;
     if (activeIndex === indexRef.current) return;
     indexRef.current = activeIndex;
     setIndex(activeIndex);
@@ -77,6 +92,8 @@ export function WorkDetailCarousel({ slides, activeIndex, title, basePath }: Wor
     const slide = slides[nextIndex];
     if (!slide) return;
     const href = nextIndex === 0 ? basePath : `${basePath}?variant=${slide.variantNumber}`;
+    urlIndexRef.current = nextIndex;
+    ownRequests.current.set(nextIndex, Date.now());
     router.replace(href, { scroll: false });
   };
 
@@ -91,7 +108,7 @@ export function WorkDetailCarousel({ slides, activeIndex, title, basePath }: Wor
     // Update the URL once scrolling settles, not on every frame.
     if (settleTimer.current) window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
-      if (indexRef.current !== activeIndex) syncUrl(indexRef.current);
+      if (indexRef.current !== urlIndexRef.current) syncUrl(indexRef.current);
     }, 150);
   };
 
@@ -126,7 +143,6 @@ export function WorkDetailCarousel({ slides, activeIndex, title, basePath }: Wor
               <EpisodeDetailImage
                 candidates={slide.candidates}
                 alt={slideIndex === 0 ? title : `${title} (${slideIndex + 1})`}
-                imagineUrl={slide.imagineUrl}
                 priority={slideIndex === activeIndex}
               />
             )}

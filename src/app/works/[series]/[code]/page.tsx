@@ -163,15 +163,15 @@ export default async function WorkDetailPage({
     work.offers.find((offer) => offer.offerType === "store_product") ??
     null;
 
-  // Shared IMAGINE destination: drives both the violet CTA and the clickable
-  // artwork shortcut. Null when no ready starter offer exists.
+  // IMAGINE destination for the violet CTA. Null when no ready starter offer
+  // exists.
   const imagineUrl = resolveReadyOfferUrl(
     imagineOffer?.status,
     imagineOffer?.targetUrl
   );
 
   // Carousel slides: every displayable variant, in the gallery card order
-  // (primary first, then sort order), each with its own IMAGINE destination.
+  // (primary first, then sort order).
   const slideVariants = work.variants
     .filter((variant) => variant.status !== "hidden" && variant.originalStorageKey)
     .sort(
@@ -180,19 +180,12 @@ export default async function WorkDetailPage({
         a.sortOrder - b.sortOrder ||
         a.variantNumber - b.variantNumber
     );
-  const slides: WorkDetailSlide[] = slideVariants.map((variant) => {
-    const offer =
-      variant.offers.find((item) => item.offerType === "imagine_starter") ??
-      work.offers.find((item) => item.offerType === "imagine_starter") ??
-      null;
-    return {
-      variantNumber: variant.variantNumber,
-      candidates: getVariantDetailImageCandidates(variant),
-      imagineUrl: resolveReadyOfferUrl(offer?.status, offer?.targetUrl),
-      videoUrl: variant.videoUrl,
-      videoHasAudio: variant.videoHasAudio,
-    };
-  });
+  const slides: WorkDetailSlide[] = slideVariants.map((variant) => ({
+    variantNumber: variant.variantNumber,
+    candidates: getVariantDetailImageCandidates(variant),
+    videoUrl: variant.videoUrl,
+    videoHasAudio: variant.videoHasAudio,
+  }));
   const activeSlideIndex = Math.max(
     0,
     slideVariants.findIndex((variant) => variant.id === currentVariant.id)
@@ -235,11 +228,7 @@ export default async function WorkDetailPage({
               hasAudio={currentVariant.videoHasAudio}
             />
           ) : (
-            <EpisodeDetailImage
-              candidates={imageCandidates}
-              alt={work.title}
-              imagineUrl={imagineUrl}
-            />
+            <EpisodeDetailImage candidates={imageCandidates} alt={work.title} />
           )}
 
           {/* Save button overlaid at the top-right of the image */}
