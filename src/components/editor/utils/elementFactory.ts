@@ -159,6 +159,16 @@ export function createImageElement(
   };
 }
 
+// A template's elements as the starting point of a new design: a deep copy
+// with every element unlocked. A lock saved into a template (left on while
+// the template was being made) must not reach the people who open it.
+export function elementsFromTemplate(elements: readonly CanvasElement[] | null | undefined): CanvasElement[] {
+  return (JSON.parse(JSON.stringify(elements ?? [])) as CanvasElement[]).map((element) => ({
+    ...element,
+    locked: false,
+  }));
+}
+
 // Independent copies with fresh ids, shifted by `offset` on both axes. Copies
 // are always unlocked: a pasted element the user cannot move is a trap.
 export function cloneElements(

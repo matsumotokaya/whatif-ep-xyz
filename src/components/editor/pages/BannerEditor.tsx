@@ -9,6 +9,7 @@ import { useOpenTemplate } from '../hooks/useOpenTemplate';
 import { useAuth } from '../contexts/AuthContext';
 import type { CanvasElement, Template } from '../types/template';
 import { GUEST_STORAGE_KEY } from '../utils/guestDesign';
+import { elementsFromTemplate } from '../utils/elementFactory';
 
 // Navigation state handed over by the screen that opened the editor.
 interface EditorLocationState {
@@ -155,7 +156,7 @@ export const BannerEditor = () => {
             thumbnail: template.thumbnailUrl,
             planType: template.planType,
           },
-          elements: JSON.parse(JSON.stringify(template.elements || [])),
+          elements: elementsFromTemplate(template.elements),
           canvasColor: template.canvasColor,
           name: template.name,
           templateId: template.id,

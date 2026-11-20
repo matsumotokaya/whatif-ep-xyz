@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import sharp from 'sharp';
 import {
   canvasPoint,
   dragMouse,
@@ -355,5 +356,41 @@ test.describe('precision and menus', () => {
     await menu.getByRole('menuitem', { name: 'Lock' }).click();
     await dragMouse(page, onRect, { x: onRect.x + 80, y: onRect.y });
     await expect.poll(async () => await savedElement(page, 'rect')).toMatchObject({ locked: true, x: 100 });
+  });
+});
+
+test.describe('cut-out images', () => {
+  test('a click on a transparent part of an image reaches the element behind it', async ({ page }) => {
+    // A character cut-out: left half opaque, right half transparent, laid over
+    // the whole artboard on top of a text.
+    const opaqueHalf = await sharp({ create: { width: 32, height: 64, channels: 4, background: '#334455' } }).png().toBuffer();
+    const cutout = await sharp({ create: { width: 64, height: 64, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: opaqueHalf, left: 0, top: 0 }])
+      .png()
+      .toBuffer();
+    await page.route('https://cutout.invalid/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: cutout }),
+    );
+    const design = studioDesign();
+    design.elements = [
+      textElement('behind', { text: 'BEHIND', x: 600, y: 450, fontSize: 100 }),
+      { id: 'person', type: 'image', src: 'https://cutout.invalid/person.png', x: 0, y: 0, width: 1000, height: 1000, visible: true, locked: false },
+    ];
+    await openGuestEditor(page, design);
+    await page.waitForLoadState('networkidle');
+    const view = await studioView(page);
+
+    // Through the transparent half: the text moves, the image stays.
+    const onText = canvasPoint(view, 650, 500);
+    await expect(async () => {
+      await dragMouse(page, onText, { x: onText.x + 40, y: onText.y });
+      expect((await savedElement(page, 'behind'))?.x).toBeGreaterThan(600);
+    }).toPass();
+    expect(await savedElement(page, 'person')).toMatchObject({ x: 0, y: 0 });
+
+    // The opaque half still belongs to the image.
+    const onPerson = canvasPoint(view, 250, 500);
+    await dragMouse(page, onPerson, { x: onPerson.x + 40, y: onPerson.y });
+    await expect.poll(async () => (await savedElement(page, 'person'))?.x).toBeGreaterThan(0);
   });
 });

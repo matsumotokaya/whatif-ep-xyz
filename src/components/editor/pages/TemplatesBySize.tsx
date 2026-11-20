@@ -16,6 +16,7 @@ import type { Template, TemplateRecord } from '../types/template';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from '../lib/router';
 import { templateStorage } from '../utils/templateStorage';
+import { elementsFromTemplate } from '../utils/elementFactory';
 import { getGridCols, resolveSizeCategory } from '../utils/sizeCategories';
 
 export const TemplatesBySize = () => {
@@ -226,9 +227,7 @@ export const TemplatesBySize = () => {
           if (!pendingGuestTemplate) return;
 
           const editorTemplate = buildEditorTemplate(pendingGuestTemplate);
-          const templateElements = JSON.parse(
-            JSON.stringify(pendingGuestTemplate.elements || [])
-          );
+          const templateElements = elementsFromTemplate(pendingGuestTemplate.elements);
 
           setPendingGuestTemplate(null);
           navigate('/edit', {

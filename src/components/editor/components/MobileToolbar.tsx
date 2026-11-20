@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { CanvasElement } from '../types/template';
 import { resolveElementSrc } from '@/lib/asset';
 import { arrayMove } from '@dnd-kit/sortable';
+import { layerToggleClass } from './layerToggleStyle';
 
 interface MobileToolbarProps {
   canvasColor: string;
@@ -229,10 +230,10 @@ export const MobileToolbar = ({
                                   e.stopPropagation();
                                   onToggleVisibility?.(element.id);
                                 }}
-                                className="p-1 hover:bg-[#444444] rounded"
+                                className={`p-1 rounded transition-colors ${layerToggleClass(!(element.visible ?? true))}`}
                               >
-                                <span className="material-symbols-outlined text-[16px] text-gray-400">
-                                  {element.visible ? 'visibility' : 'visibility_off'}
+                                <span className="material-symbols-outlined text-[16px]">
+                                  {(element.visible ?? true) ? 'visibility' : 'visibility_off'}
                                 </span>
                               </button>
                               <button
@@ -240,9 +241,9 @@ export const MobileToolbar = ({
                                   e.stopPropagation();
                                   onToggleLock?.(element.id);
                                 }}
-                                className="p-1 hover:bg-[#444444] rounded"
+                                className={`p-1 rounded transition-colors ${layerToggleClass(!!element.locked)}`}
                               >
-                                <span className="material-symbols-outlined text-[16px] text-gray-400">
+                                <span className="material-symbols-outlined text-[16px]">
                                   {element.locked ? 'lock' : 'lock_open'}
                                 </span>
                               </button>

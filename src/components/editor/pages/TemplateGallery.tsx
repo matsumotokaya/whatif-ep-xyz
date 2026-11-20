@@ -17,6 +17,7 @@ import { DEFAULT_TEMPLATES } from '../templates/defaultTemplates';
 import type { Template, TemplateRecord } from '../types/template';
 import { useAuth } from '../contexts/AuthContext';
 import { templateStorage } from '../utils/templateStorage';
+import { elementsFromTemplate } from '../utils/elementFactory';
 import {
   filterBySize,
   getAvailableSizeCategories,
@@ -261,9 +262,7 @@ export const TemplateGallery = () => {
           if (!pendingGuestTemplate) return;
 
           const editorTemplate = buildEditorTemplate(pendingGuestTemplate);
-          const templateElements = JSON.parse(
-            JSON.stringify(pendingGuestTemplate.elements || [])
-          );
+          const templateElements = elementsFromTemplate(pendingGuestTemplate.elements);
 
           setPendingGuestTemplate(null);
           navigate('/edit', {

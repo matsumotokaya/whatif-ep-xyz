@@ -5,6 +5,7 @@ import { Image as KonvaImage } from 'react-konva';
 import type { ImageElement } from '../../types/template';
 import { resolveElementSrc } from '@/lib/asset';
 import { elementNodeProps, elementShadowProps, type ElementNodeHandlers } from './elementNode';
+import { tintedHitMask } from '../../utils/imageHitMask';
 
 // Stable identity: react-konva re-applies a filters array whenever it is a new one.
 const BLUR_FILTERS = [Konva.Filters.Blur];
@@ -29,6 +30,29 @@ const ImageRendererComponent = ({ imageElement, handlers, onImageLoad }: ImageRe
 
   const resolvedSrc = resolveElementSrc(imageElement.src);
   const { image, status } = useEditorImage(resolvedSrc);
+
+  // Clicks on transparent pixels fall through to the elements behind.
+  const hitFunc = useCallback(
+    (context: Konva.Context, shape: Konva.Shape) => {
+      const width = shape.width();
+      const height = shape.height();
+      const mask = image ? tintedHitMask(image, shape.colorKey) : null;
+      if (!mask) {
+        context.beginPath();
+        context.rect(0, 0, width, height);
+        context.closePath();
+        context.fillStrokeShape(shape);
+        return;
+      }
+      const native = context._context;
+      const smoothing = native.imageSmoothingEnabled;
+      // Nearest-neighbour scaling keeps every painted pixel exactly the hit colour.
+      native.imageSmoothingEnabled = false;
+      native.drawImage(mask, 0, 0, width, height);
+      native.imageSmoothingEnabled = smoothing;
+    },
+    [image],
+  );
 
   useEffect(() => {
     if (status !== 'loading') onImageLoad?.(id, status);
@@ -58,6 +82,7 @@ const ImageRendererComponent = ({ imageElement, handlers, onImageLoad }: ImageRe
       {...elementNodeProps(imageElement, handlers)}
       {...elementShadowProps(imageElement)}
       image={image || undefined}
+      hitFunc={hitFunc}
       filters={(imageElement.blurRadius ?? 0) > 0 ? BLUR_FILTERS : NO_FILTERS}
       blurRadius={imageElement.blurRadius ?? 0}
       x={imageElement.x}

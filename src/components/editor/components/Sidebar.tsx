@@ -27,6 +27,7 @@ import { CanvasSizeSelector } from './CanvasSizeSelector';
 import { UpgradeModal } from './UpgradeModal';
 import type { CanvasElement } from '../types/template';
 import { resolveElementSrc } from '@/lib/asset';
+import { layerToggleClass } from './layerToggleStyle';
 
 interface SidebarProps {
   canvasColor: string;
@@ -161,10 +162,10 @@ const SortableLayerItem = ({ element, isSelected, onSelect, onToggleLock, onTogg
             e.stopPropagation();
             onToggleVisibility(element.id);
           }}
-          className="p-2 hover:bg-[#444444] rounded transition-colors flex-shrink-0"
+          className={`p-2 rounded transition-colors flex-shrink-0 ${layerToggleClass(!isVisible)}`}
           title={isVisible ? t('layerVisibility.hide') : t('layerVisibility.show')}
         >
-          <span className="material-symbols-outlined text-[18px] text-gray-400">
+          <span className="material-symbols-outlined text-[18px]">
             {isVisible ? 'visibility' : 'visibility_off'}
           </span>
         </button>
@@ -175,16 +176,10 @@ const SortableLayerItem = ({ element, isSelected, onSelect, onToggleLock, onTogg
             e.stopPropagation();
             onToggleLock(element.id);
           }}
-          className={`p-2 rounded transition-colors flex-shrink-0 ${
-            element.locked
-              ? 'bg-white hover:bg-gray-200'
-              : 'hover:bg-[#444444]'
-          }`}
+          className={`p-2 rounded transition-colors flex-shrink-0 ${layerToggleClass(!!element.locked)}`}
           title={element.locked ? t('editor:unlock') : t('editor:lock')}
         >
-          <span className={`material-symbols-outlined text-[18px] ${
-            element.locked ? 'text-gray-900' : 'text-gray-400'
-          }`}>
+          <span className="material-symbols-outlined text-[18px]">
             {element.locked ? 'lock' : 'lock_open'}
           </span>
         </button>

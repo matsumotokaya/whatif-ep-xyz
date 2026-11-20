@@ -7,6 +7,7 @@ import {
   removeFilesFromBucket,
 } from './storage';
 import { uploadAsset, deleteAssets } from './r2Upload';
+import { elementsFromTemplate } from './elementFactory';
 import {
   createAssetRevision,
   buildBannerThumbKey,
@@ -450,7 +451,7 @@ export const bannerStorage = {
       return null;
     }
 
-    const elements = JSON.parse(JSON.stringify(template.elements || []));
+    const elements = elementsFromTemplate(template.elements);
 
     const { data, error } = await supabase
       .from('banners')

@@ -7,6 +7,7 @@ import {
   createImageElement,
   createShapeElement,
   createTextElement,
+  elementsFromTemplate,
   fitNewImageSize,
 } from './elementFactory';
 import type { CanvasElement, ShapeElement } from '../types/template';
@@ -119,5 +120,19 @@ describe('cloneElements', () => {
     const copies = cloneElements([shape('a', 0, 0), shape('b', 5, 5)], 0, () => `id-${++counter}`);
     expect(copies.map((el) => el.x)).toEqual([0, 5]);
     expect(copies.map((el) => el.id)).toEqual(['id-1', 'id-2']);
+  });
+});
+
+describe('elementsFromTemplate', () => {
+  it('unlocks every element and does not share objects with the template', () => {
+    const template = [
+      { id: 'a', type: 'image', x: 0, y: 0, width: 10, height: 10, src: 's', locked: true },
+      { id: 'b', type: 'text', x: 0, y: 0, text: 't', locked: false },
+    ] as unknown as CanvasElement[];
+    const copied = elementsFromTemplate(template);
+    expect(copied.map((element) => element.locked)).toEqual([false, false]);
+    expect(template[0].locked).toBe(true);
+    expect(copied[0]).not.toBe(template[0]);
+    expect(elementsFromTemplate(undefined)).toEqual([]);
   });
 });

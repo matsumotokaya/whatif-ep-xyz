@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { bannerStorage } from '../utils/bannerStorage';
 import { templateStorage } from '../utils/templateStorage';
+import { elementsFromTemplate } from '../utils/elementFactory';
 import { hasGuestDesignConflict, isPremiumTemplate } from '../utils/guestDesign';
 import { bannerKeys, invalidateBannerCollectionQueries } from './useBanners';
 import { DEFAULT_TEMPLATES } from '../templates/defaultTemplates';
@@ -83,7 +84,7 @@ export function useOpenTemplate(options: UseOpenTemplateOptions) {
       templateStorage.incrementOpenCount(resolvedTemplate.id);
 
       const editorTemplate = buildEditorTemplate(resolvedTemplate);
-      const templateElements = JSON.parse(JSON.stringify(resolvedTemplate.elements || []));
+      const templateElements = elementsFromTemplate(resolvedTemplate.elements);
 
       if (!user) {
         if (hasGuestDesignConflict(resolvedTemplate.id)) {
